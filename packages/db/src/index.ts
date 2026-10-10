@@ -1,12 +1,13 @@
 import pg, { type PoolClient } from 'pg';
 import { attachDatabasePool } from '@vercel/functions';
+import { databaseConnectionOptions } from './database-tls';
 pg.types.setTypeParser(1700,value=>Number(value));
 export type { PoolClient } from 'pg';
 let pool: pg.Pool | undefined;
 function getPool() {
   if (!process.env.DATABASE_URL?.trim()) throw Object.assign(new Error('Database connection not configured'), { code: 'DB_NOT_CONFIGURED' });
   if (!pool) {
-    pool = new pg.Pool({connectionString:process.env.DATABASE_URL,max:3,idleTimeoutMillis:5000,connectionTimeoutMillis:8000});
+    pool = new pg.Pool({...databaseConnectionOptions(process.env.DATABASE_URL),max:3,idleTimeoutMillis:5000,connectionTimeoutMillis:8000});
     attachDatabasePool(pool);
     pool.on('error',()=>console.error(JSON.stringify({event:'db_pool_error'})));
   }

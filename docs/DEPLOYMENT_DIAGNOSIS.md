@@ -82,6 +82,16 @@ Frontend proxy ยังตอบ `DNS_HOSTNAME_RESOLVED_PRIVATE` หลัง d
 
 เพิ่ม `causeCode` ใน runtime log โดยรับเฉพาะ allowlist ของ SQLSTATE/Node connection/TLS codes ที่รู้จัก และ `DB_NOT_CONFIGURED` สำหรับค่าเชื่อมต่อที่ว่าง ไม่ log raw error messages, connection strings, SQL, provider payloads หรือข้อมูลผู้ใช้ HTTP error ที่ผู้ใช้เห็นยังเป็นข้อความทั่วไปตามเดิม การเพิ่ม diagnostics ไม่ปิด certificate verification หรือเปลี่ยนสิทธิ์ฐานข้อมูล
 
+## สาเหตุ TLS และการแก้ไข
+
+Deployment `7214dd5` สำเร็จทั้ง 4 projects หลังแก้ public config: frontend proxies ทั้งสามตอบ HTTP 401 JSON เมื่อเปิด `/api/v1/pets` โดยไม่ล็อกอิน จึงยืนยันว่าเส้นทาง API ใช้งานได้แล้ว สำหรับ `/api/v1/clinics` log ของ backend deployment `dpl_Pqs45RS9qXpKftyy3yZkHKSqVFMh` ให้ `causeCode=SELF_SIGNED_CERT_IN_CHAIN` ยืนยันสาเหตุที่การตรวจ certificate chain ล้มเหลว
+
+ดาวน์โหลด public CA ผ่าน HTTPS จาก URL ที่ Supabase dashboard ใช้จริงใน [source ทางการ](https://github.com/supabase/supabase/blob/master/apps/studio/hooks/custom-content/custom-content.json): [prod-ca-2021.crt](https://supabase-downloads.s3-ap-southeast-1.amazonaws.com/prod/ssl/prod-ca-2021.crt) และ bundle เป็น static PEM ใน `packages/db/src/supabase-ca.ts` ไม่ใช่ credentials ค่า SHA-256 คือ `807025ad50d4ed219d2c9c7d299c004f824eb00cf7f65afef607d07b72e6cafa` หมดอายุ 26 เมษายน 2031
+
+การทดสอบ PostgreSQL STARTTLS กับ pooler host ที่ผู้ใช้ให้มา โดยไม่ส่ง authentication หรือ SQL: ก่อนเพิ่ม CA ได้ verify error 19; หลังใช้ CA นี้และ `verify_hostname` ได้ verify return code 0 (ok) การตรวจ backend request ที่เชื่อมฐานข้อมูลต้องทำอีกครั้งหลัง deploy ตัวแก้ TLS
+
+ตัวแก้ใช้ CA เฉพาะ actual pg host ที่อยู่ใต้ `.pooler.supabase.com`, คง `rejectUnauthorized: true` และ hostname verification ไม่มี global trust หรือการปิด SSL verification ลบเฉพาะ SSL parser overrides ใน connection string เมื่อใช้ CA เพื่อไม่ให้ `sslmode` เขียนทับ `ssl.ca` และรักษารหัสผ่านที่ encode แล้ว/username/port/path/ตัวเลือกอื่นตามเดิม Unit tests ตรวจ actual pg.Client parser, host-query override, domain suffix boundaries, local Docker และ certificate fingerprint CLI upgrade ใช้ helper เดียวกัน
+
 ## แหล่งอ้างอิง
 
 - [Chrome: เปลี่ยนขนาดตัวอักษรและระดับ zoom](https://support.google.com/chrome/answer/96810)

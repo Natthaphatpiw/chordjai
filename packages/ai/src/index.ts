@@ -14,7 +14,7 @@ const deadlines:Record<AiFeature,number>={'assistant.chat':45000,'journal.decora
 let client: OpenAI | undefined;
 function openai() {
   if ((process.env.OPENAI_MODEL ?? GENERATIVE_MODEL) !== GENERATIVE_MODEL) throw new HttpError(503, 'MODEL_CONFIG_INVALID', 'OPENAI_MODEL must be gpt-6.1-sol');
-  if (!process.env.OPENAI_API_KEY) throw new HttpError(503, 'AI_NOT_CONFIGURED', 'กรุณาตั้งค่า OPENAI_API_KEY ก่อนใช้ AI');
+  if (!process.env.OPENAI_API_KEY) throw new HttpError(503, 'AI_NOT_CONFIGURED', 'ผู้ช่วย AI ยังไม่พร้อมใช้งาน กรุณาลองใหม่ภายหลัง');
   return client ??= new OpenAI({ apiKey: process.env.OPENAI_API_KEY, maxRetries: 0, timeout: 45_000 });
 }
 type Options = { userId: string; feature: Exclude<AiFeature, 'embed.petid'>; instructions: string; input?: unknown; images?: string[]; messages?: { role: 'user' | 'assistant'; content: string }[]; maxOutputTokens?: number };

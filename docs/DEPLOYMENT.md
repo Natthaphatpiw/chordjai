@@ -54,6 +54,8 @@ DATABASE_URL เป็น connection string Postgres ของ Supabase ไม�
 
 เปิด Supabase project → **Connect → Transaction pooler** แล้วคัดลอก connection string ทั้งบรรทัด พอร์ตเป็น `6543` แทน `[YOUR-PASSWORD]` ด้วยรหัสผ่านฐานข้อมูล และเติม `?sslmode=require` หากยังไม่มี ห้ามเดา pooler hostname จาก region หรือเปลี่ยนแค่พอร์ตของ Direct connection เพราะ pooled username เป็น `postgres.PROJECT_REF` ด้วย [Supabase connection guide](https://supabase.com/docs/guides/database/connecting-to-postgres)
 
+Backend และ CLI `db:upgrade` ใช้ public Supabase Root 2021 CA ที่ bundle ใน `packages/db/src/supabase-ca.ts` เฉพาะ shared pooler hostname ที่ลงท้าย `.pooler.supabase.com` ตรวจ certificate และ hostname ด้วย `rejectUnauthorized: true` โดยจัดการ SSL query options ที่อาจ override CA ใน node-postgres ให้แล้ว ไม่ต้องเพิ่ม secret หรือปิดการตรวจ TLS สำหรับ pooler นี้ Connection ของ local test และผู้ให้บริการอื่นคงค่าของตัวเอง ดู [node-postgres SSL options](https://node-postgres.com/features/ssl) และ [Supabase SSL configuration](https://supabase.com/docs/guides/platform/ssl-enforcement)
+
 ราคาค่า AI ข้างต้นเป็น Standard short-context ที่ตรวจ10ต.ค.2026: input$2/output$10ต่อ1ล้านtokens ไม่ใช่ต้นทุนต่อผู้ใช้ที่รับประกัน และยังมีค่า infra/LINE/Blob ใช้ token limits, reservation และ daily budget; logเป็นค่าประมาณก่อนใบแจ้งหนี้ ไม่หักส่วนลดcache จึงประมาณแบบเผื่อ [OpenAI pricing](https://developers.openai.com/api/docs/pricing)
 
 ## Frontend environment
