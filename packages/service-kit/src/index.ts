@@ -6,6 +6,7 @@ import { verifySession } from '@chordjai/auth';
 import { withUser } from '@chordjai/db';
 import { z } from 'zod';
 import { idempotency } from './idempotency';
+import { errorDiagnosticCode } from './error-diagnostic';
 import type { ContentfulStatusCode } from 'hono/utils/http-status';
 export type Actor={id:string;role:'owner'|'admin'|'vet'};
 export type ServiceEnv={Variables:{actor:Actor|undefined;requestId:string}};
@@ -58,7 +59,7 @@ export function createService(name:string){
     if(dbError.code==='42501'){status=403;code='FORBIDDEN';message='คุณไม่มีสิทธิ์เข้าถึงข้อมูลนี้';}
     if(dbError.code==='23505'){status=409;code='CONFLICT';message='ข้อมูลนี้มีอยู่แล้ว';}
     if(dbError.code==='23503'||dbError.code==='23514'){status=400;code='INVALID_REFERENCE';message='ข้อมูลอ้างอิงไม่ถูกต้อง';}
-    console.error(JSON.stringify({event:'request_error',service:name,requestId:c.get('requestId'),status,code}));
+    console.error(JSON.stringify({event:'request_error',service:name,requestId:c.get('requestId'),status,code,causeCode:errorDiagnosticCode(error)}));
     return c.json({error:{code,message},type:`https://api.chordjai.life/problems/${code.toLowerCase()}`,title:code,status,detail:message,requestId:c.get('requestId')},status as ContentfulStatusCode);
   });
   app.notFound(c=>c.json({error:{code:'NOT_FOUND',message:'ไม่พบ endpoint นี้'}},404));

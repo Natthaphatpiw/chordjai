@@ -72,6 +72,16 @@ imported from /var/task/packages/db/src/index.mjs
 
 ตรวจการแก้ไขในโฟลเดอร์ชั่วคราวด้วย production-only workspace install ที่ไม่ติดตั้ง root dependencies หรือ dev dependencies แล้ว import **14 service entrypoints** ทุก `/healthz` ตอบ HTTP 200 โดยไม่ใช้ฐานข้อมูลหรือ credentials ของ providers ผลนี้ยืนยันว่า local isolated startup ผ่าน ส่วน production ต้อง rebuild/deploy commit ที่แก้ไขก่อนตรวจ HTTP อีกครั้ง การปรับ UI หรือเปลี่ยน browser zoom ไม่แก้ backend error นี้
 
+## ผลหลัง deploy ดีไซน์ใหม่
+
+Commit `41b6fecea5457798dd7b8b1ecfe20c17e0d2f697` auto-deploy production สำเร็จครบ Owner/Clinic/Admin/Backend และ GitHub CI ผ่าน ตรวจ browser บน `www.chordjai.life` ยืนยันหน้าใหม่, Sarabun และภาพ local โหลดจริง ไม่มี overflow หน้า Owner ของ custom domain และ Vercel alias ยังส่ง HTML เหมือนกัน
+
+Backend `/api/v1/pets` เปลี่ยนเป็น HTTP 401 พร้อม JSON `UNAUTHORIZED` ตามที่ควรเป็นเมื่อไม่ล็อกอิน จึงยืนยันว่า missing-module startup error ถูกแก้แล้ว ส่วน `/api/v1/clinics` เป็น HTTP 500 JSON `INTERNAL_ERROR` จึงยังต้องตรวจการเชื่อมต่อฐานข้อมูล ไม่อ้างว่า deploy READY ยืนยันฐานข้อมูลพร้อมใช้งาน
+
+Frontend proxy ยังตอบ `DNS_HOSTNAME_RESOLVED_PRIVATE` หลัง deployment แรก เพราะ `API_ORIGIN` ที่ตั้งอยู่ override fallback ใน source การเปิดแก้เฉพาะ public config ผ่าน Vercel dashboard ยืนยัน owner ใช้ `http://localhost:8787` และบันทึกค่าใหม่เป็น `https://api.chordjai.life` ให้ Owner/Clinic/Admin แล้ว (รักษา environment scopes เดิม) การเปลี่ยนค่านี้ต้องใช้ deployment ถัดไป ห้ามคัดลอกค่า localhost ใน `.env.local` ไป production
+
+เพิ่ม `causeCode` ใน runtime log โดยรับเฉพาะ allowlist ของ SQLSTATE/Node connection/TLS codes ที่รู้จัก และ `DB_NOT_CONFIGURED` สำหรับค่าเชื่อมต่อที่ว่าง ไม่ log raw error messages, connection strings, SQL, provider payloads หรือข้อมูลผู้ใช้ HTTP error ที่ผู้ใช้เห็นยังเป็นข้อความทั่วไปตามเดิม การเพิ่ม diagnostics ไม่ปิด certificate verification หรือเปลี่ยนสิทธิ์ฐานข้อมูล
+
 ## แหล่งอ้างอิง
 
 - [Chrome: เปลี่ยนขนาดตัวอักษรและระดับ zoom](https://support.google.com/chrome/answer/96810)

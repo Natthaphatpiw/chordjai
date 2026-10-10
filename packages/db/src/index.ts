@@ -4,7 +4,7 @@ pg.types.setTypeParser(1700,value=>Number(value));
 export type { PoolClient } from 'pg';
 let pool: pg.Pool | undefined;
 function getPool() {
-  if (!process.env.DATABASE_URL) throw new Error('DATABASE_URL is required');
+  if (!process.env.DATABASE_URL?.trim()) throw Object.assign(new Error('Database connection not configured'), { code: 'DB_NOT_CONFIGURED' });
   if (!pool) {
     pool = new pg.Pool({connectionString:process.env.DATABASE_URL,max:3,idleTimeoutMillis:5000,connectionTimeoutMillis:8000});
     attachDatabasePool(pool);
