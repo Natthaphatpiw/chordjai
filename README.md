@@ -9,7 +9,7 @@ npm ci
 npm run dev:owner
 ```
 
-เปิด `http://localhost:3000` → **ลองดูสมุดตัวอย่าง** ใช้ drag and drop และบันทึกตัวอย่างในเบราว์เซอร์ได้ทันที โหมดตัวอย่างมีป้ายระบุชัด งาน AI และธุรกรรมจริงต้องเชื่อมต่อ API
+เปิด `http://localhost:3000` → **เปิดแอป → ลองดูพื้นที่ตัวอย่างก่อน** ใช้ drag and drop และบันทึกตัวอย่างในเบราว์เซอร์ได้ทันที โหมดตัวอย่างมีป้ายระบุชัด งาน AI และธุรกรรมจริงต้องเชื่อมต่อ API
 
 ## เชื่อมระบบจริง
 
@@ -19,7 +19,7 @@ npm run dev:owner
 4. คัดลอก `.env.example` ของแต่ละ frontend เป็น `.env.local` แล้วตั้ง `API_ORIGIN=http://localhost:8787` สำหรับ local
 5. รัน `npm run dev` เพื่อเปิด API+owner, `npm run dev:clinic` หรือ `npm run dev:admin` เพื่อเปิด portal
 
-ยังไม่เรียก OpenAI จริงตามที่ผู้ใช้เลือกให้ใส่ API key ภายหลัง และยังไม่ได้ deploy หรือ query Supabase ของผู้ใช้
+ยังไม่เรียก OpenAI จริงตามที่ผู้ใช้เลือกให้ใส่ API key ภายหลัง และไม่ได้ query Supabase ของผู้ใช้ การตรวจฐานข้อมูลใช้ PostgreSQL/pgvector ชั่วคราวแยกต่างหาก
 
 ## Git และ Vercel
 
@@ -38,6 +38,8 @@ Backend มี 13 microservices API และ scheduler รวม 14 Vercel Serv
 
 วิธีทำงานและขอบเขตของ Pet Biometrics แบบvector+LLMอยู่ใน [docs/PETID.md](docs/PETID.md)
 
+ดีไซน์ Kindness & Kinship ใช้ Sarabun ทั้งสาม frontend พร้อมภาพสัตว์จริงจาก Google Images/Unsplash และภาพหน้าจอแอปจริง ดู [แนวทางออกแบบ](docs/DESIGN_DIRECTION.md), [เครดิตภาพ](docs/IMAGE_SOURCES.md), [ผลตรวจดีไซน์](design-qa.md) และ [การตรวจ domain/LIFF/API](docs/DEPLOYMENT_DIAGNOSIS.md)
+
 ## ตรวจงาน
 
 ```bash
@@ -48,6 +50,9 @@ npm run test:db
 npm run test:db -- --http
 # เปิด owner-app local ก่อน แล้วติดตั้ง browser ครั้งแรกด้วย npx playwright install chromium
 npm run test:ui
+node scripts/test-portals-ui.mjs
+node scripts/check-runtime-dependencies.mjs
+node scripts/test-runtime-startup.mjs
 ```
 
 `test:db` ต้องมี Docker และสร้าง Postgres/pgvector ชั่วคราวของตัวเอง ไม่ใช้ฐานข้อมูลผู้ใช้ รวมการทดสอบอัปเกรดและ HNSW query plan เพิ่ม `--http` เพื่อรัน 19 API integration flows ในฐานข้อมูลชั่วคราวเดียวกัน สำหรับฐานข้อมูลทดสอบ local ที่มี schema อยู่แล้ว ใช้ `TEST_DATABASE_URL` ที่ชี้ localhost เท่านั้น:

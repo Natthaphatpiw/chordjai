@@ -4,16 +4,9 @@
 
 ใช้ **1 Git repository: chordjai** เป็น npm workspaces monorepo และ **4 Vercel projects** โดย repo ไม่ใช่หน่วย deploy ขอบเขต microservice อยู่ที่ service/schema/entrypoint
 
-Local Git repository ถูกสร้างบนbranch `main` แล้ว สร้างGitHubrepoว่างชื่อchordjai จากนั้นแทนYOUR_GITHUB_USERNAMEด้วยบัญชีจริงก่อนใช้:
+Repository ที่เชื่อมไว้คือ [Natthaphatpiw/chordjai](https://github.com/Natthaphatpiw/chordjai) บน branch `main` การ push commit ไป branch นี้ให้ Vercel projects ที่เชื่อม Git สร้าง deployment ใหม่ตามการตั้งค่า
 
-```bash
-git add .
-git commit -m "Build ChordJai pilot"
-git remote add origin https://github.com/YOUR_GITHUB_USERNAME/chordjai.git
-git push -u origin main
-```
-
-`.env.local` และไฟล์secretถูกGitignoreแล้ว ยังไม่ได้commitหรือpushแทนผู้ใช้
+`.env.local` และไฟล์ secrets ถูก Git ignore ไม่รวมใน commit หรือ push
 
 | Project | Root Directory | Preset | Domain | Env example |
 |---|---|---|---|---|
@@ -75,6 +68,8 @@ NEXT_PUBLIC_LINE_OA_URL=<ลิงก์เพิ่มเพื่อนOAจ�
 
 Clinic ใช้ LIFF_IDเป็น2010549060-zCdRzv7e; Admin ใช้2010549060-g72pN0tY ทั้งสามตั้ง API_ORIGINเหมือนกัน ลิงก์OAใช้เฉพาะownerและเว้นว่างได้จนมีลิงก์จริง **ห้ามเอา OPENAI_API_KEY, LINE secrets, DATABASE_URL หรือ BLOB token ใส่ NEXT_PUBLIC_**
 
+Production fallback ของทั้ง Next rewrites และ public SSR requests ใช้ `https://api.chordjai.life` เมื่อไม่ได้ตั้ง `API_ORIGIN` ส่วน development ใช้ localhost การแก้ env ของ rewrites ต้อง rebuild/deploy ใหม่ ดูปัญหาและผลตรวจใน [DEPLOYMENT_DIAGNOSIS.md](DEPLOYMENT_DIAGNOSIS.md)
+
 Preview frontend ต้องตั้ง API_ORIGINเป็น backend preview ที่เข้าคู่กันและไม่ได้มี Deployment Protectionบล็อก webhook/LIFF user การใช้งาน preview กับ LINEต้องมีLIFFทดสอบและhttps endpointของตัวเอง ไม่ใช้secret productionทดสอบอัตโนมัติ
 
 ## Supabase SQL
@@ -98,6 +93,8 @@ Table Editor อาจเปิดอยู่ที่ `public` ซึ่งไ
 | เจ้าของ | 2010549060-FRfLt9mJ | https://www.chordjai.life/app |
 | คลินิก | 2010549060-zCdRzv7e | https://clinic.chordjai.life/app |
 | หลังบ้าน | 2010549060-g72pN0tY | https://admin.chordjai.life/app |
+
+อ่าน LINE API วันที่ 10 ตุลาคม 2026 ยืนยันว่าอีก 4 LIFF ยังใช้ระบบเดิม: `2010549060-HR59RjAB` → `https://bdi-lac.vercel.app/liff/rights`, `2010549060-e46gh3VK` → `https://bdi-lac.vercel.app/liff/chat`, `2010549060-qw3AtH89` → `https://bdi-lac.vercel.app/liff`, `2010549060-udZ8HSKV` → `https://bdi-lac.vercel.app/liff/documents` ตารางครบทั้ง 7 อยู่ใน [DEPLOYMENT_DIAGNOSIS.md](DEPLOYMENT_DIAGNOSIS.md) ยังไม่ได้ย้ายระบบเดิมเหล่านี้
 
 ตั้ง View full, scope openid+profile และ Add friend normal ทั้งสามอยู่ใต้ Login channel2010549060 ส่วน Messaging channel2009341751 ต้องอยู่ providerเดียวกันเพื่อให้userIdตรงกัน LIFFของLogin channelนี้เป็นLIFFธรรมดา ไม่ได้เปลี่ยนเป็นverified MINI Appอัตโนมัติ หากต้องการMINI Appต้องสร้างchannelและผ่านเงื่อนไขLINEแยก
 

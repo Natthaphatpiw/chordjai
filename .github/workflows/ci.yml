@@ -20,6 +20,8 @@ jobs:
           node-version: 24
           cache: npm
       - run: npm ci
+      - run: node scripts/check-runtime-dependencies.mjs
+      - run: node scripts/test-runtime-startup.mjs
       - run: npm run typecheck
       - run: npm test
       - run: npm run build

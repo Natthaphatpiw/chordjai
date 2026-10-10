@@ -1,1 +1,11 @@
-{"name":"@chordjai/db","version":"0.1.0","private":true,"type":"module","exports":"./src/index.ts","dependencies":{"pg":"^8.16.3"}}
+{
+  "name": "@chordjai/db",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": "./src/index.ts",
+  "dependencies": {
+    "pg": "^8.16.3",
+    "@vercel/functions": "^3.4.0"
+  }
+}
