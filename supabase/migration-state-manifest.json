@@ -1,0 +1,86 @@
+[
+  {
+    "version": "202610100001",
+    "file": "202610100001_core.sql",
+    "checksum": "fa121e446446cd1c317f12762c27158577fba566bdb77f5bad8b405d75743b5c",
+    "fingerprint": "135bd8c80162cd4a134cc027419c819e"
+  },
+  {
+    "version": "202610100002",
+    "file": "202610100002_security.sql",
+    "checksum": "eaf820fddcd14e53c706514c18fb71a02cfbd00a3790b674dfbe27069921118d",
+    "fingerprint": "04e363980d4d27f07bd350baeb343e38"
+  },
+  {
+    "version": "202610100003",
+    "file": "202610100003_jobs.sql",
+    "checksum": "1c4d306a8905546eb2061ac413fa9b8363fd8473687ca96ec5fd35a6407ad7c3",
+    "fingerprint": "57a28747b72371ac97f33e16b5850fe5"
+  },
+  {
+    "version": "202610100004",
+    "file": "202610100004_ai_context.sql",
+    "checksum": "83debfa9781d812656a43cc9e91f81cba22669143d03df815dc150c97a5d8daa",
+    "fingerprint": "6ae33a02d2cb2eb2f9f9c6e1967f7f9a"
+  },
+  {
+    "version": "202610100005",
+    "file": "202610100005_rate_limits.sql",
+    "checksum": "218e2028c5c1a46d2c988eb6fdec27be67bd6ef1067748a5f3d2b16e661af6ee",
+    "fingerprint": "2c1ff5728f0c82f6db2c080ad5ba3808"
+  },
+  {
+    "version": "202610100006",
+    "file": "202610100006_reminder_completion.sql",
+    "checksum": "52b0832987ce760baea95967ca40bdcf348a83114486a9cf65b1197589cd226a",
+    "fingerprint": "0b5e6226cb2379932432ba3835800016"
+  },
+  {
+    "version": "202610100007",
+    "file": "202610100007_http_idempotency.sql",
+    "checksum": "c844f420adc9202196c3d21d0587e6959a3dd46afe7f826963b937eae27e31bb",
+    "fingerprint": "c464ace8c8f1736ab39278001d900a75"
+  },
+  {
+    "version": "202610100008",
+    "file": "202610100008_pet_creation_returning.sql",
+    "checksum": "b539ea6c5ae653e71db03fcec4f034e8497db8245b76a3cf053d48c68fd2e8ec",
+    "fingerprint": "308af384d513c24e9714065e80d808d8"
+  },
+  {
+    "version": "202610100009",
+    "file": "202610100009_governance_guards.sql",
+    "checksum": "601de8a1c717e9b5febde97acbda1f5f0f44dfe42cec63720d9cb6a295615ec7",
+    "fingerprint": "9ddf782cdc82c5ef70a9b522919b6303"
+  },
+  {
+    "version": "202610100010",
+    "file": "202610100010_durable_blob_erasure.sql",
+    "checksum": "82a8fbbc1f1ad0529430784b176565e6438d53a182a0351ae5a938294341bc2a",
+    "fingerprint": "99a1b213dbfdeda7ad23c85afecc2eff"
+  },
+  {
+    "version": "202610100011",
+    "file": "202610100011_pet_neutered.sql",
+    "checksum": "188091f3ced66029bd04d241829d8aecce9a0366a7ec3a1d76a19393d312c666",
+    "fingerprint": "e1d2bcc6484030119f476fb247f61110"
+  },
+  {
+    "version": "202610100012",
+    "file": "202610100012_health_creator_erasure.sql",
+    "checksum": "6d2ecf89a1a76207bb8d1d4129db37428e658c5798c39fe37214dc6d61a794c9",
+    "fingerprint": "1b8a1e22b0f68f5c2f55a1c8f1b0076e"
+  },
+  {
+    "version": "202610100013",
+    "file": "202610100013_webhook_retention_index.sql",
+    "checksum": "c7ae311dd738113d7fa74b300aab11aae421de6819497a85f8abc3fffe8c6885",
+    "fingerprint": "5f46de2fb25d7fcdd0b18c134c510bcc"
+  },
+  {
+    "version": "202610100014",
+    "file": "202610100014_petid_hnsw_cosine.sql",
+    "checksum": "095c58d7d0752e271d8facc89d5e409318413ebdee78bc052e6c672d5ee3c71e",
+    "fingerprint": "205b34a3a1e623e14d7dfa4951090bc8"
+  }
+]

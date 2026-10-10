@@ -1,0 +1,3 @@
+import Link from 'next/link';
+import { PawPrint, ArrowUpRight } from 'lucide-react';
+export function PublicLayout({children,emergency=false}:{children:React.ReactNode;emergency?:boolean}){return <div className={emergency?'emergency-page':''}><main className="public-page"><header className="public-header"><Link className="wordmark" href="/"><span className="brand-mark"><PawPrint size={22}/></span>ชิดใจ</Link><Link className="button secondary" href="/app">เปิดแอป <ArrowUpRight size={16}/></Link></header>{children}<footer className="public-footer"><Link href="/privacy">ความเป็นส่วนตัว</Link><Link href="/terms">เงื่อนไข</Link><Link href="/ai-safety">เกี่ยวกับ AI</Link></footer></main></div>;}

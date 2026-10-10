@@ -1,0 +1,41 @@
+{
+  "checkedAt": "2026-10-09T17:48:11.920Z",
+  "liffId": "2010549060-FRfLt9mJ",
+  "liffEndpoint": "https://www.chordjai.life/app",
+  "webhookEndpoint": "https://www.chordjai.life/api/v1/notification/webhooks/line",
+  "liffApps": [
+    {
+      "purpose": "owner",
+      "liffId": "2010549060-FRfLt9mJ",
+      "endpoint": "https://www.chordjai.life/app",
+      "status": "configured",
+      "actualEndpoint": "https://www.chordjai.life/app"
+    },
+    {
+      "purpose": "clinic",
+      "liffId": "2010549060-zCdRzv7e",
+      "endpoint": "https://clinic.chordjai.life/app",
+      "status": "configured",
+      "actualEndpoint": "https://clinic.chordjai.life/app"
+    },
+    {
+      "purpose": "admin",
+      "liffId": "2010549060-g72pN0tY",
+      "endpoint": "https://admin.chordjai.life/app",
+      "status": "configured",
+      "actualEndpoint": "https://admin.chordjai.life/app"
+    }
+  ],
+  "liff": {
+    "purpose": "owner",
+    "liffId": "2010549060-FRfLt9mJ",
+    "endpoint": "https://www.chordjai.life/app",
+    "status": "configured",
+    "actualEndpoint": "https://www.chordjai.life/app"
+  },
+  "messaging": {
+    "status": "verified",
+    "currentEndpoint": "https://chordjai.vercel.app/api/line/webhook",
+    "active": true
+  }
+}

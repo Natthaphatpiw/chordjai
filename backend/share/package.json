@@ -1,0 +1,11 @@
+{
+  "name": "@chordjai/share",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "@chordjai/service-kit": "*",
+    "@chordjai/db": "*",
+    "hono": "4.13.13"
+  }
+}

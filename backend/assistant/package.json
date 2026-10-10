@@ -1,0 +1,20 @@
+{
+  "name": "@chordjai/assistant-service",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "exports": {
+    ".": "./src/app.ts"
+  },
+  "dependencies": {
+    "@chordjai/db": "*",
+    "@chordjai/service-kit": "*",
+    "@chordjai/contracts": "*",
+    "hono": "^4.13.13",
+    "zod": "^4.0.0",
+    "@chordjai/ai": "*"
+  }
+}

@@ -1,0 +1,2 @@
+-- Intentionally empty: no invented real clinics, veterinary rules, owners, or claims.
+-- Onboard verified clinics through admin UI; fixtures live only in rolled-back tests.

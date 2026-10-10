@@ -1,0 +1,1 @@
+{"name":"@chordjai/media","version":"0.1.0","private":true,"type":"module","exports":"./src/index.ts","dependencies":{"@chordjai/db":"*","@chordjai/service-kit":"*","@vercel/blob":"2.8.1","jose":"6.2.12","sharp":"0.35.5"}}

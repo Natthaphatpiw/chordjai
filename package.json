@@ -1,0 +1,57 @@
+{
+  "name": "chordjai",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": "24.x"
+  },
+  "workspaces": [
+    "frontend/*",
+    "backend/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "concurrently -n api,owner \"npm run dev:api\" \"npm run dev:owner\"",
+    "dev:api": "tsx --env-file=backend/.env.local watch scripts/dev-api.ts",
+    "dev:owner": "npm run dev --workspace=@chordjai/owner-app",
+    "dev:clinic": "npm run dev --workspace=@chordjai/clinic-portal",
+    "dev:admin": "npm run dev --workspace=@chordjai/admin-console",
+    "typecheck": "tsc --noEmit && npm run typecheck --workspaces --if-present",
+    "test": "vitest run",
+    "build": "npm run build --workspace=@chordjai/owner-app && npm run build --workspace=@chordjai/clinic-portal && npm run build --workspace=@chordjai/admin-console",
+    "check": "npm run typecheck && npm test && npm run build",
+    "setup:line": "node --env-file=backend/.env.local scripts/setup-line.mjs",
+    "test:db": "node scripts/test-db.mjs",
+    "test:ui": "node scripts/test-ui.mjs",
+    "db:upgrade": "node --env-file=backend/.env.local scripts/upgrade-db.mjs",
+    "check:env": "node --env-file=backend/.env.local scripts/check-env.mjs"
+  },
+  "dependencies": {
+    "@hono/node-server": "^1.19.11",
+    "@line/liff": "^2.27.2",
+    "@vercel/blob": "2.8.1",
+    "@vercel/functions": "^3.4.0",
+    "hono": "4.13.13",
+    "jose": "6.2.12",
+    "lucide-react": "^0.577.0",
+    "next": "16.4.0",
+    "openai": "7.31.0",
+    "pg": "^8.16.3",
+    "react": "19.3.0",
+    "react-dom": "19.3.0",
+    "sharp": "0.35.5",
+    "zod": "4.6.5"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.58.2",
+    "@types/node": "^24.10.0",
+    "@types/pg": "^8.15.6",
+    "@types/react": "^19.2.0",
+    "@types/react-dom": "^19.2.0",
+    "concurrently": "^9.2.1",
+    "tsx": "^4.20.6",
+    "typescript": "^5.9.3",
+    "vitest": "5.0.3"
+  }
+}

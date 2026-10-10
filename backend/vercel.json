@@ -1,0 +1,298 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "regions": [
+    "sin1"
+  ],
+  "services": {
+    "identity": {
+      "root": "identity",
+      "entrypoint": "src/index.ts",
+      "functions": {
+        "src/index.ts": {
+          "maxDuration": 30,
+          "regions": [
+            "sin1"
+          ]
+        }
+      }
+    },
+    "pet": {
+      "root": "pet",
+      "entrypoint": "src/index.ts",
+      "functions": {
+        "src/index.ts": {
+          "maxDuration": 30,
+          "regions": [
+            "sin1"
+          ]
+        }
+      }
+    },
+    "health": {
+      "root": "health",
+      "entrypoint": "src/index.ts",
+      "functions": {
+        "src/index.ts": {
+          "maxDuration": 60,
+          "regions": [
+            "sin1"
+          ]
+        }
+      }
+    },
+    "triage": {
+      "root": "triage",
+      "entrypoint": "src/index.ts",
+      "functions": {
+        "src/index.ts": {
+          "maxDuration": 60,
+          "regions": [
+            "sin1"
+          ]
+        }
+      }
+    },
+    "biometric": {
+      "root": "biometric",
+      "entrypoint": "src/index.ts",
+      "functions": {
+        "src/index.ts": {
+          "maxDuration": 60,
+          "regions": [
+            "sin1"
+          ]
+        }
+      }
+    },
+    "lostfound": {
+      "root": "lostfound",
+      "entrypoint": "src/index.ts",
+      "functions": {
+        "src/index.ts": {
+          "maxDuration": 30,
+          "regions": [
+            "sin1"
+          ]
+        }
+      }
+    },
+    "clinic": {
+      "root": "clinic",
+      "entrypoint": "src/index.ts",
+      "functions": {
+        "src/index.ts": {
+          "maxDuration": 30,
+          "regions": [
+            "sin1"
+          ]
+        }
+      }
+    },
+    "share": {
+      "root": "share",
+      "entrypoint": "src/index.ts",
+      "functions": {
+        "src/index.ts": {
+          "maxDuration": 30,
+          "regions": [
+            "sin1"
+          ]
+        }
+      }
+    },
+    "notification": {
+      "root": "notification",
+      "entrypoint": "src/index.ts",
+      "functions": {
+        "src/index.ts": {
+          "maxDuration": 60,
+          "regions": [
+            "sin1"
+          ]
+        }
+      }
+    },
+    "media": {
+      "root": "media",
+      "entrypoint": "src/index.ts",
+      "functions": {
+        "src/index.ts": {
+          "maxDuration": 30,
+          "regions": [
+            "sin1"
+          ]
+        }
+      }
+    },
+    "analytics": {
+      "root": "analytics",
+      "entrypoint": "src/index.ts",
+      "functions": {
+        "src/index.ts": {
+          "maxDuration": 30,
+          "regions": [
+            "sin1"
+          ]
+        }
+      }
+    },
+    "journal": {
+      "root": "journal",
+      "entrypoint": "src/index.ts",
+      "functions": {
+        "src/index.ts": {
+          "maxDuration": 60,
+          "regions": [
+            "sin1"
+          ]
+        }
+      }
+    },
+    "assistant": {
+      "root": "assistant",
+      "entrypoint": "src/index.ts",
+      "functions": {
+        "src/index.ts": {
+          "maxDuration": 60,
+          "regions": [
+            "sin1"
+          ]
+        }
+      }
+    },
+    "scheduler": {
+      "root": "scheduler",
+      "entrypoint": "src/index.ts",
+      "functions": {
+        "src/index.ts": {
+          "maxDuration": 60,
+          "regions": [
+            "sin1"
+          ]
+        }
+      },
+      "bindings": [
+        {
+          "type": "service",
+          "service": "notification",
+          "format": "url",
+          "env": "NOTIFICATION_INTERNAL_URL"
+        }
+      ]
+    }
+  },
+  "rewrites": [
+    {
+      "source": "/api/v1/identity/:path*",
+      "destination": {
+        "service": "identity"
+      }
+    },
+    {
+      "source": "/api/v1/pets/:path*",
+      "destination": {
+        "service": "pet"
+      }
+    },
+    {
+      "source": "/api/v1/invitations/:path*",
+      "destination": {
+        "service": "pet"
+      }
+    },
+    {
+      "source": "/api/v1/health/:path*",
+      "destination": {
+        "service": "health"
+      }
+    },
+    {
+      "source": "/api/v1/triage/:path*",
+      "destination": {
+        "service": "triage"
+      }
+    },
+    {
+      "source": "/api/v1/biometric/:path*",
+      "destination": {
+        "service": "biometric"
+      }
+    },
+    {
+      "source": "/api/v1/petid/:path*",
+      "destination": {
+        "service": "biometric"
+      }
+    },
+    {
+      "source": "/api/v1/lostfound/:path*",
+      "destination": {
+        "service": "lostfound"
+      }
+    },
+    {
+      "source": "/api/v1/clinic/:path*",
+      "destination": {
+        "service": "clinic"
+      }
+    },
+    {
+      "source": "/api/v1/clinics/:path*",
+      "destination": {
+        "service": "clinic"
+      }
+    },
+    {
+      "source": "/api/v1/share/:path*",
+      "destination": {
+        "service": "share"
+      }
+    },
+    {
+      "source": "/api/v1/notification/:path*",
+      "destination": {
+        "service": "notification"
+      }
+    },
+    {
+      "source": "/api/v1/media/:path*",
+      "destination": {
+        "service": "media"
+      }
+    },
+    {
+      "source": "/api/v1/analytics/:path*",
+      "destination": {
+        "service": "analytics"
+      }
+    },
+    {
+      "source": "/api/v1/journal/:path*",
+      "destination": {
+        "service": "journal"
+      }
+    },
+    {
+      "source": "/api/v1/assistant/:path*",
+      "destination": {
+        "service": "assistant"
+      }
+    },
+    {
+      "source": "/internal/cron/:path*",
+      "destination": {
+        "service": "scheduler"
+      }
+    }
+  ],
+  "crons": [
+    {
+      "path": "/internal/cron/jobs",
+      "schedule": "* * * * *"
+    },
+    {
+      "path": "/internal/cron/reminders",
+      "schedule": "*/5 * * * *"
+    }
+  ]
+}

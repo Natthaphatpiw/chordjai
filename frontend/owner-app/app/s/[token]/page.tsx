@@ -1,0 +1,8 @@
+import type { Metadata } from 'next';
+import { PublicLayout } from '../../../components/public-layout';
+import { publicApi } from '../../../lib/public-api';
+import type { Pet, HealthRecord } from '../../../lib/types';
+import { dateThai } from '../../../../shared/api';
+import { ErrorBox } from '../../../components/ui';
+export const metadata:Metadata={title:'สรุปสุขภาพก่อนพบหมอ · ชิดใจ',robots:{index:false,follow:false}};
+export default async function Page({params}:{params:Promise<{token:string}>}){const{token}=await params;const{data,error}=await publicApi<{pet:Pet;records:HealthRecord[];createdAt:string;expiresAt:string}>(`/share/public/${encodeURIComponent(token)}`);return <PublicLayout><section className="public-summary"><span className="eyebrow">HEALTH SUMMARY · PRIVATE LINK</span><h1>สรุปสุขภาพก่อนพบหมอ</h1>{error||!data?<ErrorBox message={error||'ไม่พบข้อมูล'}/>:<><div className="pet-hero-card"><div className="pet-hero-text"><h2>{data.pet.name}</h2><p>{data.pet.species==='cat'?'แมว':'สุนัข'} · เกิด {dateThai(data.pet.birthDate)}</p><span className="soft-tag">ลิงก์หมดอายุ {dateThai(data.expiresAt)}</span></div><div className="pet-hero-emoji">{data.pet.species==='cat'?'🐈':'🐕'}</div></div><div className="panel"><h2>ประวัติสุขภาพที่เจ้าของบันทึก</h2><p className="small-copy">สร้างสรุป {dateThai(data.createdAt)} · ตรวจข้อมูลกับเอกสารต้นฉบับก่อนใช้ประกอบการรักษา</p>{data.records.map(record=><article className="health-record" key={record.id}><div><h3>{record.title}</h3><p>บันทึก {dateThai(record.recordedAt)}{record.value!=null?` · ${record.value} กก.`:''}</p>{record.nextDueAt?<p>ครั้งถัดไป {dateThai(record.nextDueAt)}</p>:null}{record.notes?<p className="record-notes">{record.notes}</p>:null}</div></article>)}</div></>}</section></PublicLayout>;}

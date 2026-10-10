@@ -1,0 +1,135 @@
+# Deployment ของ ChordJai
+
+## จำนวน repo และ project
+
+ใช้ **1 Git repository: chordjai** เป็น npm workspaces monorepo และ **4 Vercel projects** โดย repo ไม่ใช่หน่วย deploy ขอบเขต microservice อยู่ที่ service/schema/entrypoint
+
+Local Git repository ถูกสร้างบนbranch `main` แล้ว สร้างGitHubrepoว่างชื่อchordjai จากนั้นแทนYOUR_GITHUB_USERNAMEด้วยบัญชีจริงก่อนใช้:
+
+```bash
+git add .
+git commit -m "Build ChordJai pilot"
+git remote add origin https://github.com/YOUR_GITHUB_USERNAME/chordjai.git
+git push -u origin main
+```
+
+`.env.local` และไฟล์secretถูกGitignoreแล้ว ยังไม่ได้commitหรือpushแทนผู้ใช้
+
+| Project | Root Directory | Preset | Domain | Env example |
+|---|---|---|---|---|
+| chordjai-owner-app | frontend/owner-app | Next.js | www.chordjai.life | frontend/owner-app/.env.example |
+| chordjai-clinic-portal | frontend/clinic-portal | Next.js | clinic.chordjai.life | frontend/clinic-portal/.env.example |
+| chordjai-admin-console | frontend/admin-console | Next.js | admin.chordjai.life | frontend/admin-console/.env.example |
+| chordjai-backend | backend | Services / auto detect Hono | api.chordjai.life | backend/.env.example |
+
+เปิด **Include source files outside Root Directory** ให้ทุก project เพื่อให้ import packages และ frontend/shared ได้ ใช้ Node24, function region sin1, install command npm ci ที่ workspace root (Vercel ตรวจ npm workspaces/package-lock) Next build command ใช้ preset ปกติ Backend ใช้ backend/vercel.json ตรวจ Hono จาก src/index.ts ของแต่ละ service ไม่มี build command รวม frontend
+
+ถ้า account ไม่เปิด Services Beta ให้รอเปิด feature หรือใช้ fallback แยก Vercel projects ต่อ backend service โดยใช้แต่ละ backend/<service> เป็น Root Directory และ router rewrites ไป URL ที่ deployจริง การแยก **Vercel projects** ไม่บังคับแยก Git repo
+
+## Backend environment
+
+```dotenv
+DATABASE_URL="postgresql://postgres.PROJECT_REF:URL_ENCODED_DB_PASSWORD@POOLER_HOST_FROM_CONNECT:6543/postgres?sslmode=require"
+APP_ORIGIN=https://www.chordjai.life
+API_ORIGIN=https://api.chordjai.life
+ALLOWED_ORIGINS=https://www.chordjai.life,https://clinic.chordjai.life,https://admin.chordjai.life
+APP_JWT_ISSUER=https://www.chordjai.life
+APP_JWT_SECRET=<สุ่มอย่างน้อย32ตัวอักษร>
+CRON_SECRET=<สุ่มอีกค่าหนึ่งอย่างน้อย32ตัวอักษร>
+OPENAI_API_KEY=<ใส่เองในVercel>
+OPENAI_MODEL=gpt-6.1-sol
+OPENAI_EMBEDDING_MODEL=text-embedding-3-small
+AI_DAILY_BUDGET_USD=5
+AI_INPUT_USD_PER_MILLION=2
+AI_OUTPUT_USD_PER_MILLION=10
+LINE_CHANNEL_ID=2009341751
+LINE_CHANNEL_SECRET=<อยู่ในbackend/.env.local>
+LINE_CHANNEL_ACCESS_TOKEN=<tokenในbackend/.env.localหรือออกจากLINEConsole>
+LINE_TOKEN_EXPIRES_AT=<epoch milliseconds ถ้าใช้tokenอายุ30วัน>
+LINE_LOGIN_CHANNEL_ID=2010549060
+LINE_LOGIN_CHANNEL_SECRET=<อยู่ในbackend/.env.local>
+LINE_LOGIN_CHANNEL_ACCESS_TOKEN=<ใช้สคริปต์setupLINEเท่านั้น>
+LIFF_ID=2010549060-FRfLt9mJ
+LIFF_ENDPOINT=https://www.chordjai.life/app
+LINE_WEBHOOK_URL=https://www.chordjai.life/api/v1/notification/webhooks/line
+BLOB_READ_WRITE_TOKEN=<privateBlobstoreที่sin1>
+```
+
+Vercel Services ใช้ env ร่วมกันใน backend project ส่วน `NOTIFICATION_INTERNAL_URL` **มาจาก private service binding** ไม่ต้องกรอกบน Vercel สำหรับ local fallback localhost8787 ใช้ `API_PORT=8787`
+
+DATABASE_URL เป็น connection string Postgres ของ Supabase ไม่ใช่ project URL HTTPS และไม่ใช่ anon/service_role key รหัสผ่านมีอักขระพิเศษต้อง URL encode คง sslmode=require ไว้ใน production การเข้า DB ทุก user transaction SET LOCAL ROLE chordjai_app + app.user_id เพื่อใช้ RLS worker ใช้ role chordjai_worker ตัว connection principal ต้อง SET ROLEได้
+
+เปิด Supabase project → **Connect → Transaction pooler** แล้วคัดลอก connection string ทั้งบรรทัด พอร์ตเป็น `6543` แทน `[YOUR-PASSWORD]` ด้วยรหัสผ่านฐานข้อมูล และเติม `?sslmode=require` หากยังไม่มี ห้ามเดา pooler hostname จาก region หรือเปลี่ยนแค่พอร์ตของ Direct connection เพราะ pooled username เป็น `postgres.PROJECT_REF` ด้วย [Supabase connection guide](https://supabase.com/docs/guides/database/connecting-to-postgres)
+
+ราคาค่า AI ข้างต้นเป็น Standard short-context ที่ตรวจ10ต.ค.2026: input$2/output$10ต่อ1ล้านtokens ไม่ใช่ต้นทุนต่อผู้ใช้ที่รับประกัน และยังมีค่า infra/LINE/Blob ใช้ token limits, reservation และ daily budget; logเป็นค่าประมาณก่อนใบแจ้งหนี้ ไม่หักส่วนลดcache จึงประมาณแบบเผื่อ [OpenAI pricing](https://developers.openai.com/api/docs/pricing)
+
+## Frontend environment
+
+ทั้งสาม frontend ไม่มี secrets:
+
+```dotenv
+API_ORIGIN=https://api.chordjai.life
+NEXT_PUBLIC_LIFF_ID=2010549060-FRfLt9mJ
+NEXT_PUBLIC_LINE_OA_URL=<ลิงก์เพิ่มเพื่อนOAจริงของคุณ>
+```
+
+Clinic ใช้ LIFF_IDเป็น2010549060-zCdRzv7e; Admin ใช้2010549060-g72pN0tY ทั้งสามตั้ง API_ORIGINเหมือนกัน ลิงก์OAใช้เฉพาะownerและเว้นว่างได้จนมีลิงก์จริง **ห้ามเอา OPENAI_API_KEY, LINE secrets, DATABASE_URL หรือ BLOB token ใส่ NEXT_PUBLIC_**
+
+Preview frontend ต้องตั้ง API_ORIGINเป็น backend preview ที่เข้าคู่กันและไม่ได้มี Deployment Protectionบล็อก webhook/LIFF user การใช้งาน preview กับ LINEต้องมีLIFFทดสอบและhttps endpointของตัวเอง ไม่ใช้secret productionทดสอบอัตโนมัติ
+
+## Supabase SQL
+
+1. เปิด Supabase project ที่ใช้กับระบบแล้วเข้า SQL Editor
+2. ฐานข้อมูลใหม่รัน `supabase/bootstrap.sql` **ครั้งเดียว** ถ้าฐานข้อมูลเดิมมี `identity.users` แล้ว รัน `supabase/diagnostic.sql` เพื่อดูสถานะ จากนั้นใช้ `supabase/upgrade.sql` ซึ่งตรวจ schema เทียบรุ่นที่รู้จักก่อนเพิ่มเฉพาะ migration ที่ขาดและบันทึก `ops.schema_migrations` ทุกการเปลี่ยนแปลงอยู่ใน transaction เดียว ถ้า schema ไม่ตรงสคริปต์จะหยุดโดยไม่แก้ข้อมูล ห้ามรัน bootstrap ซ้ำบน DB เดิม
+3. ไม่ expose schemasเหล่านี้ผ่าน Supabase Data API และไม่ต้องเพิ่ม frontend Supabase key
+4. ใช้ `supabase/seed.sql` เป็นคำแนะนำเติมข้อมูลจริง/สิทธิ์พนักงาน ไม่ใส่รายชื่อคลินิกตัวอย่างเป็นโรงพยาบาลจริง
+5. ให้ผู้ดูแลล็อกอินครั้งแรกแล้วค่อยตั้ง roleด้วยSQLโดยระบุ LINE user IDที่ตรวจสอบแล้ว ดูตัวอย่างในseed.sql
+
+มี FK cascade/RLS, consent history, token hashes, journal version, assistant chat lease, pgvector, queue dedupe/lease/retry/deadletter และ HTTP idempotency bootstrapใช้15service schemasในpilotซึ่งเพิ่ม journal/assistantจากเอกสารและปรับโครงschemaบางส่วน
+
+Table Editor อาจเปิดอยู่ที่ `public` ซึ่งไม่มีตารางแอป ให้เลือก schema `identity` สำหรับ `users`, `pet` สำหรับ `pets`, `health` สำหรับประวัติ หรือ `biometric` สำหรับ PetID ไม่ต้อง expose schema ผ่าน Data API เพื่อดูตาราง [ตัวอย่าง schema dropdown จาก Supabase](https://supabase.com/docs/guides/ai/quickstarts/text-deduplication)
+
+ผู้ที่ใช้ CLI และใส่ `DATABASE_URL` แล้วสามารถรัน `npm run db:upgrade` แทน SQL Editor ได้ ใช้ SQL ชุดเดียวกันและไม่พิมพ์ connection string หรือข้อมูลผู้ใช้ ถ้า diagnostic ระบุ schema ที่ไม่รู้จัก ให้ตรวจผล JSON ก่อนเลือก migration ห้ามแก้ด้วยการลบ `users` หรือเติม `IF NOT EXISTS` ทุกคำสั่ง
+
+## LINE / LIFF
+
+| ใช้สำหรับ | LIFF ID | Endpoint |
+|---|---|---|
+| เจ้าของ | 2010549060-FRfLt9mJ | https://www.chordjai.life/app |
+| คลินิก | 2010549060-zCdRzv7e | https://clinic.chordjai.life/app |
+| หลังบ้าน | 2010549060-g72pN0tY | https://admin.chordjai.life/app |
+
+ตั้ง View full, scope openid+profile และ Add friend normal ทั้งสามอยู่ใต้ Login channel2010549060 ส่วน Messaging channel2009341751 ต้องอยู่ providerเดียวกันเพื่อให้userIdตรงกัน LIFFของLogin channelนี้เป็นLIFFธรรมดา ไม่ได้เปลี่ยนเป็นverified MINI Appอัตโนมัติ หากต้องการMINI Appต้องสร้างchannelและผ่านเงื่อนไขLINEแยก
+
+ตรวจว่า Login channel เชื่อม Linked LINE Official Account ของ Messaging channel2009341751 แล้ว ระบบตรวจfriendshipฝั่งserverตอนloginเพื่อรองรับคนที่เป็นเพื่อนOAก่อนสมัคร หากตรวจไม่ได้จะคงสถานะเดิมจากwebhook [LINE Login linked bot](https://developers.line.biz/en/docs/line-login/link-a-bot/)
+
+Bot info ที่อ่านจากchannelนี้คือ **RooSook - รู้สุข (@223xkgws)** ตั้ง `NEXT_PUBLIC_LINE_OA_URL` ในownerให้เป็นลิงก์จริงแล้ว ดู config/line-bot.json ชื่อOAยังเป็นชื่อเดิมของบัญชี
+
+Webhookใหม่คือ **POST https://www.chordjai.life/api/v1/notification/webhooks/line** owner-app rewriteไปbackendที่ **https://api.chordjai.life/api/v1/notification/webhooks/line** (เลือกURLใดURLหนึ่งเป็นwebhookในLINEได้)
+
+การเรียกMessagingออกจากระบบใช้ LINE endpoint `https://api.line.me/v2/bot/message/reply` และ `/push` พร้อมChannel access tokenฝั่งserver LINEตรวจraw request HMACก่อนJSON parse และเก็บevent+enqueueในtransactionก่อนตอบ200 งานซ้ำไม่สร้างผลซ้ำ
+
+สถานะการตั้งค่าจริงอ่านได้ใน `docs/LINE_SETUP_STATUS.json` สคริปต์ไม่พิมพ์ token ถ้าคัดลอก tokenอายุ30วันจากlocalenvไปVercel ให้คัดลอก `LINE_TOKEN_EXPIRES_AT` ไปด้วย ระบบใช้tokenนั้นจนใกล้หมดอายุแล้วออก stateless token อัตโนมัติจาก Channel ID/secret โดยเก็บในruntime15นาที อีกทางหนึ่งเว้น `LINE_CHANNEL_ACCESS_TOKEN` ว่างเพื่อใช้statelessตั้งแต่แรก หากใช้long-lived tokenจากConsoleให้เว้นexpiryว่างและระบบจะไม่เปลี่ยนtokenนั้นอัตโนมัติ [LINE stateless access tokens](https://developers.line.biz/en/reference/messaging-api/nojs/#issue-stateless-channel-access-token)
+
+```bash
+npm run setup:line -- --apply-liff
+# หลังdeployและrouteทดสอบผ่าน จึงย้ายwebhookที่ใช้งานอยู่:
+npm run setup:line -- --apply-webhook
+```
+
+scriptตรวจrouteด้วยLINE-signedempty-eventก่อนเปลี่ยนwebhook ป้องกันรับข้อความลงURLที่ยังไม่พร้อม การเปิดUse webhook/ปิดauto-replyในOA Managerยังต้องตรวจConsoleหลังย้าย
+
+## ลำดับ deploy
+
+1. Supabase bootstrap → เติมbackendenv → สร้างprivateBlobsin1 → deploybackend
+2. attach api.chordjai.life DNSตามค่าที่Vercelแสดง และลองpublicGET/api/v1/clinics (อาจได้[]จนเติมข้อมูลจริง)
+3. deployowner+clinic+admin ตั้งAPI_ORIGINให้ถูกและattachdomains
+4. ทดสอบLIFFจริง: login→pet→record→journal→chat (หลังใส่APIkey)
+5. เปลี่ยนLINEwebhookด้วยscript ตรวจVerifyสำเร็จและไม่มีDeploymentProtectionบล็อก
+6. Vercel Cronที่กำหนดทุก1นาที/5นาทีต้องใช้planที่รองรับความถี่นี้ (เช่นPro) Cronส่งAuthorization Bearer CRON_SECRET, เวลาส่งdigestเช็กAsia/Bangkokและเงียบ21:00–08:00
+
+## การตรวจรับก่อนเปิดใช้จริง
+
+รันtypecheck/unit/DBintegration/build และตรวจบัญชีอื่นเข้าhealth/journal/memoryไม่ได้ ใช้SQL testsในDockerชั่วคราวไม่queryDBผู้ใช้ UIตัวอย่างไม่ยืนยันความพร้อมAIจริง ตรวจOCRกับสมุดจริง/ปีพ.ศ./วันEXP, LINEบนiOSAndroid, ปฏิทิน.ics, domain/DNS, Blobprivate/erasurejob, retryและcron ส่วนclinicaleval/ข้อมูลคลินิกจริงและprivacywordingยังต้องตรวจรับตามFEATURES.md
+
+แหล่งอ้างอิง: [Vercel Services (Beta)](https://vercel.com/docs/services), [Services config](https://vercel.com/docs/services/config-reference), [Hono deployment](https://vercel.com/docs/frameworks/backend/hono), [LIFF Server API](https://developers.line.biz/en/reference/liff-server/), [LINE webhook signature](https://developers.line.biz/en/docs/messaging-api/verify-webhook-signature/), [GPT-6.1 Sol](https://developers.openai.com/api/docs/models/gpt-6.1-sol)
