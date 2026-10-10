@@ -1,6 +1,6 @@
 # ตรวจหน้าเว็บและ LINE LIFF หลัง deploy
 
-ตรวจแบบอ่านอย่างเดียววันที่ 10 ตุลาคม 2026 เวลา 11:25–11:27 น. (Asia/Bangkok) ไม่เปลี่ยน DNS, Vercel settings, LINE endpoints หรือ webhook และไม่เรียก OpenAI
+ตรวจครั้งแรกแบบอ่านอย่างเดียววันที่ 10 ตุลาคม 2026 เวลา 11:25–11:27 น. (Asia/Bangkok) จากนั้นแก้ code/runtime, public API_ORIGIN และ Messaging webhook ตามคำขอตั้งค่าระบบ ผลหลังแก้และตรวจ production อยู่ท้ายเอกสาร ไม่เปลี่ยน DNS หรือ LIFF endpoints ในรอบนี้ และไม่เรียก OpenAI
 
 ## ทำไม custom domain ดูเล็กกว่า Vercel URL
 
@@ -91,6 +91,14 @@ Deployment `7214dd5` สำเร็จทั้ง 4 projects หลังแ�
 การทดสอบ PostgreSQL STARTTLS กับ pooler host ที่ผู้ใช้ให้มา โดยไม่ส่ง authentication หรือ SQL: ก่อนเพิ่ม CA ได้ verify error 19; หลังใช้ CA นี้และ `verify_hostname` ได้ verify return code 0 (ok) การตรวจ backend request ที่เชื่อมฐานข้อมูลต้องทำอีกครั้งหลัง deploy ตัวแก้ TLS
 
 ตัวแก้ใช้ CA เฉพาะ actual pg host ที่อยู่ใต้ `.pooler.supabase.com`, คง `rejectUnauthorized: true` และ hostname verification ไม่มี global trust หรือการปิด SSL verification ลบเฉพาะ SSL parser overrides ใน connection string เมื่อใช้ CA เพื่อไม่ให้ `sslmode` เขียนทับ `ssl.ca` และรักษารหัสผ่านที่ encode แล้ว/username/port/path/ตัวเลือกอื่นตามเดิม Unit tests ตรวจ actual pg.Client parser, host-query override, domain suffix boundaries, local Docker และ certificate fingerprint CLI upgrade ใช้ helper เดียวกัน
+
+## ผลตรวจหลังตัวแก้ TLS ขึ้น production
+
+Commit `b088cd7a83dd939b4503b6065fd610cf0a2c7a79` และ GitHub CI ผ่าน deployment production **READY ครบทั้ง 4 projects** Backend deployment `dpl_5eW1nwtkNLUoCt5UKQ1WM8LL3HVU` ตอบ `/api/v1/clinics` เป็น HTTP 200 JSON `data: []` ทั้งผ่าน `api.chordjai.life` โดยตรงและ proxies ของ Owner/Clinic/Admin ฐานข้อมูลเชื่อมต่อได้แล้ว แต่ยังไม่มีรายชื่อคลินิกที่ verified Endpoint `/api/v1/pets` ที่ไม่ส่ง authentication ตอบ HTTP 401 JSON `UNAUTHORIZED` ตามที่ควรเป็น
+
+หลังตรวจปลายทางด้วย LINE-signed empty-event แล้ว ย้าย Messaging channel ที่ผู้ใช้ระบุไป **`https://www.chordjai.life/api/v1/notification/webhooks/line`** และอ่าน LINE API กลับยืนยัน `active: true` ทดสอบด้วย LINE Webhook Test API ได้ `success: true`, `statusCode: 200` ไม่ได้ส่งข้อความหาผู้ใช้จริง LIFF ทั้งสามอ่านกลับตรงกับ endpoints และ public LIFF IDs ใน Vercel frontend ทั้งสามตรงกัน สี่ LIFF ที่ยังอยู่ในระบบ BDI ไม่ได้เปลี่ยน endpoint
+
+การตรวจนี้ไม่ล็อกอิน LINE เป็นผู้ใช้จริง ไม่เรียก OpenAI และไม่แก้ข้อมูลผู้ใช้ในฐานข้อมูล ดูผล API metadata ล่าสุดใน `LINE_SETUP_STATUS.json`
 
 ## แหล่งอ้างอิง
 

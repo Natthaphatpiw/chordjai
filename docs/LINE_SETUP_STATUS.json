@@ -1,5 +1,5 @@
 {
-  "checkedAt": "2026-10-09T17:48:11.920Z",
+  "checkedAt": "2026-10-10T05:16:24.485Z",
   "liffId": "2010549060-FRfLt9mJ",
   "liffEndpoint": "https://www.chordjai.life/app",
   "webhookEndpoint": "https://www.chordjai.life/api/v1/notification/webhooks/line",
@@ -35,7 +35,12 @@
   },
   "messaging": {
     "status": "verified",
-    "currentEndpoint": "https://chordjai.vercel.app/api/line/webhook",
-    "active": true
+    "currentEndpoint": "https://www.chordjai.life/api/v1/notification/webhooks/line",
+    "active": true,
+    "verification": {
+      "success": true,
+      "statusCode": 200,
+      "checkedAt": "2026-10-10T05:19:13.562Z"
+    }
   }
 }
