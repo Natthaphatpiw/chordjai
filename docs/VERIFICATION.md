@@ -31,3 +31,16 @@ npm run test:ui
 # ต้องมี clinic/admin local ที่ localhost:3001/3002 และ Playwright chromium
 node scripts/test-portals-ui.mjs
 ```
+
+## Bright orange + Mitr + Thai/English refinement (10 October 2026)
+
+- Unit: 84 passed, 19 isolated HTTP tests skipped without TEST_DATABASE_URL. Locale tests cover regional/quality preferences, exact navigation query preservation, English medical warnings and selected-language PetID explanations with provider mocks.
+- Disposable PostgreSQL: security/RLS/consent/erasure/queue/rate-limit/HNSW and safe-upgrade checks passed; 19 HTTP integration tests passed with an explicit English emergency request and follow-up recommendation. No production database changes.
+- All three frontend production builds and workspace TypeScript checks pass. Shared SSRlocale, metadata, language query/cookie and Mitr assets compile with Next16.4.
+- Portal fixture UI: Thai and English logins and all7workspace tabs, native validation, dates/statuses, role/grant error language, form/checkbox/tab/notice preservation on switches, authorized handlers and 390px layouts pass. No real LINE/OpenAI calls.
+
+Owner/public language and final visual results are recorded in root design-qa.md and the local UI runner output; no live AI quality claim is made without a configured API key.
+
+- Owner fixture UI: all6features and PetID on desktop/mobile; Englishdemo, health and emergency results; Mitr/local images; health entry, journal drag/keyboard/save/reload, memory/personality, collaboration/invite and unsavedjournal text/positions across language switches passed.
+- Public locale UI: marketing and all7public routes in bothlanguages; full SSRlang/metadata and direct ?lang links; original pet/clinical content preserved; tip submit/draft switching; 390px; bothlanguage offline emergency reloads passed. Four actualserviceworker unitcases prevent cookie-dependent/RSC/private cache pollution.
+- Independent review corrected remaining PetID Thai notice for English requests and separated localized photo-quality explanations from stable Englishvector facets. Added English spelled-dose backstop regression cases. These checks are mockedprovider/isolatedDB evidence, not clinicalvalidation.

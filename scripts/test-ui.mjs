@@ -20,7 +20,7 @@ await page.route('**/*',async route=>{
 });
 async function appearance(target,name){
   await target.evaluate(()=>document.fonts.ready);
-  expect(await target.evaluate(()=>getComputedStyle(document.body).fontFamily.toLowerCase())).toContain('sarabun');
+  expect(await target.evaluate(()=>getComputedStyle(document.body).fontFamily.toLowerCase())).toContain('mitr');
   // Copyright/registered/trademark symbols are text, despite Unicode assigning
   // them the Extended_Pictographic property for optional emoji presentation.
   expect(await target.evaluate(()=>/\p{Extended_Pictographic}/u.test(document.body.innerText.replace(/[©®™]/g,'')))).toBe(false);
@@ -160,7 +160,53 @@ try{
     expect(finderRequests).toEqual(['/api/v1/pets']);
     await appearance(finder,'petid-finder-mobile');
   }finally{await finderContext.close();}
+  const englishContext=await browser.newContext({viewport:{width:1440,height:1000},serviceWorkers:'block'});
+  try {
+    const english=await englishContext.newPage();english.on('pageerror',error=>errors.push(error.message));
+    await englishContext.route('**/*',route=>new URL(route.request().url()).origin===origin?route.continue():route.abort());
+    await english.goto(`${origin}/app?lang=en`,{waitUntil:'networkidle'});
+    await english.getByRole('button',{name:'Explore the demo first',exact:true}).click();
+    await expect(english.getByRole('heading',{name:/Today, with.*Tofu/})).toBeVisible();
+    expect(await english.locator('body').innerText()).not.toMatch(/[\u0E00-\u0E7F]/);
+    await appearance(english,'owner-home-english-desktop');
+    await english.getByRole('button',{name:'Health journal',exact:true}).first().click();
+    await expect(english.getByText('Combined feline vaccine (FVRCP)',{exact:true})).toBeVisible();
+    await english.getByRole('button',{name:/Does my pet need a vet/}).click();
+    await english.getByRole('checkbox',{name:'Trouble breathing, heavy panting, or pale/purple gums',exact:true}).check();
+    await english.getByRole('button',{name:'View emergency information',exact:true}).click();
+    await expect(english.getByRole('heading',{name:'Go to an animal hospital immediately',exact:true})).toBeVisible();
+    expect(await english.locator('body').innerText()).not.toMatch(/[\u0E00-\u0E7F]/);
+    await english.getByRole('button',{name:'Close dialog',exact:true}).click();
+    const englishNav=english.getByRole('navigation',{name:'Main navigation',exact:true});
+    for(const[label,heading]of[['Assistant','Chat with'],['Clinics & PetID','Find care nearby'],['Settings','Your space settings']]){
+      await englishNav.getByRole('button',{name:new RegExp(`^${label}`)}).click();
+      await expect(english.getByRole('heading',{level:1})).toContainText(heading);
+      expect(await english.locator('body').innerText()).not.toMatch(/[\u0E00-\u0E7F]/);
+    }
+    await englishNav.getByRole('button',{name:'Clinics & PetID',exact:true}).click();
+    await english.getByRole('button',{name:'PetID & missing pets',exact:true}).click();
+    await expect(english.getByRole('heading',{name:'Found a pet looking for home?',exact:true})).toBeVisible();
+    expect(await english.locator('body').innerText()).not.toMatch(/[\u0E00-\u0E7F]/);
+    await english.getByRole('button',{name:'Memories',exact:true}).first().click();
+    await expect(english.getByLabel('Page title')).toHaveValue('A day with you');
+    expect(await english.locator('body').innerText()).not.toMatch(/[\u0E00-\u0E7F]/);
+    await english.getByLabel('Page title').fill('My personal page');
+    await english.getByRole('button',{name:'Add text',exact:true}).click();
+    await english.getByLabel('Content').fill('A personal note to keep');
+    const edited=english.getByRole('button',{name:'A personal note to keep Drag to move, or use the arrow keys',exact:true});
+    await edited.focus();await english.keyboard.press('ArrowRight');
+    const beforeSwitch=await edited.getAttribute('style');
+    await appearance(english,'journal-english-desktop');
+    await english.getByRole('group',{name:'Choose language'}).getByRole('button',{name:'Thai',exact:true}).click();
+    await expect(english.getByLabel('ชื่อหน้าสมุด')).toHaveValue('My personal page');
+    const retained=english.getByRole('button',{name:'A personal note to keep ลากเพื่อย้าย หรือใช้ปุ่มลูกศร',exact:true});
+    await expect(retained).toBeVisible();
+    expect(await retained.getAttribute('style')).toBe(beforeSwitch);
+    await expect(english.getByText('ยังไม่ได้บันทึก',{exact:true})).toBeVisible();
+    await english.setViewportSize({width:390,height:844});
+    expect(await english.evaluate(()=>document.documentElement.scrollWidth>innerWidth)).toBe(false);
+  } finally {await englishContext.close();}
   expect(errors).toEqual([]);
   expect(apiRequests.every(request=>request.method==='GET'&&request.path==='/api/v1/clinics')).toBe(true);
-  console.log('Passed: all six owner tabs on desktop/mobile, health entry and emergency triage, journal drag/keyboard/save/reload, explicit AI sample boundaries, personality and opted-in memory, PetID owner/finder, privacy/terms/AI/share/lost/invite, Sarabun and loaded local photos, no decorative emoji or horizontal overflow, offline emergency, no browser errors or live provider calls.');
+  console.log('Passed: all six owner tabs on desktop/mobile, health entry and emergency triage, journal drag/keyboard/save/reload, explicit AI sample boundaries, personality and opted-in memory, PetID owner/finder, privacy/terms/AI/share/lost/invite, Mitr and loaded local photos, English demo/health/emergency/journal, language switching preserves unsaved journal edits, no decorative emoji or horizontal overflow, offline emergency, no browser errors or live provider calls.');
 }finally{await browser.close();}

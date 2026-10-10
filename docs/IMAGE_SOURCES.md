@@ -10,4 +10,6 @@
 
 ภาพสัตว์สองภาพอยู่ภายใต้ [Unsplash License](https://unsplash.com/license) ซึ่งอนุญาตดาวน์โหลดและใช้เชิงพาณิชย์ สร้างไฟล์ WebP สำหรับเว็บและเก็บใน public ของแต่ละ frontend จึงไม่เรียก image provider ภายนอกตอนผู้ใช้เปิดแอป ภาพประกอบไม่ใช่รูปของสัตว์เลี้ยงผู้ใช้จริง ไม่ใช้แทนหลักฐานทางการแพทย์หรือ PetID
 
-ฟอนต์ Sarabun โหลดด้วย next/font/google และ self-host จาก deployment ตามการทำงานของ Next.js ไอคอน UI และลายตกแต่งสมุดใช้ Lucide แทน emoji ส่วนข้อความที่ผู้ใช้เขียนเองยังคงเดิม
+ฟอนต์ Mitr โหลดด้วย next/font/google และ self-host จาก deployment ตามการทำงานของ Next.js ไอคอน UI และลายตกแต่งสมุดใช้ Lucide แทน emoji ส่วนข้อความที่ผู้ใช้เขียนเองยังคงเดิม
+
+The current product captures are `chordjai-overview-th.webp` and `chordjai-overview-en.webp`: actual local ChordJai demo screens with Mitr and the vivid orange palette, captured separately in each language. They contain synthetic demo records, not live owner data.

@@ -101,5 +101,5 @@ export async function embedTexts(userId: string, texts: string[]): Promise<numbe
 }
 
 export function hasUnsafeMedicalAdvice(text: string): boolean {
-  return /\d+(?:[.,]\d+)?\s*(?:mg\b|ml\b|cc\b|มก\.?|มล\.?|เม็ด|หยด)|(?:หนึ่ง|สอง|สาม|สี่|ห้า|หก|เจ็ด|แปด|เก้า|สิบ|ครึ่ง)\s*(?:มิลลิกรัม|มิลลิลิตร|เม็ด|หยด|ซีซี)|\b(?:one|two|three|four|five|half)\s+(?:tablets?|pills?|drops?|mg|ml)\b|(?:ให้|กิน|ป้อน|ฉีด|ใช้).{0,25}(?:ยา|พาราเซตามอล|ไอบูโพรเฟน|แอสไพริน|amoxicillin|ibuprofen|paracetamol|aspirin)|(?:give|administer|prescribe).{0,25}(?:medication|medicine|amoxicillin|ibuprofen|paracetamol|aspirin)|(?:เป็นโรค|วินิจฉัยว่า).{0,30}(?:แน่นอน|ชัวร์)/iu.test(text);
+  return /\d+(?:[.,]\d+)?\s*(?:mg\b|ml\b|cc\b|มก\.?|มล\.?|เม็ด|หยด)|(?:หนึ่ง|สอง|สาม|สี่|ห้า|หก|เจ็ด|แปด|เก้า|สิบ|ครึ่ง)\s*(?:มิลลิกรัม|มิลลิลิตร|เม็ด|หยด|ซีซี)|\b(?:one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|quarter|half)\s+(?:(?:of\s+)?(?:a|an)\s+)?(?:tablets?|pills?|drops?|mg|ml)\b|(?:ให้|กิน|ป้อน|ฉีด|ใช้).{0,25}(?:ยา|พาราเซตามอล|ไอบูโพรเฟน|แอสไพริน|amoxicillin|ibuprofen|paracetamol|aspirin)|(?:give|administer|prescribe).{0,25}(?:medication|medicine|amoxicillin|ibuprofen|paracetamol|aspirin)|(?:เป็นโรค|วินิจฉัยว่า).{0,30}(?:แน่นอน|ชัวร์)/iu.test(text);
 }

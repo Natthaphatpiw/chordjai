@@ -29,7 +29,16 @@ describe('PetID vector retrieval + vision verification with mocked providers',()
     });
   });
   afterEach(()=>{vi.unstubAllEnvs();vi.unstubAllGlobals();vi.clearAllMocks();});
-  async function identify(){const token=await signSession({id:finder,role:'owner'});return app.request('/api/v1/biometric/identify',{method:'POST',headers:{'Content-Type':'application/json',Authorization:`Bearer ${token}`},body:JSON.stringify({mediaId:foundImage})});}
+  async function identify(language='th'){const token=await signSession({id:finder,role:'owner'});return app.request('/api/v1/biometric/identify',{method:'POST',headers:{'Content-Type':'application/json',Authorization:`Bearer ${token}`,'Accept-Language':language},body:JSON.stringify({mediaId:foundImage})});}
+  it('uses the selected language for explanations while keeping vector signatures in English',async()=>{
+    mocks.indexed=Array.from({length:5},(_,i)=>candidate(i));
+    const body=await(await identify('en-GB')).json();
+    expect(body.data.notice).not.toMatch(/[\u0e00-\u0e7f]/);
+    expect(mocks.ai.mock.calls.find(([options])=>options.feature==='petid.verify_pair')?.[0].instructions).toContain('entirely in English');
+    expect(mocks.ai.mock.calls.find(([options])=>options.feature==='petid.signature')?.[0].instructions).toContain('English visual signature');
+    expect(mocks.ai.mock.calls.find(([options])=>options.feature==='petid.signature')?.[0].instructions).toContain('qualityIssues explanations in English');
+    expect(fetch).not.toHaveBeenCalled();
+  });
   it('recovers missing ANN candidates with exact search before vision verification',async()=>{
     mocks.indexed=[candidate(0),candidate(1)];mocks.exact=[...mocks.indexed,candidate(2),candidate(3),candidate(4)];
     const response=await identify(),body=await response.json();expect(response.status).toBe(200);expect(body.data.candidates).toHaveLength(5);

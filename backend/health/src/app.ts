@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { withUser } from '@chordjai/db';
-import { createService,getActor,ok,jsonBody,uuid,HttpError } from '@chordjai/service-kit';
+import { createService,getActor,ok,jsonBody,uuid,HttpError , aiLanguage } from '@chordjai/service-kit';
 import { recordSchema } from '@chordjai/contracts';
 import { runStructured } from '@chordjai/ai';
 import { loadOwnedImage,mediaIdFromUrl } from '@chordjai/media';
@@ -29,7 +29,7 @@ app.post(`${base}/ocr`,async c=>{
   const actor=getActor(c),b=await jsonBody(c,z.object({petId:z.uuid(),imageUrl:z.string().max(2000)}));
   await withUser(actor.id,async db=>{if(!(await db.query('SELECT id FROM pet.pets WHERE id=$1',[b.petId])).rowCount)throw new HttpError(404,'PET_NOT_FOUND','ไม่พบโปรไฟล์น้อง');});
   const image=await loadOwnedImage(actor.id,mediaIdFromUrl(b.imageUrl));
-  const draft=await runStructured({userId:actor.id,feature:'ocr.vaccine_book',instructions:'อ่านข้อความในสมุดวัคซีนเป็นร่างให้เจ้าของยืนยันเท่านั้น แปลงปี พ.ศ. เป็น ค.ศ. วันที่ ISO ห้ามใช้วัน EXP ของล็อตเป็นวันนัด ไม่ชัดเจนให้ null และใส่ warnings ห้ามคิดวันขึ้นเอง ห้ามแนะนำยาหรือขนาดยา',input:'ถอดรายการจากรูปสมุดวัคซีน พร้อมคำเตือนความไม่แน่นอน',images:[image],schema:ocrSchema});
+  const draft=await runStructured({userId:actor.id,feature:'ocr.vaccine_book',instructions:`Transcribe the vaccination book as a draft for the owner to confirm. Preserve original vaccine/product names as written. Return explanations and warnings entirely in ${aiLanguage(c)}. Convert Buddhist years to Gregorian ISO dates. Never use lot EXP as a next-due date. Unclear fields must be null with warnings. Never invent dates or advise medication or dosage.`,input:'ถอดรายการจากรูปสมุดวัคซีน พร้อมคำเตือนความไม่แน่นอน',images:[image],schema:ocrSchema});
   const scan=await withUser(actor.id,async db=>(await db.query('INSERT INTO health.scans(pet_id,user_id,media_id,draft) VALUES($1,$2,$3,$4::jsonb) RETURNING id',[b.petId,actor.id,mediaIdFromUrl(b.imageUrl),JSON.stringify(draft)])).rows[0]);
   return ok(c,{...draft,scanId:scan.id,requiresConfirmation:true});
 });

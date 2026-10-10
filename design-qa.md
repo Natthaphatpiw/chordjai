@@ -1,52 +1,48 @@
-# ChordJai — Kindness & Kinship design QA
+# ChordJai bright orange + Mitr + bilingual QA
 
-Date: 10 October 2026. Scope: the existing Owner, Clinic, Admin and public/LIFF frontend. This is a production frontend redesign of the existing pilot, not a pixel clone of a reference website.
+**Source visual truth**
+- Existing source UI capture: `/Users/natthaphat/Downloads/pettech/.verification/bright-before-owner.png`.
+- Latest user direction overrides the earlier muted Kindness & Kinship colors and Sarabun: cheerful vivid orange, playful loopless Mitr, Thai/English choice throughout. Existing layout and real licensed pet imagery remain the source composition. This is a scoped refinement, not a literal color/font match to the old screen.
 
-## Comparison truth and evidence
+**Implementation evidence**
+- Same-frame comparison: `.verification/bright-final-owner-th.png`; source and implementation are both 1280×720 CSSpx/PNGpx, density 1, owner demo Home/Tofu, no crop/normalization. Source and implementation were emitted together in one computer-use comparison input.
+- Product captures: `.verification/bright-product-th.png` and `bright-product-en.png`,1440×1100 CSSpx/PNGpx, density 1, same demo Home state. These are saved as separate local marketing WebPs.
+- Mobile English: `.verification/bright-owner-en-mobile.png`,390×844 CSS viewport, density 1, full-page screenshot. Portal/public/UI runner screenshots in `.verification/` cover every existing route/tab in bothlanguages.
+- The1280px comparison is legible at native resolution for logo, headings, controls and body text; fonts/spacing/photo crop were inspected at 1:1. A separate magnified source region is unnecessary because these important details are already readable.
 
-- Selected source: the user's Kindness & Kinship board, original `/var/folders/rx/64khk2hx5j32qytlzb6dt0fh0000gn/T/TemporaryItems/NSIRD_screencaptureui_7pgdl4/Screenshot 2569-10-10 at 11.21.34.png`; stable local evidence copy `.verification/reference-kindness-kinship.png` (1902 × 1130 pixels).
-- The board is a palette/control/typography concept, not a mockup of an application route. There is no matching authenticated state or viewport to compare pixel-for-pixel. The user's explicit Sarabun instruction overrides the board's Quicksand/Inter labels. The written color tokens override the board's older swatch labels where their values differ.
-- Browser-rendered local production screenshots: `.verification/cua-landing-desktop.jpg`, `.verification/chordjai-overview-production.jpg`, `.verification/cua-owner-{health,journal,chat,care,settings}-desktop.jpg`, and their mobile equivalents; `.verification/cua-landing-mobile.jpg`, `.verification/cua-owner-login-mobile.jpg`, `.verification/cua-clinic-login-{desktop,mobile}.jpg`, `.verification/cua-admin-login-mobile.jpg`.
-- Authenticated Clinic/Admin screenshots use synthetic API fixtures in isolated browser contexts: `.verification/clinic-appointments-desktop.png`, `.verification/clinic-appointments-mobile.png`, `.verification/clinic-health-mobile.png`, `.verification/admin-overview-desktop.png`, `.verification/admin-clinics-mobile.png`, `.verification/admin-jobs-mobile.png`. They are test evidence, not real user or clinic activity.
-- Successful public SSR states were also compared with the source board using synthetic loopback-only API fixtures: `.verification/public-share-{desktop,mobile}.png`, `.verification/public-lost-{desktop,mobile}.png`, `.verification/public-lost-tip-success-mobile.png`. Sarabun, readable summary rows, labeled tip inputs, successful submission, no overflow/broken images/pageerrors were verified; the temporary fixture server was then stopped.
-- CSS viewports: Owner desktop 1440 × 1100, mobile 390 × 844; portal functional smoke desktop 1440 × 1000, mobile 390 × 844. The additional CUA clinic desktop capture uses 1280 × 720. Image pixels equal CSS pixels in these captures (density 1). Full-page screenshots extend vertically beyond their viewport; a fixed mobile navigation bar remains at the viewport's lower edge in such images.
-- Combined full-view comparison opened and reviewed: `.verification/design-comparison.png` (1440 × 1800). The source board and five implementation regions are present together, each proportionally normalized into a 720 × 580 panel. Source and app states are explicitly different, so this comparison evaluates brand translation and hierarchy, not numerical pixel fidelity.
-- Focused comparisons: the source board and full-size Owner journal mobile capture were opened in the same comparison input. Owner home, journal editor, personality dialog, mobile navigation, Clinic login and Admin login were also inspected at native browser size. Landing dog-photo and product sections were inspected after scrolling them into view; evidence `.verification/cua-landing-memory-desktop.jpg` and `.verification/cua-landing-product-mobile.jpg`.
+**Findings and comparison history**
+- Initial P2: the earlier darkbrown-orange palette felt muted. Replaced action/selected-state fills with vivid`#ff8a24`, lighter white/peach surfaces and dark labels. Final1280px comparison shows the intended brightselection/brand treatment while retaining readable content. Accepted intentional color change.
+- Initial P2: Sarabun did not express the requested playful character. Mitr is now loaded on all3frontends via next/font/google, Thai and Latin,400/500/600. Computed browser family isMitr, body 400; display weight varies500/600. Accepted intentional typography change.
+- P2 during verification: newly captured marketing assets returned404 because the local production server started before those files existed. Restarted owner after saving both assets; reran owner and public runners, both pass with loaded local images. This was local inventory timing; bothfiles are included before deployment build.
+- P2 independent review: English PetID still had a Thai server notice and Thai insufficient-photo UI could get Englishquality explanations. Localized notice/quality feedback while keeping all embedding facets English. Unit provider request assertions pass.
+- Review finding: existing English medication backstop missed spelled six/seven doses. Extended matcher and regression cases; unit checks pass. No clinical quality claim is inferred from the safety filter.
+- Test-only failures: portal alert matchedNext's route announcer, and rerendered form implicit label included textarea content. Scoped test selectors; actual forms, notices, permissions and state preservation pass.
 
-## Findings
+**Required fidelity surfaces**
+1. Fonts/typography: actualMitr family confirmed on desktop/mobile, Thai/Latin, readable body 400, clear display hierarchy 500/600; no Sarabun runtimefont. All UI uses the sharedfamily. User-selected journal serif/handwritten styles remain editable contentchoices.
+2. Spacing/layout rhythm: same1280px composition preserves photo/sidebar/content relationships; language picker fits headers. At 390px all 6 owner areas, 7 portal tabs and 7 public routes are reachable without horizontal document overflow. Selected mobile navigation remains visible.
+3. Colors/tokens: shared white/peach backgrounds, vivid orange buttons/logo/selections, semanticmint/blue/error remain meaningful. Dark`#3a210d` on orange`#ff8a24` computes 6.35:1; secondary body text 7.15:1 on paper. White on orange was rejected at 2.36:1. This verifies these named pairs, not every possible custom journal color or an entire WCAG audit.
+4. Imagequality/assets: original licensed cat/dog WebPs preserved with intentional crops. Actual new Thai/English app captures load locally; English marketing image contains English system text. No new emoji, CSS illustration or handmade SVG assetsubstitutions. Existing icon library graphics remain functional.
+5. Copy/content: all system/sample UI, ARIA/placeholders/statuses/date formatting/legal pages/metadata translate to a single selectedlanguage. Static English demo has zero Thai text. Authored names, clinical record titles/notes and previously saved content remain original. New AI responses receive the selected language; no live AI quality test without the key.
 
-No actionable P0/P1/P2 visual or usability findings remain within this redesign scope.
+**Interactions and verification**
+- Owner: all 6 tabs, health entry, emergency triage fallback, drag/keyboard/edit/save/reload journal, memory opt-in/settings, PetID owner/finder, invite, public routes and language-switch preservation of unsaved text/title/positions.
+- Clinic/admin: all 7 tabs, grants/roles, accepted appointment, completed jobs filter/replay, clinical summary, clinic creation, native validation, notices/errors/forms/checkbox/tab preservation and localized errors. All mutations used local fixtures only.
+- Public: marketing +privacy/terms/AI/emergency/invite/share/lost, success/unavailable states, translated tip confirmation, unsent draft preservation, SSR html/lang/title/description, localized links, and both-language offline emergency reloads.
+- 84 unit + 19 isolated HTTP tests passed; DB security/HNSW/upgrade/concurrency suite passed; workspace TypeScript and3 production builds passed. Browser exception lists empty. No production data or LINE/OpenAI calls were used for functionalfixtures.
 
-### Required fidelity surfaces
+**Open questions / residual test gaps**
+- No actionable P0/P1/P2 remain. Live LINE sign-in and generated AI quality require the user's configured credentials and are outside this visual/language verification; provider prompts are tested with mocks.
+- Choosing another language does not rewrite historical authored or saved AI content. New UI/system responses follow the selection.
 
-1. **Fonts and typography:** all three layouts import Sarabun through `next/font/google`, with Thai/Latin subsets and weights 400/500/600/700. Computed browser body family is `Sarabun, "Sarabun Fallback"`. Thai headings wrap cleanly, functional form text stays 16px, and labels use readable weights. Mobile journal artwork scales as a canvas preview while its editing controls retain normal readable text.
-2. **Spacing and layout rhythm:** the landing page uses an editorial photo/text composition, a real product screenshot, numbered horizontal feature stories, a memory section and one closing action. Functional screens use task lists, health timelines, actual appointment tables, forms and a journal canvas. Mobile stacking keeps navigation, save buttons, toggles and forms reachable. Every tested route/tab at 390px has no horizontal document overflow.
-3. **Colors and visual tokens:** `frontend/shared/tokens.css` contains the supplied palette, including surface `#fdf9f3`, white `#ffffff`, primary `#9b4500`, orange container `#ff8c42`, peach `#ffdbc9`, and semantic mint/blue/error colors. The dark warm primary is used for readable white action text; peach marks selected/supporting areas. White/off-white dominate the screens. Thin warm dividers, modest radii and consistent focus states translate the board without copying its panel grid into every screen.
-4. **Image quality and asset fidelity:** real cat and dog photos were found with Google Images through computer use, opened at their original Unsplash pages, downloaded and saved as local WebP files. Subjects and crops were checked on desktop/mobile. There are no decorative emoji, generated dashboard pictures or borrowed reference-site artwork. The marketing product image is a 1440 × 1100 capture of this app's production build in explicitly labeled demo mode. Lucide supplies a consistent library of UI icons and journal decoration symbols. Live pets without a photo retain a species symbol rather than a stock image posing as their pet.
-5. **Copy and content:** Thai copy describes concrete care tasks, permission choices, journal actions and assistant memory. Demo data is labeled. AI notices explain login/demo boundaries without asking end users to configure API keys. No invented testimonials, medical success rates, customer statistics or clinic locations appear in the product. Admin counters reflect API responses; fixtures are used only for verification.
+**Implementation checklist**
+- Shared tokens/Mitr/locale provider and 3 SSR proxies implemented.
+- Every existing frontend/public/LIFF surface localized.
+- Actual bilingual product screenshots saved.
+- Local visual/interaction/SSR/offline verification passed.
+- Commit/push followed by Vercel production check is the final delivery step.
 
-### Interaction and accessibility evidence
+**Follow-up polish**
+- Optional usability testing withThai/English pet owners can assess preference for this brighter brand. No unsupported behavioral claim is made about the pets themselves.
 
-- Owner smoke: all six sections at desktop/mobile, health entry and emergency triage, journal drag/keyboard movement/save/reload, AI demo boundary, personality and opt-in memory, PetID owner/finder states, permissions and deletion confirmation, offline emergency, and public error/invitation/legal pages.
-- Clinic/Admin smoke: appointment acceptance and authorized health summary, memberships/logout, AI request filtering, background-job replay and clinic creation. Actual forms and result-state rendering were verified with isolated fixtures.
-- Modal dialogs use native dialog focus containment and Escape close. Inputs have labels, icon-only controls have accessible names, images have contextual alt text, and reduced-motion styling remains available.
-- Browser automation reported zero pageerrors. Provider calls, LINE login and production customer data were excluded from these UI tests.
-
-## Comparison history
-
-Before the final combined comparison, the implementation was refined to keep portal navigation's active item visible on narrow screens, move the Clinic photo caption clear of the dog's face, raise small functional labels to 14px, remove operator setup instructions from consumer copy, and return to the top on login/demo/live mode changes. Native-size browser inspection confirmed the final composition and the Owner mode transition at scrollY 0.
-
-The first long landing capture showed a blank below-the-fold dog area because the lazy image had not yet entered the viewport. This was a capture-state mismatch, not a rendering defect: after scrolling to the memory heading, the image was complete with naturalWidth 874. Both full-page captures were replaced with loaded-image evidence before acceptance. No code fix was needed for this capture issue.
-
-## Implementation checklist and residual limits
-
-- Shared palette and Sarabun applied to all existing frontend routes.
-- Local licensed photos and a production app screenshot installed.
-- Decorative emoji removed from app defaults; user-authored historic content remains intact.
-- Desktop/mobile visual and interaction verification completed.
-- Unit, TypeScript, production builds, isolated service startup, and temporary-database tests passed; see `docs/VERIFICATION.md`.
-- A live LINE/iOS/Android/provider acceptance run still depends on the user's production credentials and is not claimed by this frontend QA. PetID accuracy and medical evaluation are separate requirements recorded in `docs/FEATURES.md`.
-
-**Follow-up polish:** no blocking polish items. Additional brand photography can be added later using the same licensed-asset workflow.
-
-final result: passed
+**Final result:** passed

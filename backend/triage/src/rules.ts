@@ -11,20 +11,34 @@ const redFlags=[
   {id:'VOMIT_BLOOD',signal:'vomitBlood',pattern:/อาเจียน.{0,10}เลือด|อ้วก.{0,10}เลือด|vomit.{0,10}blood/i,reason:'มีสัญญาณอาเจียนเป็นเลือด'},
 ] as const;
 export function mergeSafetySignal(primary:boolean|null|undefined,alias:boolean|undefined){if(primary===true||alias===true)return true;if(primary===null)return null;return primary??alias;}
-export function evaluateRules(species:'cat'|'dog',symptoms:string,signals:Signals={}) {
+const englishReasons: Record<string,string> = {
+  'มีสัญญาณหายใจผิดปกติ': 'Signs of difficulty breathing',
+  'มีสัญญาณหมดสติหรือทรุดลง': 'Signs of unconsciousness or collapse',
+  'มีสัญญาณชัก': 'Signs of seizures',
+  'มีความเสี่ยงสัมผัสสารพิษ': 'Possible exposure to a toxic substance',
+  'มีประวัติอุบัติเหตุรุนแรงหรือเลือดออกมาก': 'Severe injury or heavy bleeding',
+  'มีสัญญาณปัสสาวะไม่ออก': 'Signs of inability to urinate',
+  'มีสัญญาณอาเจียนเป็นเลือด': 'Signs of vomiting blood',
+  'อาเจียนซ้ำหลายครั้ง': 'Repeated vomiting',
+  'ยังยืนยันสัญญาณอันตรายไม่ได้ ควรให้สัตวแพทย์ประเมิน': 'Danger signs are uncertain. A veterinarian should assess your pet.',
+  'น้องแมวไม่กินอาหารต่อเนื่อง ควรพบสัตวแพทย์': 'Your cat has not eaten for an extended period. Contact a veterinarian.',
+};
+export function evaluateRules(species:'cat'|'dog',symptoms:string,signals:Signals={},locale:'th'|'en'='th') {
   const original=symptoms.normalize('NFKC'),normalized=original.replace(/\s+/g,'');
   const hits:{id:string;reason:string}[]=redFlags.filter(rule=>signals[rule.signal]===true||rule.pattern.test(original)||rule.pattern.test(normalized)).map(rule=>({id:rule.id,reason:rule.reason}));
   if((signals.vomitCount24h??0)>=5)hits.push({id:'VOMIT_BLOOD',reason:'อาเจียนซ้ำหลายครั้ง'});
-  if(hits.length)return {level:3 as Level,hits,missing:false};
+  const localize=(items:typeof hits)=>locale==='en'?items.map(hit=>({...hit,reason:englishReasons[hit.reason]??hit.reason})):items;
+  if(hits.length)return {level:3 as Level,hits:localize(hits),missing:false};
   const missing=Object.values(signals).some(value=>value===null);
-  if(missing)return {level:2 as Level,hits:[{id:'UNKNOWN_SAFETY_SIGNAL',reason:'ยังยืนยันสัญญาณอันตรายไม่ได้ ควรให้สัตวแพทย์ประเมิน'}],missing:true};
-  if(species==='cat'&&(signals.notEatingHours??0)>=24)return {level:2 as Level,hits:[{id:'CAT_NOT_EATING',reason:'น้องแมวไม่กินอาหารต่อเนื่อง ควรพบสัตวแพทย์'}],missing:false};
+  if(missing)return {level:2 as Level,hits:localize([{id:'UNKNOWN_SAFETY_SIGNAL',reason:'ยังยืนยันสัญญาณอันตรายไม่ได้ ควรให้สัตวแพทย์ประเมิน'}]),missing:true};
+  if(species==='cat'&&(signals.notEatingHours??0)>=24)return {level:2 as Level,hits:localize([{id:'CAT_NOT_EATING',reason:'น้องแมวไม่กินอาหารต่อเนื่อง ควรพบสัตวแพทย์'}]),missing:false};
   return {level:0 as Level,hits:[],missing:false};
 }
 export function finalizeTriage(ruleLevel:Level,llmLevel:Level|null,confidence:'low'|'medium'|'high'='low') {
   return {severity:Math.max(ruleLevel,llmLevel??1,confidence==='low'?1:0) as Level,degraded:llmLevel===null};
 }
-export function safeResult(level:Level,degraded:boolean,reasons:string[]) {
+export function safeResult(level:Level,degraded:boolean,reasons:string[],locale:'th'|'en'='th') {
+  if(locale==='en')return {severity:level,title:['Monitor and book a visit if symptoms change','Book a veterinary visit','See a veterinarian within 24 hours','Go to an animal hospital immediately'][level],summary:reasons.join(' · ')||'This screening helps assess urgency. A veterinarian should evaluate your pet’s symptoms.',actions:level===3?['Call the animal hospital and travel there immediately','Do not give human medication or induce vomiting yourself']:['Monitor breathing, alertness, eating and toileting','Go to an animal hospital immediately for difficulty breathing, seizures, unconsciousness or inability to urinate'],degraded,disclaimer:'This screening is not a diagnosis or a substitute for veterinary care.'};
   const labels=['เฝ้าสังเกตและนัดตรวจเมื่ออาการเปลี่ยน','นัดพบสัตวแพทย์','พบสัตวแพทย์ภายใน 24 ชั่วโมง','ไปโรงพยาบาลสัตว์ทันที'];
   return {severity:level,title:labels[level],summary:reasons.join(' · ')||'ข้อมูลนี้ช่วยจัดลำดับความเร่งด่วน ควรให้สัตวแพทย์ประเมินอาการของน้อง',actions:level===3?['โทรแจ้งโรงพยาบาลสัตว์และเดินทางทันที','อย่าป้อนยาคนหรือทำให้อาเจียนเอง']:['สังเกตการหายใจ ความรู้สึกตัว การกิน และการขับถ่าย','หากหายใจลำบาก ชัก หมดสติ หรือปัสสาวะไม่ออก ให้ไปโรงพยาบาลทันที'],degraded,disclaimer:'การคัดกรองนี้ไม่ใช่การวินิจฉัยหรือทดแทนสัตวแพทย์'};
 }

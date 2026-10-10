@@ -8,6 +8,11 @@ import { z } from 'zod';
 import { idempotency } from './idempotency';
 import { errorDiagnosticCode } from './error-diagnostic';
 import type { ContentfulStatusCode } from 'hono/utils/http-status';
+import { responseLocale } from './locale';
+export { responseLocale } from './locale';
+export function requestLocale(c: ServiceContext) { return responseLocale(c.req.header('Accept-Language')); }
+export function localeText(c: ServiceContext, thai: string, english: string) { return requestLocale(c) === 'en' ? english : thai; }
+export function aiLanguage(c: ServiceContext) { return requestLocale(c) === 'en' ? 'English' : 'Thai'; }
 export type Actor={id:string;role:'owner'|'admin'|'vet'};
 export type ServiceEnv={Variables:{actor:Actor|undefined;requestId:string}};
 export type ServiceContext=Context<ServiceEnv>;
@@ -36,7 +41,7 @@ export function createService(name:string){
   app.use('*',bodyLimit({maxSize:4*1024*1024,onError:c=>c.json({error:{code:'BODY_TOO_LARGE',message:'ไฟล์ต้องมีขนาดต่ำกว่า 4 MB'}},413)}));
   app.use('*',cors({origin:(origin)=>{
     const allowed=(process.env.ALLOWED_ORIGINS??'http://localhost:3000,http://localhost:3001,http://localhost:3002').split(',');return allowed.includes(origin)?origin:'';
-  },allowHeaders:['Content-Type','Authorization','Idempotency-Key'],exposeHeaders:['X-Request-Id'],maxAge:600}));
+  },allowHeaders:['Content-Type','Authorization','Idempotency-Key','Accept-Language'],exposeHeaders:['X-Request-Id'],maxAge:600}));
   app.use('*',async(c,next)=>{
     const requestId=crypto.randomUUID();c.set('requestId',requestId);c.header('X-Request-Id',requestId);c.header('Cache-Control','private, no-store');
     const auth=c.req.header('Authorization');

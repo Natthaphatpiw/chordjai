@@ -1,23 +1,28 @@
+'use client';
 import { Flower2, Leaf, Heart, Sun, Moon, PawPrint, Star, Sprout, type LucideIcon } from 'lucide-react';
-
-export const journalGraphics: { value: string; label: string; icon: LucideIcon }[] = [
-  { value: 'graphic:flower', label: 'ดอกไม้', icon: Flower2 },
-  { value: 'graphic:leaf', label: 'ใบไม้', icon: Leaf },
-  { value: 'graphic:heart', label: 'หัวใจ', icon: Heart },
-  { value: 'graphic:sun', label: 'ดวงอาทิตย์', icon: Sun },
-  { value: 'graphic:moon', label: 'ดวงจันทร์', icon: Moon },
-  { value: 'graphic:paw', label: 'รอยเท้า', icon: PawPrint },
-  { value: 'graphic:star', label: 'ดาว', icon: Star },
-  { value: 'graphic:sprout', label: 'ต้นไม้', icon: Sprout },
+import { useLocale } from '../../shared/locale';
+import { translate, type Locale } from '../../shared/locale-core';
+const graphics: { value: string; thai: string; english: string; icon: LucideIcon }[] = [
+  { value: 'graphic:flower', thai: 'ดอกไม้', english: 'Flower', icon: Flower2 },
+  { value: 'graphic:leaf', thai: 'ใบไม้', english: 'Leaf', icon: Leaf },
+  { value: 'graphic:heart', thai: 'หัวใจ', english: 'Heart', icon: Heart },
+  { value: 'graphic:sun', thai: 'ดวงอาทิตย์', english: 'Sun', icon: Sun },
+  { value: 'graphic:moon', thai: 'ดวงจันทร์', english: 'Moon', icon: Moon },
+  { value: 'graphic:paw', thai: 'รอยเท้า', english: 'Paw', icon: PawPrint },
+  { value: 'graphic:star', thai: 'ดาว', english: 'Star', icon: Star },
+  { value: 'graphic:sprout', thai: 'ต้นไม้', english: 'Sprout', icon: Sprout },
 ];
-
+export function useJournalGraphics() {
+  const { t } = useLocale();
+  return graphics.map(({thai,english,...item})=>({...item,label:t(thai,english)}));
+}
 export function JournalGraphic({ value }: { value: string }) {
-  const graphic = journalGraphics.find(item => item.value === value);
+  const graphic = graphics.find(item => item.value === value);
   if (!graphic) return <span>{value}</span>;
   const Icon = graphic.icon;
   return <Icon className="journal-graphic" aria-hidden="true" strokeWidth={1.2}/>;
 }
-
-export function graphicLabel(value: string) {
-  return journalGraphics.find(item => item.value === value)?.label ?? value;
+export function graphicLabel(value: string, locale: Locale) {
+  const graphic=graphics.find(item=>item.value===value);
+  return graphic?translate(locale,graphic.thai,graphic.english):value;
 }

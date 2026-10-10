@@ -51,6 +51,10 @@ describe('single-provider Responses API and bounded audit',()=>{
     expect(hasUnsafeMedicalAdvice('ให้กิน amoxicillin วันละสองครั้ง')).toBe(true);
     expect(hasUnsafeMedicalAdvice('ให้ครั้งละครึ่งเม็ด')).toBe(true);
     expect(hasUnsafeMedicalAdvice('take two tablets')).toBe(true);
+    expect(hasUnsafeMedicalAdvice('Give six tablets.')).toBe(true);
+    expect(hasUnsafeMedicalAdvice('Administer seven drops.')).toBe(true);
+    expect(hasUnsafeMedicalAdvice('Give half a tablet.')).toBe(true);
+    expect(hasUnsafeMedicalAdvice('Administer a quarter of a tablet.')).toBe(true);
     expect(hasUnsafeMedicalAdvice('ควรปรึกษาสัตวแพทย์เพื่อประเมิน')).toBe(false);
   });
 });

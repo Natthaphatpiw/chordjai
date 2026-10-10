@@ -21,8 +21,8 @@ const isolated=!!testUrl&&['localhost','127.0.0.1','::1'].includes(new URL(testU
 describe.skipIf(!isolated)('real isolated Postgres HTTP contracts and privacy',()=>{
   const owner=randomUUID(),stranger=randomUUID(),viewer=randomUUID(),staff=randomUUID();
   let ownerToken='',strangerToken='',viewerToken='',staffToken='',petId='',clinicId='',linkId='',shareToken='',pageId='';
-  async function call(app:Hono<ServiceEnv>,path:string,token?:string,method='GET',body?:unknown,key?:string){
-    const response=await app.request(path,{method,headers:{...(token?{Authorization:`Bearer ${token}`}:{}) ,...(body?{'Content-Type':'application/json'}:{}),...(key?{'Idempotency-Key':key}:{})},...(body?{body:JSON.stringify(body)}:{})});
+  async function call(app:Hono<ServiceEnv>,path:string,token?:string,method='GET',body?:unknown,key?:string,language?:string){
+    const response=await app.request(path,{method,headers:{...(token?{Authorization:`Bearer ${token}`}:{}) ,...(body?{'Content-Type':'application/json'}:{}),...(key?{'Idempotency-Key':key}:{}),...(language?{'Accept-Language':language}:{})},...(body?{body:JSON.stringify(body)}:{})});
     return {status:response.status,body:await response.json(),replayed:response.headers.get('Idempotency-Replayed')};
   }
   beforeAll(async()=>{
@@ -104,9 +104,12 @@ describe.skipIf(!isolated)('real isolated Postgres HTTP contracts and privacy',(
     expect((await call(lostApp,`/api/v1/lostfound/public/${slug}`)).status).toBe(404);
   });
   it('returns emergency rules immediately without configured AI',async()=>{
-    const result=await call(triageApp,'/api/v1/triage/sessions',ownerToken,'POST',{petId,symptoms:'difficulty breathing',answers:{difficultyBreathing:true}});expect(result.status).toBeLessThan(300);expect(result.body.data.severity).toBe(3);
+    const result=await call(triageApp,'/api/v1/triage/sessions',ownerToken,'POST',{petId,symptoms:'difficulty breathing',answers:{difficultyBreathing:true}},undefined,'en');expect(result.status).toBeLessThan(300);expect(result.body.data.severity).toBe(3);
+    expect(JSON.stringify(result.body.data)).not.toMatch(/[\u0e00-\u0e7f]/);
+    expect(result.body.data.title).toBe('Go to an animal hospital immediately');
     const followups=await call(triageApp,'/api/v1/triage/followups',ownerToken);expect(followups.body.data).toHaveLength(1);
-    const answered=await call(triageApp,`/api/v1/triage/followups/${followups.body.data[0].id}`,ownerToken,'PATCH',{improved:false});expect(answered.status).toBe(200);
+    const answered=await call(triageApp,`/api/v1/triage/followups/${followups.body.data[0].id}`,ownerToken,'PATCH',{improved:false},undefined,'en');expect(answered.status).toBe(200);
+    expect(answered.body.data.recommendation).not.toMatch(/[\u0e00-\u0e7f]/);
   });
   it('enqueues private image erasure atomically and leaves cleanup after pet deletion',async()=>{
     const created=await call(petApp,'/api/v1/pets',ownerToken,'POST',{name:'For erasure',species:'dog'});expect(created.status).toBe(201);const disposable=created.body.data.id,mediaId=randomUUID();

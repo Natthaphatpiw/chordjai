@@ -1,25 +1,27 @@
 :root {
   color-scheme: light;
-  --surface: #fdf9f3;
-  --surface-dim: #dddad4;
-  --surface-bright: #fdf9f3;
+  --surface: #fffaf5;
+  --surface-dim: #f0e2d6;
+  --surface-bright: #fffaf5;
   --surface-container-lowest: #ffffff;
-  --surface-container-low: #f7f3ed;
-  --surface-container: #f1ede7;
-  --surface-container-high: #ebe8e2;
-  --surface-container-highest: #e6e2dc;
-  --on-surface: #1c1c18;
-  --on-surface-variant: #564338;
-  --inverse-surface: #31302d;
-  --inverse-on-surface: #f4f0ea;
-  --outline: #897266;
-  --outline-variant: #ddc1b3;
-  --surface-tint: #9b4500;
-  --primary: #9b4500;
+  --surface-container-low: #fff2e5;
+  --surface-container: #ffe8d4;
+  --surface-container-high: #ffe0c3;
+  --surface-container-highest: #ffdab7;
+  --on-surface: #292019;
+  --on-surface-variant: #695044;
+  --inverse-surface: #38251b;
+  --inverse-on-surface: #fff6ed;
+  --outline: #8a6252;
+  --outline-variant: #ebd2bd;
+  --surface-tint: #b84200;
+  --primary: #b84200;
+  --orange: #ff8a24;
+  --orange-hover: #ff9f45;
   --on-primary: #ffffff;
-  --primary-container: #ff8c42;
-  --on-primary-container: #6a2d00;
-  --inverse-primary: #ffb68d;
+  --primary-container: #ff8a24;
+  --on-primary-container: #3a210d;
+  --inverse-primary: #ffb36b;
   --secondary: #006d41;
   --on-secondary: #ffffff;
   --secondary-container: #95f7bb;
@@ -32,10 +34,10 @@
   --on-error: #ffffff;
   --error-container: #ffdad6;
   --on-error-container: #93000a;
-  --primary-fixed: #ffdbc9;
-  --primary-fixed-dim: #ffb68d;
-  --on-primary-fixed: #331200;
-  --on-primary-fixed-variant: #763300;
+  --primary-fixed: #ffe2bf;
+  --primary-fixed-dim: #ffb36b;
+  --on-primary-fixed: #352013;
+  --on-primary-fixed-variant: #a73b00;
   --secondary-fixed: #95f7bb;
   --secondary-fixed-dim: #7adaa1;
   --on-secondary-fixed: #002110;
@@ -44,10 +46,10 @@
   --tertiary-fixed-dim: #60d4fb;
   --on-tertiary-fixed: #001f28;
   --on-tertiary-fixed-variant: #004e61;
-  --background: #fdf9f3;
-  --on-background: #1c1c18;
-  --surface-variant: #e6e2dc;
-  --font-body: var(--font-sarabun), 'Sarabun', Tahoma, Arial, sans-serif;
+  --background: #fffaf5;
+  --on-background: #292019;
+  --surface-variant: #ffdab7;
+  --font-body: var(--font-mitr), 'Mitr', Tahoma, Arial, sans-serif;
   --radius-sm: .5rem;
   --radius: 1rem;
   --radius-md: 1.5rem;
@@ -72,3 +74,13 @@
   --danger: var(--error);
   --shadow: 0 8px 30px rgba(86, 67, 56, .06);
 }
+
+/* Language controls are shared across all public and LIFF surfaces. */
+.language-switcher { display: inline-flex; align-items: center; gap: 3px; flex-shrink: 0; padding: 3px; border: 1px solid var(--outline-variant); border-radius: 999px; background: var(--surface-container-lowest); color: var(--on-surface-variant); font-size: 12px; line-height: 1.2; }
+.language-switcher > svg { margin: 0 6px; }
+.language-switcher button { min-width: 40px; min-height: 38px; border: 0; border-radius: 999px; background: transparent; color: inherit; padding: 6px 9px; font: inherit; font-weight: 500; cursor: pointer; }
+.language-switcher button[aria-pressed=true] { background: var(--orange); color: var(--on-primary-container); }
+.language-switcher button:hover { background: var(--primary-fixed); color: var(--on-primary-fixed); }
+.language-switcher button:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+@media(max-width:600px) { .language-switcher > svg { display: none; } .language-switcher button { min-width: 34px; min-height: 38px; padding: 6px 8px; } }
+@media print { .language-switcher { display: none; } }

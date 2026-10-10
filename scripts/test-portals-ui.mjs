@@ -23,12 +23,12 @@ const data = {
   '/clinic/appointments': [{ id: appointmentId, clinicId, petId, reason: 'ฉีดวัคซีนประจำปี', requestedAt: '2026-10-12T03:00:00Z', status: 'requested' }],
   [`/clinic/pets/${petId}/summary`]: { pet: { name: 'น้องสำหรับทดสอบ', species: 'cat', sex: 'female', weightKg: 3.5 }, records: [{ kind: 'vaccine', title: 'วัคซีนรวม', recordedAt: '2026-09-01', nextDueAt: '2027-09-01', notes: 'ข้อมูลตัวอย่างสำหรับทดสอบ' }] },
   '/analytics/kpis': { users: 2, pets: 3, healthRecords: 4, summaryViews: 1, clinics: 1, triageSessions: 0, activeLostCases: 0, journalPages: 2, conversations: 1, aiCostTodayUsd: 0, deadJobs: 1 },
-  '/analytics/jobs': [{ id: jobId, topic: 'test.only', status: 'dead', attempts: 3, maxAttempts: 3, runAt: '2026-10-10T03:00:00Z', lastError: 'ข้อความทดสอบ UI' }],
-  '/analytics/ai-requests': [{ id: 'test-ai', feature: 'journal.decorate', model: 'gpt-6.1-sol', inputTokens: 0, outputTokens: 0, latencyMs: 0, costUsd: 0, status: 'success', createdAt: '2026-10-10T03:00:00Z' }],
+  '/analytics/jobs': [{ id: jobId, topic: 'test.only', status: 'dead', attempts: 3, maxAttempts: 3, runAt: '2026-10-10T03:00:00Z', lastError: 'ข้อความทดสอบ UI' }, { id: '66666666-6666-4666-8666-666666666666', topic: 'test.completed', status: 'completed', attempts: 1, maxAttempts: 3, runAt: '2026-10-10T03:00:00Z' }],
+  '/analytics/ai-requests': [{ id: 'test-ai', feature: 'journal.decorate', model: 'gpt-6.1-sol', inputTokens: 0, outputTokens: 0, latencyMs: 0, costUsd: 0, status: 'ok', createdAt: '2026-10-10T03:00:00Z' }],
   '/clinics': [{ id: clinicId, name: 'คลินิกสำหรับทดสอบ UI', district: 'ย่านทดสอบ', address: 'ที่อยู่สำหรับทดสอบ', phone: '020000000', is24h: true }],
 };
 
-async function session(kind, loggedIn = true) {
+async function session(kind, loggedIn = true, locale = 'th', roleOverride) {
   const context = await browser.newContext({ viewport: { width: 1440, height: 1000 }, serviceWorkers: 'block' });
   if (loggedIn) await context.addInitScript(() => sessionStorage.setItem('chordjai.session', 'portal-ui-test-session'));
   await context.route('**/api/v1/**', async route => {
@@ -40,14 +40,43 @@ async function session(kind, loggedIn = true) {
       await route.fulfill({ contentType: 'application/json', body: JSON.stringify({ data: result }) });
       return;
     }
-    const result = path === '/identity/me' ? { id: 'test-user', displayName: 'บัญชีทดสอบ UI', role: kind === 'admin' ? 'admin' : 'vet' } : data[path];
+    const result = path === '/identity/me' ? { id: 'test-user', displayName: locale === 'en' ? 'UI test account' : 'บัญชีทดสอบ UI', role: roleOverride || (kind === 'admin' ? 'admin' : 'vet') } : (locale === 'en' ? englishFixture(path) : data[path]);
     if (result === undefined) throw new Error(`Unexpected API request ${path}`);
     await route.fulfill({ contentType: 'application/json', body: JSON.stringify({ data: result }) });
   });
   const page = await context.newPage();
   page.on('pageerror', error => errors.push(error.message));
-  await page.goto(`${origins[kind]}/app`, { waitUntil: 'networkidle' });
+  await page.goto(`${origins[kind]}/app?lang=${locale}`, { waitUntil: 'networkidle' });
   return { page, context };
+}
+function englishFixture(path) {
+  const result = structuredClone(data[path]);
+  if (path === '/clinic/memberships' || path === '/clinics') {
+    for (const item of result) {
+      item.name = 'UI test clinic';
+      if ('district' in item) { item.district = 'Test area'; item.address = 'UI fixture address'; }
+    }
+  }
+  if (path === '/clinic/appointments') result[0].reason = 'Annual vaccination';
+  if (path.endsWith('/summary')) {
+    result.pet.name = 'Test pet';
+    result.records[0].title = 'Annual vaccine'; result.records[0].notes = 'UI fixture record';
+  }
+  if (path === '/analytics/jobs') result[0].lastError = 'UI fixture error';
+  return result;
+}
+async function assertEnglish(page) {
+  await expect(page.locator('html')).toHaveAttribute('lang', 'en');
+  expect(await page.locator('body').innerText()).not.toMatch(/[ก-๙]/);
+  expect(await page.evaluate(() => Array.from(document.querySelectorAll('[aria-label], [placeholder], [title]')).map(element => [element.getAttribute('aria-label'), element.getAttribute('placeholder'), element.getAttribute('title')].filter(Boolean).join(' ')).join(' '))).not.toMatch(/[ก-๙]/);
+}
+async function switchToThai(page) {
+  await page.getByRole('button', { name: 'Thai', exact: true }).click();
+  await expect(page.locator('html')).toHaveAttribute('lang', 'th');
+}
+async function switchToEnglish(page) {
+  await page.getByRole('button', { name: 'ภาษาอังกฤษ', exact: true }).click();
+  await expect(page.locator('html')).toHaveAttribute('lang', 'en');
 }
 async function checkLayout(page) {
   expect(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth)).toBe(false);
@@ -121,9 +150,110 @@ try {
   }
   await admin.page.screenshot({ path: '.verification/admin-jobs-mobile.png', fullPage: true });
   await admin.context.close();
+
+  for (const kind of ['clinic', 'admin']) {
+    const login = await session(kind, false, 'en');
+    await login.page.goto(`${origins[kind]}/?lang=en`, { waitUntil: 'networkidle' });
+    await expect(login.page).toHaveURL(/\/app\?lang=en$/);
+    await expect(login.page.getByRole('button', { name: 'Sign in with LINE' })).toBeVisible();
+    await assertEnglish(login.page);
+    await switchToThai(login.page);
+    await expect(login.page.getByRole('button', { name: 'เข้าสู่ระบบด้วย LINE' })).toBeVisible();
+    await switchToEnglish(login.page);
+    await assertEnglish(login.page);
+    await login.page.setViewportSize({ width: 390, height: 844 }); await checkLayout(login.page);
+    await login.page.screenshot({ path: `.verification/${kind}-login-en-mobile.png`, fullPage: true });
+    await login.context.close();
+  }
+  const englishClinic = await session('clinic', true, 'en');
+  await expect(englishClinic.page.getByRole('heading', { name: 'Appointments', exact: true })).toBeVisible();
+  await assertEnglish(englishClinic.page);
+  await englishClinic.page.getByRole('button', { name: 'Accept', exact: true }).click();
+  await expect(englishClinic.page.getByText('Appointment accepted', { exact: true })).toBeVisible();
+  await switchToThai(englishClinic.page);
+  await expect(englishClinic.page.getByText('ตอบรับคำขอนัดแล้ว', { exact: true })).toBeVisible();
+  await switchToEnglish(englishClinic.page);
+  await expect(englishClinic.page.getByText('Appointment accepted', { exact: true })).toBeVisible();
+  await expect(englishClinic.page.getByRole('heading', { name: 'No pending appointment requests' })).toBeVisible();
+  await englishClinic.page.locator('.portal-filters').getByRole('button', { name: /^Accepted/ }).click();
+  await englishClinic.page.getByRole('button', { name: 'Open health journal', exact: true }).click();
+  await expect(englishClinic.page.getByRole('heading', { name: 'Test pet' })).toBeVisible();
+  await assertEnglish(englishClinic.page);
+  await expect(englishClinic.page.locator('.portal-table-wrap')).toContainText('2026');
+  await switchToThai(englishClinic.page);
+  await expect(englishClinic.page.getByLabel('รหัสน้อง', { exact: true })).toHaveValue(petId);
+  await switchToEnglish(englishClinic.page);
+  await expect(englishClinic.page.getByLabel('Pet ID', { exact: true })).toHaveValue(petId);
+  await englishClinic.page.setViewportSize({ width: 390, height: 844 }); await checkLayout(englishClinic.page);
+  await englishClinic.page.screenshot({ path: '.verification/clinic-health-en-mobile.png', fullPage: true });
+  await englishClinic.page.getByRole('navigation').getByRole('button', { name: 'My clinics' }).click();
+  await expect(englishClinic.page.getByText('Veterinarian', { exact: true })).toBeVisible();
+  await assertEnglish(englishClinic.page); await checkLayout(englishClinic.page);
+  await englishClinic.page.getByRole('navigation').getByRole('button', { name: 'Health journal' }).click();
+  const idInput = englishClinic.page.getByLabel('Pet ID', { exact: true });
+  await idInput.fill('');
+  await englishClinic.page.getByRole('button', { name: 'Open health journal', exact: true }).click();
+  expect(await idInput.evaluate(input => input.validationMessage)).toBe('Please complete this field.');
+  await englishClinic.context.route('**/api/v1/clinic/pets/**/summary', route => route.fulfill({ status: 403, contentType: 'application/json', body: JSON.stringify({ error: { code: 'GRANT_REQUIRED', message: 'เจ้าของต้องให้สิทธิ์ที่ยังไม่หมดอายุ' } }) }));
+  await idInput.fill(petId);
+  await englishClinic.page.getByRole('button', { name: 'Open health journal', exact: true }).click();
+  await expect(englishClinic.page.locator('.portal-error[role="alert"]')).toContainText('The owner must grant this clinic access');
+  await switchToThai(englishClinic.page);
+  await expect(englishClinic.page.locator('.portal-error[role="alert"]')).toContainText('เจ้าของต้องให้สิทธิ์ที่ยังไม่หมดอายุ');
+  await switchToEnglish(englishClinic.page);
+  await expect(englishClinic.page.locator('.portal-error[role="alert"]')).toContainText('The owner must grant this clinic access');
+  await assertEnglish(englishClinic.page);
+  await englishClinic.context.close();
+
+  const englishAdmin = await session('admin', true, 'en');
+  await expect(englishAdmin.page.getByRole('heading', { name: 'Overview', exact: true })).toBeVisible();
+  await assertEnglish(englishAdmin.page);
+  await englishAdmin.page.getByRole('navigation').getByRole('button', { name: 'AI activity' }).click();
+  await expect(englishAdmin.page.getByText('Journal decoration', { exact: true })).toBeVisible();
+  await expect(englishAdmin.page.locator('.portal-status')).toHaveText('Succeeded');
+  await assertEnglish(englishAdmin.page);
+  await englishAdmin.page.getByRole('searchbox', { name: 'Search AI requests' }).fill('no-match');
+  await expect(englishAdmin.page.getByRole('heading', { name: 'No requests match your search' })).toBeVisible();
+  await englishAdmin.page.getByRole('navigation').getByRole('button', { name: /^Background jobs/ }).click();
+  await englishAdmin.page.locator('.portal-filters').getByRole('button', { name: /^Completed/ }).click();
+  await expect(englishAdmin.page.getByText('test.completed', { exact: true })).toBeVisible();
+  await englishAdmin.page.locator('.portal-filters').getByRole('button', { name: /^Needs review/ }).click();
+  await englishAdmin.page.getByRole('button', { name: 'Retry job test.only', exact: true }).click();
+  await expect(englishAdmin.page.getByText('Job queued again', { exact: true })).toBeVisible();
+  await assertEnglish(englishAdmin.page);
+  await englishAdmin.page.getByRole('navigation').getByRole('button', { name: 'Clinic network' }).click();
+  await englishAdmin.page.getByRole('button', { name: 'Add clinic', exact: true }).click();
+  await englishAdmin.page.getByLabel('Clinic name', { exact: true }).fill('New UI test clinic');
+  await englishAdmin.page.getByLabel('District / area', { exact: true }).fill('Test area');
+  await englishAdmin.page.getByLabel('Phone', { exact: true }).fill('020000000');
+  await englishAdmin.page.getByRole('textbox', { name: 'Address', exact: true }).fill('Test address');
+  await englishAdmin.page.getByLabel('I have verified the contact details and hours with the clinic').check();
+  await switchToThai(englishAdmin.page);
+  await expect(englishAdmin.page.getByLabel('ชื่อคลินิก', { exact: true })).toHaveValue('New UI test clinic');
+  await expect(englishAdmin.page.getByLabel('ตรวจข้อมูลติดต่อและเวลาเปิดกับคลินิกแล้ว')).toBeChecked();
+  await switchToEnglish(englishAdmin.page);
+  await expect(englishAdmin.page.getByLabel('Clinic name', { exact: true })).toHaveValue('New UI test clinic');
+  await expect(englishAdmin.page.getByRole('textbox', { name: 'Address', exact: true })).toHaveValue('Test address');
+  await assertEnglish(englishAdmin.page);
+  await englishAdmin.page.getByRole('button', { name: 'Save to public directory', exact: true }).click();
+  await expect(englishAdmin.page.getByText('Verified clinic saved in the public directory', { exact: true })).toBeVisible();
+  await englishAdmin.page.setViewportSize({ width: 390, height: 844 }); await checkLayout(englishAdmin.page);
+  await englishAdmin.page.screenshot({ path: '.verification/admin-clinics-en-mobile.png', fullPage: true });
+  for (const tab of ['Overview', 'AI activity', 'Background jobs']) {
+    await englishAdmin.page.getByRole('navigation').getByRole('button', { name: tab, exact: true }).click();
+    await assertEnglish(englishAdmin.page); await checkLayout(englishAdmin.page);
+  }
+  await englishAdmin.context.close();
+  const denied = await session('admin', true, 'en', 'owner');
+  await expect(denied.page.locator('.portal-error[role="alert"]')).toContainText('This account does not have administrator access');
+  await switchToThai(denied.page);
+  await expect(denied.page.locator('.portal-error[role="alert"]')).toContainText('บัญชีนี้ยังไม่มีสิทธิ์ผู้ดูแลระบบ');
+  await switchToEnglish(denied.page);
+  await assertEnglish(denied.page);
+  await denied.context.close();
   expect(mutations).toContainEqual({ path: `/clinic/appointments/${appointmentId}`, method: 'PATCH', body: { status: 'accepted' } });
   expect(mutations.some(item => item.path === `/analytics/jobs/${jobId}/replay`)).toBe(true);
   expect(mutations.some(item => item.path === '/clinic/admin/clinics' && item.body.name === 'คลินิกใหม่ทดสอบ')).toBe(true);
   expect(errors).toEqual([]);
-  console.log('Passed: clinic/admin desktop and mobile login, clinic appointment accept and grant-summary lookup, membership, logout, admin overview/AI filter/job replay/clinic create, no horizontal page overflow or browser errors. API fixtures only.');
+  console.log('Passed: Thai/English clinic/admin login and all workspace tabs, locale-preserving redirects, dates/statuses/ARIA/validation, switching preserves notices/errors/forms/permissions, clinic accept/grant-summary/membership/logout, admin AI filter/completed-job filter/replay/clinic create, active mobile nav, no page overflow or browser errors. API fixtures only.');
 } finally { await browser.close(); }

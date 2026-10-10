@@ -1,5 +1,5 @@
 import {describe,it,expect} from 'vitest';
-import {evaluateRules,finalizeTriage,mergeSafetySignal} from './rules.js';
+import {evaluateRules,finalizeTriage,mergeSafetySignal,safeResult} from './rules.js';
 describe('triage safety floor',()=>{
   it.each(['น้องหายใจไม่ออก','แมวฉี่ไม่ออก','อาเจียนเป็นเลือด','หมาถูกรถชน','แมวชัก','น้องกินพาราเซตามอล','น้องหมดสติ','เลือดไหลไม่หยุด','difficulty breathing','severe bleeding','my dog was hit by a car'])('identifies acute symptoms immediately: %s',symptoms=>{
     expect(evaluateRules('cat',symptoms).level).toBe(3);
@@ -21,5 +21,14 @@ describe('triage safety floor',()=>{
   it('conflicting aliases never hide a positive signal or erase uncertainty',()=>{
     expect(mergeSafetySignal(false,true)).toBe(true);
     expect(mergeSafetySignal(null,false)).toBeNull();
+  });
+  it('keeps the same safety floor in English and translates every deterministic warning',()=>{
+    for(const [symptoms,signals] of [['difficulty breathing',{}],['vomiting',{vomitCount24h:5}],['quiet',{breathing:null}],['not eating',{notEatingHours:25}]] as const){
+      const thai=evaluateRules('cat',symptoms,signals);
+      const english=evaluateRules('cat',symptoms,signals,'en');
+      expect(english.level).toBe(thai.level);
+      expect(english.hits.map(hit=>hit.id)).toEqual(thai.hits.map(hit=>hit.id));
+      expect(JSON.stringify(safeResult(english.level,true,english.hits.map(hit=>hit.reason),'en'))).not.toMatch(/[\u0e00-\u0e7f]/);
+    }
   });
 });
