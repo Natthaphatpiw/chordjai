@@ -1,4 +1,19 @@
-# ผลตรวจระบบ — 10 ตุลาคม 2026
+# ผลตรวจระบบ — อัปเดต 12 ตุลาคม 2026
+
+
+## Care Diary: แกน B2C และข้อมูลสำหรับคลินิก — 12 ตุลาคม 2026
+
+- TypeScript ทั้ง workspace และ production builds ทั้ง Owner/Clinic/Admin ผ่าน; unit/provider/SDK mocks **166 passed**. HTTP ที่ข้ามใน unit run ถูกตรวจแยกกับ PostgreSQL จริง **68 passed** รวม 22 Care Diary flows และ care/PetID aggregate metrics
+- SQL ตรวจ RLS/author-only reflections/clinical projection/permissions/consent/erasure, public snapshot revocation, follow-up reminders, exact money, source attribution, shared-pet/photo ownership, concurrency และ migration upgrades 1/4/9/13/14/15/16→16→16 ผ่าน โดยเก็บข้อมูล sentinel เดิมและปฏิเสธ schema/checksum drift
+- ตรวจด้วย PostgreSQL จริงและแก้ cursor ที่เสีย microseconds เมื่อผ่าน JavaScript Date: entry/episode list/create/get/patch/retry คืน UTC precision 6 หลัก การอ่านหลายหน้าไม่ตกหล่นที่เวลาเดียวกัน UI เปรียบเทียบ timestamp ต่างความละเอียดโดยไม่แก้ค่าที่ส่งเป็น cursor
+- Browser production-build fixtures ผ่าน: text-first diary ทั้ง 4 ประเภท, optional clinical fields, episodes, visits/follow-up, Bangkok chronology, paid/estimated costsแยกสกุลเงิน, 5-photo cap, author reflection privacy, share preview/TXT, 503 retry bodyเดิมไม่ซ้ำ, 409 reload, episode status, 101 same-time updates/51 episodes, truncated-summary notice, Thai/English และ mobile/desktop
+- Home แสดง recent care updates และเปิดไดอารี่จากปุ่มได้ ไม่มี reflection ในตัวอย่างบน Home; ข้อความ/รูปที่เลือกส่งเป็น Story draft ที่ยังไม่บันทึก ไม่คัดลอกเรื่องเล่าหรือความรู้สึกที่ไม่ได้เลือก ทดสอบ StrictMode load ordering และสมุดปก/หลายหน้า/save–reload/reader/resize เดิมผ่าน
+- Public SSR ทั้งภาษาและ owner regression ทั้ง 6 เมนูผ่าน; clinic/admin fixtures ตรวจ clinical details, cost opt-in, provenance, privacy canaries และ aggregate dashboard ภาษาไทย/อังกฤษบน 390px/desktop ไม่มี horizontal overflow หรือ browser errors
+- ปุ่ม Print brief ของคลินิกเปิด cost details ก่อนพิมพ์จริง ตรวจ PDF A4 ด้วยการอ่าน text พบยอดจ่าย THB 1,250.50 และประมาณการ THB 500.00 ครบ ไม่พบ privacy canaries และไม่มี browser errors
+- Runtime declarations ตรวจ source dependencies 50 files และ isolated production install/start 14 service entrypoints ผ่าน ทุก /healthz ตอบ 200
+- Supabase ของโครงการอัปเกรด **16 migrations** สำเร็จแล้ว และ read-only diagnostic ตรงกับ manifest รุ่น16. ไม่มีการสร้างข้อมูลผู้ใช้ตัวอย่างใน production และไม่พิมพ์ credentials/ข้อมูลผู้ใช้ใน log
+
+ภาพและ log อยู่ใน ignored `.verification/care-core/` และ `.verification/care-diary-*`. การทดสอบผู้ให้บริการใช้ fixtures/mocks ไม่เรียก OpenAI/Blob/LINE จริง ผลนี้ยังไม่วัด clinical accuracy, retention ของผู้ใช้จริง, biometric error rates หรือการใช้งาน LINE บน iOS/Android จริง แผนเก็บ dataset/ยืนยันตัว/partner integration และการทดลองคลินิกอยู่ใน `docs/CORE_PRODUCT_STRATEGY.md`.
 
 ## สมุดหลายหน้า / Story / PetID หลายรูป / LIFF — 12 ตุลาคม 2026
 

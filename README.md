@@ -1,6 +1,8 @@
-# ChordJai — สมุดสุขภาพและความทรงจำของน้อง
+# ChordJai — ไดอารี่ดูแลและความทรงจำของน้อง
 
 รุ่น pilot ที่รันได้จากรายละเอียด `SYSTEM_DESIGN.md` และ `REQUIREMENTS_ANALYSIS.md` พร้อมสมุด drag and drop/AI decorate และ AI chat ที่มี memory ใช้ OpenAI SDK + Responses API โมเดล `gpt-6.1-sol` ทุกงานสร้างข้อความ/อ่านภาพ และ `text-embedding-3-small` เฉพาะการสร้างเวกเตอร์
+
+แกน B2C คือ **ไดอารี่ดูแลน้อง** ในสมุดสุขภาพ: เล่าเรื่องประจำวัน อาการ การพบหมอ ค่าใช้จ่าย และการติดตามที่เชื่อมเป็นเรื่องเดียว แยกความรู้สึกส่วนตัวจากข้อมูลคลินิกที่เลือกแชร์ และส่งข้อความ/รูปที่เลือกไปแต่งเป็นหน้าความทรงจำได้ ดูงานวิจัย แผนธุรกิจคลินิก/PetID และขอบเขตที่พัฒนาแล้วใน [docs/CORE_PRODUCT_STRATEGY.md](docs/CORE_PRODUCT_STRATEGY.md)
 
 ## เริ่มดูระบบ
 
@@ -19,7 +21,7 @@ npm run dev:owner
 4. คัดลอก `.env.example` ของแต่ละ frontend เป็น `.env.local` แล้วตั้ง `API_ORIGIN=http://localhost:8787` สำหรับ local
 5. รัน `npm run dev` เพื่อเปิด API+owner, `npm run dev:clinic` หรือ `npm run dev:admin` เพื่อเปิด portal
 
-ยังไม่เรียก OpenAI จริงตามที่ผู้ใช้เลือกให้ใส่ API key ภายหลัง และไม่ได้ query Supabase ของผู้ใช้ การตรวจฐานข้อมูลใช้ PostgreSQL/pgvector ชั่วคราวแยกต่างหาก
+ยังไม่เรียก OpenAI จริงตามที่ผู้ใช้เลือกให้ใส่ API key ภายหลัง การทดสอบใช้ PostgreSQL/pgvector แยกต่างหาก ส่วน Supabase ของโครงการอัปเกรดถึง migration 16 และตรวจ fingerprint แล้ว โดยไม่สร้างบันทึกผู้ใช้ทดสอบใน production
 
 ## Git และ Vercel
 
@@ -38,7 +40,7 @@ Backend มี 13 microservices API และ scheduler รวม 14 Vercel Serv
 
 วิธีทำงานและขอบเขตของ Pet Biometrics แบบvector+LLMอยู่ใน [docs/PETID.md](docs/PETID.md)
 
-ดีไซน์ Kindness & Kinship ใช้ Sarabun ทั้งสาม frontend พร้อมภาพสัตว์จริงจาก Google Images/Unsplash และภาพหน้าจอแอปจริง ดู [แนวทางออกแบบ](docs/DESIGN_DIRECTION.md), [เครดิตภาพ](docs/IMAGE_SOURCES.md), [ผลตรวจดีไซน์](design-qa.md) และ [การตรวจ domain/LIFF/API](docs/DEPLOYMENT_DIAGNOSIS.md)
+ดีไซน์ใช้ส้มสดใสและ Mitr ทั้งสาม frontend พร้อมตัวเลือกภาษาไทย/อังกฤษ พร้อมภาพสัตว์จริงจาก Google Images/Unsplash และภาพหน้าจอแอปจริง ดู [แนวทางออกแบบ](docs/DESIGN_DIRECTION.md), [เครดิตภาพ](docs/IMAGE_SOURCES.md), [ผลตรวจดีไซน์](design-qa.md) และ [การตรวจ domain/LIFF/API](docs/DEPLOYMENT_DIAGNOSIS.md)
 
 ## ตรวจงาน
 
@@ -51,11 +53,12 @@ npm run test:db -- --http
 # เปิด owner-app local ก่อน แล้วติดตั้ง browser ครั้งแรกด้วย npx playwright install chromium
 npm run test:ui
 node scripts/test-portals-ui.mjs
+node scripts/test-care-diary-ui.mjs
 node scripts/check-runtime-dependencies.mjs
 node scripts/test-runtime-startup.mjs
 ```
 
-`test:db` ต้องมี Docker และสร้าง Postgres/pgvector ชั่วคราวของตัวเอง ไม่ใช้ฐานข้อมูลผู้ใช้ รวมการทดสอบอัปเกรดและ HNSW query plan เพิ่ม `--http` เพื่อรัน 19 API integration flows ในฐานข้อมูลชั่วคราวเดียวกัน สำหรับฐานข้อมูลทดสอบ local ที่มี schema อยู่แล้ว ใช้ `TEST_DATABASE_URL` ที่ชี้ localhost เท่านั้น:
+`test:db` ต้องมี Docker และสร้าง Postgres/pgvector ชั่วคราวของตัวเอง ไม่ใช้ฐานข้อมูลผู้ใช้ รวมการทดสอบอัปเกรดและ HNSW query plan เพิ่ม `--http` เพื่อรัน 68 API integration tests ในฐานข้อมูลชั่วคราวเดียวกัน สำหรับฐานข้อมูลทดสอบ local ที่มี schema อยู่แล้ว ใช้ `TEST_DATABASE_URL` ที่ชี้ localhost เท่านั้น:
 
 ```bash
 TEST_DATABASE_URL=postgresql://postgres@127.0.0.1:TEST_PORT/postgres npm test

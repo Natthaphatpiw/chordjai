@@ -17,3 +17,12 @@ export function safeJournalPhoto(value: string, demo = false): string {
   if (/^https:\/\//.test(value) || /^\/api\/v1\/media\/[0-9a-f-]{36}/i.test(value) || ['/images/pet-home-cat.webp', '/images/pet-home-dog.webp'].includes(value)) return value;
   return demo && /^data:image\/(?:jpeg|png|webp);base64,/.test(value) ? value : '';
 }
+
+/** A diary event is copied only after the owner chooses its text and photo. */
+export function diaryMemoryPage(draft: {title:string;narrative:string;photoUrl?:string;storyDate:string}, petId:string, pageOrder:number, idPrefix:string, demo=false): JournalPage {
+  const elements:JournalElement[]=[{id:`${idPrefix}-title`,type:'text',x:70,y:80,width:660,height:140,rotation:0,content:draft.title.slice(0,120),color:'#6a2d00'}];
+  const photo=draft.photoUrl ? safeJournalPhoto(draft.photoUrl,demo) : '';
+  if(photo)elements.push({id:`${idPrefix}-photo`,type:'photo',x:70,y:260,width:660,height:660,rotation:0,content:photo});
+  if(draft.narrative)elements.push({id:`${idPrefix}-story`,type:'text',x:70,y:photo?960:290,width:660,height:photo?280:820,rotation:0,content:draft.narrative.slice(0,4000),color:'#3a210d'});
+  return {id:'',petId,title:draft.title.slice(0,120),theme:{background:'#fffaf5',accent:'#c04a00',font:'sans'},elements,canvasHeight:STORY_HEIGHT,storyDate:draft.storyDate,location:'',pageOrder,version:1};
+}

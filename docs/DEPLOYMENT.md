@@ -1,5 +1,19 @@
 # Deployment ของ ChordJai
 
+## รุ่นปัจจุบัน: Care Diary และฐานข้อมูล 16 — 12 ตุลาคม 2026
+
+Core ใหม่อยู่ในบริการ `health` เดิม: สมุดสุขภาพเปิดที่ไดอารี่ดูแลน้อง และแยกมุมสมุดประจำตัว/วัคซีนไว้ข้างกัน บันทึกวันปกติ อาการ ไปพบหมอ ค่ารักษา และติดตามหลังรักษาเชื่อมเป็นเรื่องการดูแล เจ้าของเลือกข้อความ/รูปไปสร้างร่างความทรงจำได้ ข้อความสำหรับคุณหมอแยกจากเรื่องเล่าและความรู้สึกส่วนตัว
+
+Migration `202610120016_care_diary.sql` เพิ่ม `health.care_episodes`, `care_entries`, `care_reflections`, `care_costs`, `care_media` พร้อม RLS, version/ที่มาข้อมูล, การเก็บค่าใช้จ่ายเป็นหน่วยย่อยและการเตือนติดตาม เพิ่มสิทธิ์คลินิก `care.read` โดยไม่ขยายสิทธิ์ `summary.read` เดิม การแชร์บันทึกและค่าใช้จ่ายต้องเลือกแยกกัน ไม่มีการเปิดเรื่องเล่าเต็ม ความรู้สึกส่วนตัวหรือรูปไดอารี่ผ่านสรุปคลินิก/สาธารณะ
+
+**Supabase จริงของโปรเจกต์อัปเกรดและตรวจยืนยันรุ่น 16 แล้ว** migration 1–15 ไม่ถูกเปลี่ยน checksum เครื่องติดตั้งอื่นที่ยังเป็นรุ่นเดิมให้ตรวจด้วย `supabase/diagnostic.sql` แล้วใช้ `supabase/upgrade.sql` ตามขั้นตอนด้านล่าง ฐานข้อมูลใหม่ใช้ `bootstrap.sql` เท่านั้น
+
+รอบนี้ไม่มี Git repo, Vercel project, environment variable, secrets หรือ endpoint LIFF ใหม่ ใช้ 1 repo/4 projects, ค่า env และ LINE/LIFF เดิมทั้งหมด การอัปเกรด schema ไม่แทนการตรวจสถานะ deployment ของแต่ละ project
+
+API ใหม่ภายใต้ `/api/v1/health/care` คือ `/entries`, `/entries/:id`, `/episodes`, `/episodes/:id` และ `/summary` รายการ entries/episodes ใช้ keyset `before=<ISO UTC ที่ตอบกลับ>` คู่กับ `beforeId=<UUID>` ครั้งละ 50 รายการโดยปริยาย สูงสุด 200 ต่อคำขอ ต้องเก็บค่าเวลา cursor ครบตามที่ API ตอบกลับเพื่อรักษา microseconds ไม่แปลงผ่าน JavaScript Date ก่อนส่งกลับ ประวัติไม่จำกัดจำนวนรวม; summary คืนสูงสุด 100 รายการล่าสุดที่อนุญาตแชร์และค่า `truncated` เมื่อมีรายการอื่น
+
+คลินิกใช้ grant `care.read` ที่ยังไม่หมดอายุและไม่ถูกเพิกถอนเพื่ออ่าน clinical projection ของบันทึกที่เลือก ค่าใช้จ่ายแสดงเฉพาะเมื่อรายการอนุญาตและ request เลือกเพิ่ม ลิงก์แชร์ต้องเลือก `includeCare`/`includeCosts` เอง ค่าเริ่มต้นเป็น false ทั้งคู่ สรุปลิงก์ยังรวมโปรไฟล์และระเบียนสมุดสุขภาพเดิมสูงสุด 100 รายการพร้อมหมายเหตุ; ตัวเลือกไดอารี่ไม่ได้เปลี่ยนขอบเขตระเบียนเดิม
+
 ## จำนวน repo และ project
 
 ใช้ **1 Git repository: chordjai** เป็น npm workspaces monorepo และ **4 Vercel projects** โดย repo ไม่ใช่หน่วย deploy ขอบเขต microservice อยู่ที่ service/schema/entrypoint
@@ -76,7 +90,7 @@ Preview frontend ต้องตั้ง API_ORIGINเป็น backend preview
 
 ## Supabase SQL
 
-อัปเดต 12 ตุลาคม 2026: สมุดความทรงจำ/หน้าปก/ข้อมูล Story และรูป PetID หลายมุมต้องใช้ migration 15 ก่อน deploy โค้ดรอบนี้ ฐานข้อมูลเดิมที่ผ่าน diagnostic ให้รัน `supabase/upgrade.sql` หรือ `npm run db:upgrade` ซึ่งเพิ่มเฉพาะส่วนที่ขาดและตรวจ fingerprint ก่อนทุกครั้ง Backend health และ biometric กำหนดระยะเวลา Function 120 วินาทีสำหรับ batch/รูปหลายมุม โดยตัว AI ยังมี timeout และงบของแต่ละฟีเจอร์เอง ไม่ต้องเพิ่ม env หรือเปลี่ยน LIFF endpoint
+อัปเดต 12 ตุลาคม 2026: โค้ด Care Diary ต้องมี migration 1–16 ครบ โดยสมุด/Story/PetID ใช้ migration 15 และไดอารี่เพิ่ม migration 16 Supabase ของโปรเจกต์นี้ตรวจยืนยันเป็นรุ่น 16 แล้ว สำหรับฐานข้อมูลเดิมอื่นที่ผ่าน diagnostic ให้รัน `supabase/upgrade.sql` หรือ `npm run db:upgrade` ซึ่งเพิ่มเฉพาะส่วนที่ขาดและตรวจ fingerprint ก่อนทุกครั้ง Backend health และ biometric กำหนดระยะเวลา Function 120 วินาทีสำหรับ batch/รูปหลายมุม โดยตัว AI ยังมี timeout และงบของแต่ละฟีเจอร์เอง ไม่ต้องเพิ่ม env หรือเปลี่ยน LIFF endpoint
 
 1. เปิด Supabase project ที่ใช้กับระบบแล้วเข้า SQL Editor
 2. ฐานข้อมูลใหม่รัน `supabase/bootstrap.sql` **ครั้งเดียว** ถ้าฐานข้อมูลเดิมมี `identity.users` แล้ว รัน `supabase/diagnostic.sql` เพื่อดูสถานะ จากนั้นใช้ `supabase/upgrade.sql` ซึ่งตรวจ schema เทียบรุ่นที่รู้จักก่อนเพิ่มเฉพาะ migration ที่ขาดและบันทึก `ops.schema_migrations` ทุกการเปลี่ยนแปลงอยู่ใน transaction เดียว ถ้า schema ไม่ตรงสคริปต์จะหยุดโดยไม่แก้ข้อมูล ห้ามรัน bootstrap ซ้ำบน DB เดิม
@@ -124,10 +138,10 @@ scriptตรวจrouteด้วยLINE-signedempty-eventก่อนเปล�
 
 ## ลำดับ deploy
 
-1. Supabase bootstrap → เติมbackendenv → สร้างprivateBlobsin1 → deploybackend
+1. ฐานข้อมูลใหม่ใช้ Supabase bootstrap; ฐานข้อมูลเดิมตรวจและอัปเกรดเป็นรุ่น 16 → เติมbackendenv → สร้างprivateBlobsin1 → deploybackend สำหรับโปรเจกต์นี้ schema 16 พร้อมแล้ว ใช้ env เดิม
 2. attach api.chordjai.life DNSตามค่าที่Vercelแสดง และลองpublicGET/api/v1/clinics (อาจได้[]จนเติมข้อมูลจริง)
 3. deployowner+clinic+admin ตั้งAPI_ORIGINให้ถูกและattachdomains
-4. ทดสอบLIFFจริง: login→pet→record→journal→chat (หลังใส่APIkey)
+4. ทดสอบLIFFจริง: login→pet→ไดอารี่→เรื่องการดูแล/ไปพบหมอ/ค่ารักษา/ติดตาม→สรุปที่เลือกและสิทธิ์คลินิก→ร่างความทรงจำ รวมสมุดวัคซีนและchat (หลังใส่APIkey)
 5. เปลี่ยนLINEwebhookด้วยscript ตรวจVerifyสำเร็จและไม่มีDeploymentProtectionบล็อก
 6. Vercel Cronที่กำหนดทุก1นาที/5นาทีต้องใช้planที่รองรับความถี่นี้ (เช่นPro) Cronส่งAuthorization Bearer CRON_SECRET, เวลาส่งdigestเช็กAsia/Bangkokและเงียบ21:00–08:00
 

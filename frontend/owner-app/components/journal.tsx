@@ -4,10 +4,11 @@ import { ArrowLeft, ArrowRight, BookOpen, CalendarDays, Check, ChevronLeft, Chev
 import { useLocale, LanguageSwitcher } from '../../shared/locale';
 import { api, ApiError, dateForLocale, json, messageOf } from '../../shared/api';
 import type { JournalBook, JournalElement, JournalPage, JournalTheme, Pet } from '../lib/types';
+import type { CareMemoryDraft } from '../lib/care-types';
 import { initialPage, localizeDemoPage } from '../lib/demo';
 import { Busy, ErrorBox, Modal, Notice } from './ui';
 import { graphicLabel, JournalGraphic, useJournalGraphics } from './journal-graphics';
-import { boundElement, canvasHeight, orderPages, safeJournalPhoto, scaleElement, STORY_HEIGHT } from './journal-model';
+import { boundElement, canvasHeight, orderPages, safeJournalPhoto, scaleElement, STORY_HEIGHT, diaryMemoryPage } from './journal-model';
 import './journal-book.css';
 
 const colors = ['#ffffff', '#fffaf5', '#ffe3c4', '#ffb777', '#e5f8e9', '#e3f5ff'];
@@ -25,11 +26,12 @@ function validateDraft(value: Draft, height: number, demo: boolean): Draft {
   return { theme: { background: safeColor(value.theme.background,'#fffaf5'), accent: safeColor(value.theme.accent,'#ff8a24'), font: ['sans','serif','handwritten'].includes(value.theme.font) ? value.theme.font : 'sans' }, elements };
 }
 
-export default function Journal({ pet, demo }: { pet: Pet; demo: boolean }) {
+export default function Journal({ pet, demo, initialMemory }: { pet: Pet; demo: boolean; initialMemory?: (CareMemoryDraft&{key:string})|null }) {
   const { locale, t } = useLocale(); const stickers = useJournalGraphics();
   const [pages,setPages] = useState<JournalPage[]>([]); const [book,setBook] = useState<JournalBook | null>(null);
   const [page,setPage] = useState<JournalPage | null>(null); const [screen,setScreen] = useState<'book'|'read'|'edit'>('book');
   const [coverEditing,setCoverEditing] = useState(false); const [readIndex,setReadIndex] = useState(0); const [selected,setSelected] = useState('');
+  const [loadReady,setLoadReady]=useState(false);
   const [busy,setBusy] = useState(false); const [dirty,setDirty] = useState(false); const [conflict,setConflict] = useState(false);
   const [error,setError] = useState(''); const [notice,setNotice] = useState(''); const [prompt,setPrompt] = useState('');
   const [draft,setDraft] = useState<Draft | null>(null); const [undo,setUndo] = useState<Draft | null>(null); const [metadataOpen,setMetadataOpen] = useState(false);
@@ -37,18 +39,27 @@ export default function Journal({ pet, demo }: { pet: Pet; demo: boolean }) {
   const coverButton = useRef<HTMLButtonElement>(null); const previousScreen = useRef<'book'|'read'|'edit'>('book');
   const uploadInput = useRef<HTMLInputElement>(null); const swipe = useRef<{x:number;y:number} | null>(null);
   const loadGeneration = useRef(0); const pageCreationKey = useRef(''); const coverCreationKey = useRef('');
+  const consumedMemory=useRef('');
   useEffect(() => {
-    const generation = ++loadGeneration.current; let cancelled = false; coverCreationKey.current=crypto.randomUUID();
+    const generation = ++loadGeneration.current; let cancelled = false; coverCreationKey.current=crypto.randomUUID();consumedMemory.current='';setLoadReady(false);
     setScreen('book'); setPage(null); setDirty(false); setSelected(''); setError(''); setNotice(''); setBook(null); setPages([]); setCoverEditing(false);
     if (demo) {
       try { const stored = JSON.parse(localStorage.getItem(storageKey) || 'null') as JournalPage[] | null; setPages(orderPages((stored ?? [initialPage(pet.id,locale)]).map(item => localizeDemoPage(item,locale)))); } catch { setPages([initialPage(pet.id,locale)]); }
       try { setBook(JSON.parse(localStorage.getItem(bookStorageKey) || 'null') as JournalBook | null); } catch { setBook(null); }
+      setBusy(false);setLoadReady(true);
       return () => { cancelled = true; };
     }
     setBusy(true);
-    Promise.all([api<JournalPage[]>(`/journal/pages?petId=${encodeURIComponent(pet.id)}`), api<JournalBook | null>(`/journal/books?petId=${encodeURIComponent(pet.id)}`)]).then(([next,nextBook]) => { if (!cancelled && loadGeneration.current === generation) { setPages(orderPages(next)); setBook(nextBook); } }).catch(cause => { if (!cancelled) setError(messageOf(cause,locale)); }).finally(() => { if (!cancelled) setBusy(false); });
+    Promise.all([api<JournalPage[]>(`/journal/pages?petId=${encodeURIComponent(pet.id)}`), api<JournalBook | null>(`/journal/books?petId=${encodeURIComponent(pet.id)}`)]).then(([next,nextBook]) => { if (!cancelled && loadGeneration.current === generation) { setPages(orderPages(next)); setBook(nextBook); } }).catch(cause => { if (!cancelled) setError(messageOf(cause,locale)); }).finally(() => { if (!cancelled && loadGeneration.current===generation) {setBusy(false);setLoadReady(true);} });
     return () => { cancelled = true; };
   },[pet.id,demo,storageKey,bookStorageKey]);
+  useEffect(()=>{
+    if(!initialMemory||consumedMemory.current===initialMemory.key||!loadReady||busy)return;
+    consumedMemory.current=initialMemory.key;pageCreationKey.current=crypto.randomUUID();
+    setPage(diaryMemoryPage(initialMemory,pet.id,Math.max(-1,...pages.map(item=>item.pageOrder??0))+1,crypto.randomUUID(),demo));
+    setScreen('edit');setCoverEditing(false);setDirty(true);setSelected('');setDraft(null);setUndo(null);setConflict(false);
+    setNotice(t('นำเรื่องที่เลือกมาเป็นร่างแล้ว แต่งเพิ่มและบันทึกเมื่อพร้อม','Your selected story is now a draft. Decorate it and save when ready.'));
+  },[initialMemory?.key,loadReady,busy,pet.id,demo]);
   useEffect(() => { if(coverEditing && !book && !dirty) setPage(defaultCover()); if (demo) { setPages(current => current.map(item => localizeDemoPage(item,locale))); if (!dirty) setPage(current => current ? localizeDemoPage(current,locale) : current); } },[locale,demo]);
   useEffect(()=>{window.dispatchEvent(new CustomEvent('chordjai:journal-dirty',{detail:{dirty}}));return()=>{window.dispatchEvent(new CustomEvent('chordjai:journal-dirty',{detail:{dirty:false}}));};},[dirty]);
   useEffect(() => {

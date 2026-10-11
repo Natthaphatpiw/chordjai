@@ -74,7 +74,12 @@ app.get('/api/v1/identity/export', async c => {
     const petid = (await tx.query('select id,pet_id,description,signature,search_mode,status,created_at from biometric.enrollments where user_id=$1',[actor.id])).rows;
     const petidPhotos = (await tx.query('select ep.* from biometric.enrollment_photos ep join biometric.enrollments e on e.id=ep.enrollment_id where e.user_id=$1',[actor.id])).rows;
     const shares = (await tx.query('select id,pet_id,expires_at,revoked_at,created_at from share.links where owner_id=$1',[actor.id])).rows;
-    return { exportedAt: new Date().toISOString(), profile, pets, consents, health, journal, memoryBooks, memories, preferences, conversations, messages, triage, media, inbox, reminders, appointments, lostCases, petid, petidPhotos, shares };
+    const careEntries=(await tx.query('select e.* from health.care_entries e where e.created_by=$1 or e.pet_id in(select id from pet.pets where owner_id=$1)',[actor.id])).rows;
+    const careEpisodes=(await tx.query('select e.* from health.care_episodes e where e.created_by=$1 or e.pet_id in(select id from pet.pets where owner_id=$1)',[actor.id])).rows;
+    const careReflections=(await tx.query('select * from health.care_reflections where author_id=$1',[actor.id])).rows;
+    const careCosts=(await tx.query('select c.* from health.care_costs c join health.care_entries e on e.id=c.entry_id where e.created_by=$1 or e.pet_id in(select id from pet.pets where owner_id=$1)',[actor.id])).rows;
+    const careMedia=(await tx.query('select m.* from health.care_media m join health.care_entries e on e.id=m.entry_id where e.created_by=$1 or e.pet_id in(select id from pet.pets where owner_id=$1)',[actor.id])).rows;
+    return { exportedAt: new Date().toISOString(), profile, pets, consents, health, journal, memoryBooks, memories, preferences, conversations, messages, triage, media, inbox, reminders, appointments, lostCases, petid, petidPhotos, shares,careEntries,careEpisodes,careReflections,careCosts,careMedia };
   });
   c.header('Content-Disposition', 'attachment; filename="chordjai-personal-data.json"');
   return ok(c, camel(exported));

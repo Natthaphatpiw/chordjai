@@ -6,7 +6,7 @@ import { chromium, expect } from '@playwright/test';
 // This runner owns a disposable local API fixture; no real accounts or providers.
 const origin = process.env.UI_TEST_ORIGIN || 'http://localhost:3000';
 if (!['localhost', '127.0.0.1'].includes(new URL(origin).hostname)) throw new Error('Public locale checks require a local owner server');
-const authored = ['ข้าวปั้น', 'แมวสีส้ม มีปลอกคอสีเขียว', 'บางรัก', 'คลินิกตัวอย่างเท่านั้น', 'ถนนตัวอย่าง', 'วัคซีนที่เจ้าของบันทึก', 'บันทึกต้นฉบับภาษาไทย'];
+const authored = ['ข้าวปั้น', 'แมวสีส้ม มีปลอกคอสีเขียว', 'บางรัก', 'คลินิกตัวอย่างเท่านั้น', 'ถนนตัวอย่าง', 'วัคซีนที่เจ้าของบันทึก', 'บันทึกต้นฉบับภาษาไทย','ติดตามการกิน','กินน้อยลงตั้งแต่วันก่อน','คำแนะนำที่เจ้าของรายงาน','ค่าตรวจที่อนุญาต'];
 const requests = [];
 const fixture = createServer(async (request, response) => {
   const path = new URL(request.url, 'http://localhost:8787').pathname;
@@ -15,7 +15,7 @@ const fixture = createServer(async (request, response) => {
   let data;
   if (request.method === 'GET' && path === '/api/v1/clinics') data = [{ id: 'clinic-public-locale', name: authored[3], district: authored[2], address: authored[4], phone: '020000000', is24h: true, lat: 0, lng: 0 }];
   else if (request.method === 'GET' && path === '/api/v1/lostfound/public/locale-test') data = { petName: authored[0], species: 'cat', description: authored[1], district: authored[2] };
-  else if (request.method === 'GET' && path === '/api/v1/share/public/locale-test') data = { pet: { id: 'pet-public-locale', name: authored[0], species: 'cat', birthDate: '2023-04-05', sex: 'female', neutered: true }, records: [{ id: 'record-public-locale', petId: 'pet-public-locale', kind: 'vaccine', title: authored[5], recordedAt: '2026-10-09', nextDueAt: '2027-10-09', notes: authored[6] }], createdAt: '2026-10-10', expiresAt: '2026-10-17' };
+  else if (request.method === 'GET' && path === '/api/v1/share/public/locale-test') data = { pet: { id: 'pet-public-locale', name: authored[0], species: 'cat', birthDate: '2023-04-05', sex: 'female', neutered: true }, records: [{ id: 'record-public-locale', petId: 'pet-public-locale', kind: 'vaccine', title: authored[5], recordedAt: '2026-10-09', nextDueAt: '2027-10-09', notes: authored[6] }], careEntries:[{id:'care-public-locale',kind:'visit',title:authored[7],observedAt:'2026-10-10T03:30:00Z',clinicalNote:authored[8],provenance:'owner_reported',observations:{trend:'better',appetite:'reduced',onsetAt:'2026-10-09T10:00:00Z'},visit:{vetReportedFindings:authored[9]},costs:[{label:authored[10],amountMinor:125050,currency:'THB',kind:'paid'}],narrative:'PRIVATE_NARRATIVE_CANARY',reflection:'PRIVATE_REFLECTION_CANARY',photos:[{url:'PRIVATE_PHOTO_CANARY'}]}],careTruncated:true,createdAt: '2026-10-10', expiresAt: '2026-10-17' };
   else if (request.method === 'POST' && path === '/api/v1/lostfound/public/locale-test/tips') {
     let raw = ''; for await (const chunk of request) raw += chunk;
     const body = JSON.parse(raw);
@@ -86,7 +86,12 @@ try {
         for (const value of authored.slice(0, 3)) await expect(page.getByText(value, { exact: value !== authored[2] })).toBeVisible();
       }
       if (path === '/s/locale-test') {
-        for (const value of [authored[0], authored[5], authored[6]]) await expect(page.getByText(value, { exact: true })).toBeVisible();
+        for (const value of [authored[0], authored[5], authored[6],authored[7],authored[8],authored[9]]) await expect(page.getByText(value, { exact: value!==authored[9] })).toBeVisible();
+        await expect(page.getByRole('heading',{name:locale==='en'?'Care updates selected by the owner':'เรื่องดูแลที่เจ้าของเลือกแชร์'})).toBeVisible();
+        await expect(page.getByRole('button',{name:locale==='en'?'Print brief':'พิมพ์สรุป'})).toBeVisible();
+        expect(await page.locator('body').innerText()).not.toMatch(/PRIVATE_.*_CANARY/);
+        await page.locator('.clinical-care-costs summary').click();
+        await expect(page.locator('.clinical-care-costs')).toContainText('1,250.50');
       }
       if (path === '/emergency') {
         await expect(page.getByRole('heading', { name: authored[3], exact: true })).toBeVisible();

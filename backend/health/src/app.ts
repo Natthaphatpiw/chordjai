@@ -4,7 +4,9 @@ import { recordSchema } from '@chordjai/contracts';
 import { runStructured } from '@chordjai/ai';
 import { loadOwnedImage,mediaIdFromUrl } from '@chordjai/media';
 import { ocrRequestSchema, ocrDraftSchema, normalizeOcrDraft, scanRecordSchema, reviewedDate } from './ocr';
+import {registerCareRoutes} from './care';
 const app=createService('health'),base='/api/v1/health';
+registerCareRoutes(app);
 app.get(`${base}/records`,async c=>{
   const petId=uuid(c.req.query('petId'));return ok(c,await withUser(getActor(c).id,async db=>(await db.query('SELECT * FROM health.records WHERE pet_id=$1 ORDER BY recorded_at DESC LIMIT 200',[petId])).rows));
 });

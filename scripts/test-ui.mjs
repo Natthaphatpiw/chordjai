@@ -15,10 +15,19 @@ await page.route('**/*',async route=>{
   if(url.origin!==origin)return route.abort();
   if(!url.pathname.startsWith('/api/v1/'))return route.continue();
   apiRequests.push({method:request.method(),path:url.pathname});
-  if(request.method()==='GET'&&url.pathname==='/api/v1/clinics')return route.fulfill({contentType:'application/json',body:JSON.stringify({data:[]})});
+  if(request.method()==='GET'&&['/api/v1/clinics','/api/v1/health/care/entries','/api/v1/health/care/episodes','/api/v1/clinic/grants'].includes(url.pathname))return route.fulfill({contentType:'application/json',body:JSON.stringify({data:[]})});
   return route.abort();
 });
 async function appearance(target,name){
+  // Next's development badge sits over the mobile Home button. Use its own
+  // session Hide control; never force a product click through another element.
+  const devTools=target.getByRole('button',{name:'Open Next.js Dev Tools',exact:true});
+  if(await devTools.isVisible()){
+    expect(await target.locator('nextjs-portal [data-next-badge]').getAttribute('data-error')).not.toBe('true');
+    await devTools.click();
+    await target.getByRole('menuitem',{name:'Preferences',exact:true}).click();
+    await target.locator('nextjs-portal').getByRole('button',{name:'Hide',exact:true}).click();
+  }
   await target.evaluate(()=>document.fonts.ready);
   expect(await target.evaluate(()=>getComputedStyle(document.body).fontFamily.toLowerCase())).toContain('mitr');
   // Copyright/registered/trademark symbols are text, despite Unicode assigning
@@ -73,6 +82,8 @@ try{
   await page.getByRole('button',{name:'สร้างแบบร่าง',exact:true}).click();
   await expect(page.getByText('การตกแต่งด้วย AI ต้องเข้าสู่ระบบจริง',{exact:false})).toBeVisible();
   await tab('สมุดสุขภาพ');
+  await expect(page.getByRole('button',{name:'ไดอารี่ดูแลน้อง',exact:true})).toHaveAttribute('aria-pressed','true');
+  await page.getByRole('button',{name:'สมุดประจำตัวและวัคซีน',exact:true}).click();
   await page.getByRole('button',{name:'เพิ่มบันทึก',exact:true}).click();
   await page.getByLabel('ประเภทบันทึก').selectOption('weight');
   await page.getByLabel('ชื่อรายการ').fill('น้ำหนักที่บันทึกในตัวอย่าง');
@@ -121,7 +132,9 @@ try{
     ['คลินิกและ PetID','มีคนช่วยดูแล','owner-care-mobile'],
     ['ตั้งค่าของเรา','ตั้งค่าพื้นที่','owner-settings-mobile']
   ]){
-    await tab(label);await expect(page.getByRole('heading',{level:1})).toContainText(heading);
+    await tab(label);
+    if(label==='สมุดสุขภาพ')await page.getByRole('button',{name:'สมุดประจำตัวและวัคซีน',exact:true}).click();
+    await expect(page.getByRole('heading',{level:1})).toContainText(heading);
     await appearance(page,screenshot);
   }
   await tab('คลินิกและ PetID');
@@ -164,19 +177,29 @@ try{
     await expect(finder.getByRole('heading',{name:'พบสัตว์ที่กำลังหาบ้าน?'})).toBeVisible();
     await expect(finder.locator('label').filter({hasText:'เลือกรูปน้องที่พบ'}).locator('input[type=file]')).toHaveCount(1);
     await expect(finder.getByRole('button',{name:'ลงทะเบียน PetID',exact:true})).toHaveCount(0);
-    expect([...finderRequests].sort()).toEqual(['/api/v1/identity/consents','/api/v1/pets']);
+    // Development Strict Mode can repeat initial reads; the finder must still
+    // request only these two resources, never private care data or mutations.
+    expect([...new Set(finderRequests)].sort()).toEqual(['/api/v1/identity/consents','/api/v1/pets']);
     await appearance(finder,'petid-finder-mobile');
   }finally{await finderContext.close();}
   const englishContext=await browser.newContext({viewport:{width:1440,height:1000},serviceWorkers:'block'});
   try {
     const english=await englishContext.newPage();english.on('pageerror',error=>errors.push(error.message));
-    await englishContext.route('**/*',route=>new URL(route.request().url()).origin===origin?route.continue():route.abort());
+    await englishContext.route('**/*',route=>{
+      const url=new URL(route.request().url());
+      if(url.origin!==origin)return route.abort();
+      if(!url.pathname.startsWith('/api/v1/'))return route.continue();
+      if(route.request().method()==='GET'&&['/api/v1/clinics','/api/v1/health/care/entries','/api/v1/health/care/episodes','/api/v1/clinic/grants'].includes(url.pathname))return route.fulfill({contentType:'application/json',body:JSON.stringify({data:[]})});
+      return route.abort();
+    });
     await english.goto(`${origin}/app?lang=en`,{waitUntil:'networkidle'});
     await english.getByRole('button',{name:'Explore the demo first',exact:true}).click();
     await expect(english.getByRole('heading',{name:/Today, with.*Tofu/})).toBeVisible();
     expect(await english.locator('body').innerText()).not.toMatch(/[\u0E00-\u0E7F]/);
     await appearance(english,'owner-home-english-desktop');
     await english.getByRole('button',{name:'Health journal',exact:true}).first().click();
+    await expect(english.getByRole('button',{name:'Care diary',exact:true})).toHaveAttribute('aria-pressed','true');
+    await english.getByRole('button',{name:'Booklet & vaccinations',exact:true}).click();
     await expect(english.getByRole('heading',{name:'Combined feline vaccine (FVRCP)',exact:true})).toBeVisible();
     await english.getByRole('button',{name:/Does my pet need a vet/}).click();
     await english.getByRole('checkbox',{name:'Trouble breathing, heavy panting, or pale/purple gums',exact:true}).check();
@@ -216,6 +239,6 @@ try{
     expect(await english.evaluate(()=>document.documentElement.scrollWidth>innerWidth)).toBe(false);
   } finally {await englishContext.close();}
   expect(errors).toEqual([]);
-  expect(apiRequests.every(request=>request.method==='GET'&&request.path==='/api/v1/clinics')).toBe(true);
-  console.log('Passed: all six owner tabs on desktop/mobile, health entry and emergency triage, journal drag/keyboard/save/reload, explicit AI sample boundaries, personality and opted-in memory, PetID owner/finder, privacy/terms/AI/share/lost/invite, Mitr and loaded local photos, English demo/health/emergency/journal, language switching preserves unsaved journal edits, no decorative emoji or horizontal overflow, offline emergency, no browser errors or live provider calls.');
+  expect(apiRequests.every(request=>request.method==='GET'&&['/api/v1/clinics','/api/v1/health/care/entries','/api/v1/health/care/episodes','/api/v1/clinic/grants'].includes(request.path))).toBe(true);
+  console.log('Passed: all six owner tabs on desktop/mobile, Care diary default and explicit booklet navigation in Thai/English, health entry and emergency triage, journal drag/keyboard/save/reload, explicit AI sample boundaries, personality and opted-in memory, PetID owner/finder, privacy/terms/AI/share/lost/invite, Mitr and loaded local photos, English demo/health/emergency/journal, language switching preserves unsaved journal edits, no decorative emoji or horizontal overflow, offline emergency, no browser errors or live provider calls.');
 }finally{await browser.close();}

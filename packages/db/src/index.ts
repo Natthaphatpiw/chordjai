@@ -1,4 +1,5 @@
 import pg, { type PoolClient } from 'pg';
+export {careSummary,type CareSummaryOptions} from './care-summary';
 import { attachDatabasePool } from '@vercel/functions';
 import { databaseConnectionOptions } from './database-tls';
 pg.types.setTypeParser(1700,value=>Number(value));

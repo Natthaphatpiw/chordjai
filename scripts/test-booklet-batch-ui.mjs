@@ -19,6 +19,7 @@ await context.route('**/*',async route=>{
   if(url.pathname==='/api/v1/pets'&&request.method()==='GET')return data(route,[pet]);
   if(url.pathname==='/api/v1/identity/consents')return data(route,[{purpose:'service',granted:true}]);
   if(url.pathname==='/api/v1/health/records'&&request.method()==='GET')return data(route,[]);
+  if(request.method()==='GET'&&['/api/v1/health/care/entries','/api/v1/health/care/episodes','/api/v1/clinic/grants'].includes(url.pathname))return data(route,[]);
   if(url.pathname==='/api/v1/media/upload'){
     uploadCount++;const id=`00000000-0000-4000-8000-${String(uploadCount+20).padStart(12,'0')}`;
     return data(route,{id,url:`/api/v1/media/${id}?read=local-only`});
@@ -45,6 +46,9 @@ async function photo(index){const png=await page.evaluate(index=>{const canvas=d
 async function snapshot(name,fullPage=true){await page.evaluate(()=>document.fonts.ready);const title=page.locator('.booklet-modal h2');if(await title.count()){const titleState=await title.evaluate(node=>({text:node.innerText,color:getComputedStyle(node).color,visibility:getComputedStyle(node).visibility,rect:node.getBoundingClientRect().toJSON()}));expect(titleState.text).toBe('Scan a vaccine booklet');expect(titleState.visibility).toBe('visible');expect(titleState.rect.top).toBeGreaterThanOrEqual(0);}await page.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve))));expect(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth+1)).toBe(false);await page.screenshot({path:`.verification/${name}.png`,fullPage});}
 try{
   await page.goto(`${origin}/app?lang=en&tab=health`,{waitUntil:'networkidle'});
+  await expect(page.getByRole('button',{name:'Care diary',exact:true})).toHaveAttribute('aria-pressed','true');
+  await expect(page.getByRole('heading',{name:'Life with Mochi',exact:true})).toBeVisible();
+  await page.getByRole('button',{name:'Booklet & vaccinations',exact:true}).click();
   await expect(page.getByRole('heading',{name:'Health journal for Mochi',exact:true})).toBeVisible();
   await page.getByRole('button',{name:/^Scan a vaccine booklet/}).click();
   const dialog=page.locator('dialog'),camera=dialog.getByLabel('Photograph a booklet page'),library=dialog.getByLabel('Choose booklet pages from your library');
@@ -90,5 +94,5 @@ try{
   expect(saveRequests).toHaveLength(4);expect(persisted.size).toBe(3);expect(saveRequests[1]).toEqual(saveRequests[2]);expect(new Set(saveRequests.map(item=>item.key)).size).toBe(3);
   await page.setViewportSize({width:390,height:844});await snapshot('health-booklet-mobile');
   expect(await page.locator('body').innerText()).not.toMatch(/[\u0e00-\u0e7f]/);expect(errors).toEqual([]);
-  console.log('Passed: booklet camera/library collection, ten-page cap, remove/reorder, no premature upload/OCR, one ordered batch request, one plain bullet-help box, empty-date correction, source-page review, mobile/desktop layout, partial-save retry with identical idempotency payloads, no live providers or browser errors.');
+  console.log('Passed: Care diary default and explicit booklet navigation, booklet camera/library collection, ten-page cap, remove/reorder, no premature upload/OCR, one ordered batch request, one plain bullet-help box, empty-date correction, source-page review, mobile/desktop layout, partial-save retry with identical idempotency payloads, no live providers or browser errors.');
 }finally{await context.close();await browser.close();}

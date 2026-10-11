@@ -18,11 +18,21 @@ const petId = '11111111-1111-4111-8111-111111111111';
 const clinicId = '22222222-2222-4222-8222-222222222222';
 const appointmentId = '33333333-3333-4333-8333-333333333333';
 const jobId = '44444444-4444-4444-8444-444444444444';
+const clinicalEntry = {
+  id:'77777777-7777-4777-8777-777777777777', kind:'visit', title:'ติดตามอาการของน้อง',
+  observedAt:'2026-10-12T03:30:00Z',clinicalNote:'กินน้อยลงตั้งแต่เมื่อวาน',provenance:'owner_reported',
+  observations:{symptoms:['กินน้อย'],trend:'same',severity:'mild',appetite:'reduced',energy:'low',water:'normal',toilet:'normal',onsetAt:'2026-10-11T10:00:00Z',frequency:'วันละสองครั้ง'},
+  episode:{id:'episode-test',title:'ดูแลเรื่องการกิน',status:'ongoing'},
+  visit:{clinicName:'คลินิกสำหรับทดสอบ UI',reason:'ตรวจเรื่องการกิน',vetReportedFindings:'เจ้าของรายงานคำแนะนำ',treatment:'ติดตามการกิน',nextFollowupAt:'2026-10-15T03:00:00Z'},
+  costs:[{label:'ค่าตรวจ',amountMinor:125050,currency:'THB',kind:'paid'},{label:'ครั้งถัดไป',amountMinor:50000,currency:'THB',kind:'estimate'}],
+  narrative:'PRIVATE_DIARY_CANARY',reflection:'PRIVATE_REFLECTION_CANARY',photos:[{url:'PRIVATE_PHOTO_CANARY'}],
+};
+const careMetrics = {diaryAuthors:2,diaryEntries:6,diaryPets:2,entriesLast7Days:6,activePetsLast30Days:2,recordedPetWeeksLast30Days:3,repeatWeekPetsLast30Days:1,activeEpisodes:1,episodesWithFollowup:1,visits:2,visitsWithRecordedCosts:1,visitsWithAttachments:1,entriesEnabledForClinicalSharing:1};
 const data = {
   '/clinic/memberships': [{ clinicId, name: 'คลินิกสำหรับทดสอบ UI', role: 'vet' }],
   '/clinic/appointments': [{ id: appointmentId, clinicId, petId, reason: 'ฉีดวัคซีนประจำปี', requestedAt: '2026-10-12T03:00:00Z', status: 'requested' }],
-  [`/clinic/pets/${petId}/summary`]: { pet: { name: 'น้องสำหรับทดสอบ', species: 'cat', sex: 'female', weightKg: 3.5 }, records: [{ kind: 'vaccine', title: 'วัคซีนรวม', recordedAt: '2026-09-01', nextDueAt: '2027-09-01', notes: 'ข้อมูลตัวอย่างสำหรับทดสอบ' }] },
-  '/analytics/kpis': { users: 2, pets: 3, healthRecords: 4, summaryViews: 1, clinics: 1, triageSessions: 0, activeLostCases: 0, journalPages: 2, conversations: 1, aiCostTodayUsd: 0, deadJobs: 1 },
+  [`/clinic/pets/${petId}/summary`]: { pet: { name: 'น้องสำหรับทดสอบ', species: 'cat', sex: 'female', weightKg: 3.5 }, careAccess:true,careEntries:[clinicalEntry], records: [{ kind: 'vaccine', title: 'วัคซีนรวม', recordedAt: '2026-09-01', nextDueAt: '2027-09-01', notes: 'ข้อมูลตัวอย่างสำหรับทดสอบ' }] },
+  '/analytics/kpis': { users: 2, pets: 3, healthRecords: 4, summaryViews: 1, clinics: 1, triageSessions: 0, activeLostCases: 0, journalPages: 2, conversations: 1, aiCostTodayUsd: 0, deadJobs: 1,care:careMetrics,petid:{enrolledPets:2,availableReferencePhotos:5,petsWithMultipleReferencePhotos:1} },
   '/analytics/jobs': [{ id: jobId, topic: 'test.only', status: 'dead', attempts: 3, maxAttempts: 3, runAt: '2026-10-10T03:00:00Z', lastError: 'ข้อความทดสอบ UI' }, { id: '66666666-6666-4666-8666-666666666666', topic: 'test.completed', status: 'completed', attempts: 1, maxAttempts: 3, runAt: '2026-10-10T03:00:00Z' }],
   '/analytics/ai-requests': [{ id: 'test-ai', feature: 'journal.decorate', model: 'gpt-6.1-sol', inputTokens: 0, outputTokens: 0, latencyMs: 0, costUsd: 0, status: 'ok', createdAt: '2026-10-10T03:00:00Z' }],
   '/clinics': [{ id: clinicId, name: 'คลินิกสำหรับทดสอบ UI', district: 'ย่านทดสอบ', address: 'ที่อยู่สำหรับทดสอบ', phone: '020000000', is24h: true }],
@@ -40,7 +50,8 @@ async function session(kind, loggedIn = true, locale = 'th', roleOverride) {
       await route.fulfill({ contentType: 'application/json', body: JSON.stringify({ data: result }) });
       return;
     }
-    const result = path === '/identity/me' ? { id: 'test-user', displayName: locale === 'en' ? 'UI test account' : 'บัญชีทดสอบ UI', role: roleOverride || (kind === 'admin' ? 'admin' : 'vet') } : (locale === 'en' ? englishFixture(path) : data[path]);
+    let result = path === '/identity/me' ? { id: 'test-user', displayName: locale === 'en' ? 'UI test account' : 'บัญชีทดสอบ UI', role: roleOverride || (kind === 'admin' ? 'admin' : 'vet') } : (locale === 'en' ? englishFixture(path) : data[path]);
+    if(path.endsWith('/summary')&&result){result=structuredClone(result);if(new URL(request.url()).searchParams.get('includeCosts')!=='true')for(const entry of result.careEntries||[])entry.costs=[];}
     if (result === undefined) throw new Error(`Unexpected API request ${path}`);
     await route.fulfill({ contentType: 'application/json', body: JSON.stringify({ data: result }) });
   });
@@ -61,6 +72,11 @@ function englishFixture(path) {
   if (path.endsWith('/summary')) {
     result.pet.name = 'Test pet';
     result.records[0].title = 'Annual vaccine'; result.records[0].notes = 'UI fixture record';
+    Object.assign(result.careEntries[0],{title:'Appetite follow-up',clinicalNote:'Eating less since yesterday'});
+    Object.assign(result.careEntries[0].observations,{symptoms:['Eating less'],frequency:'Twice a day'});
+    result.careEntries[0].episode.title='Appetite care';
+    Object.assign(result.careEntries[0].visit,{clinicName:'UI test clinic',reason:'Appetite review',vetReportedFindings:'Owner recalls the instructions',treatment:'Monitor eating'});
+    result.careEntries[0].costs[0].label='Consultation';result.careEntries[0].costs[1].label='Next visit';
   }
   if (path === '/analytics/jobs') result[0].lastError = 'UI fixture error';
   return result;
@@ -109,6 +125,14 @@ try {
   await clinic.page.getByRole('button', { name: 'เปิดสมุดสุขภาพ', exact: true }).click();
   await expect(clinic.page.getByRole('heading', { name: 'น้องสำหรับทดสอบ' })).toBeVisible();
   await expect(clinic.page.getByText('วัคซีนรวม', { exact: true })).toBeVisible();
+  await expect(clinic.page.getByRole('heading',{name:'เรื่องดูแลที่เจ้าของเลือกแชร์'})).toBeVisible();
+  await expect(clinic.page.getByText('ติดตามอาการของน้อง',{exact:true})).toBeVisible();
+  expect(await clinic.page.locator('body').innerText()).not.toMatch(/PRIVATE_.*_CANARY/);
+  await expect(clinic.page.locator('.clinical-care-costs')).toHaveCount(0);
+  await clinic.page.getByLabel('รวมค่าใช้จ่ายที่เจ้าของอนุญาต แล้วกดเปิดสมุดอีกครั้ง').check();
+  await clinic.page.getByRole('button',{name:'เปิดสมุดสุขภาพ',exact:true}).click();
+  await clinic.page.locator('.clinical-care-costs summary').click();
+  await expect(clinic.page.locator('.clinical-care-costs')).toContainText('1,250.50');
   await clinic.page.setViewportSize({ width: 390, height: 844 }); await checkLayout(clinic.page);
   await clinic.page.screenshot({ path: '.verification/clinic-health-mobile.png', fullPage: true });
   await clinic.page.getByRole('navigation').getByRole('button', { name: 'คลินิกของฉัน' }).click();
@@ -123,6 +147,8 @@ try {
 
   const admin = await session('admin');
   await expect(admin.page.getByRole('heading', { name: 'การใช้งานแต่ละส่วน' })).toBeVisible();
+  await expect(admin.page.getByRole('heading',{name:'ไดอารี่และความต่อเนื่องในการดูแล'})).toBeVisible();
+  await expect(admin.page.getByRole('heading',{name:'ข้อมูลอ้างอิง PetID'})).toBeVisible();
   await admin.page.screenshot({ path: '.verification/admin-overview-desktop.png', fullPage: true });
   await admin.page.getByRole('navigation').getByRole('button', { name: 'การทำงานของ AI' }).click();
   await expect(admin.page.getByText('journal.decorate', { exact: true })).toBeVisible();
@@ -178,6 +204,10 @@ try {
   await englishClinic.page.locator('.portal-filters').getByRole('button', { name: /^Accepted/ }).click();
   await englishClinic.page.getByRole('button', { name: 'Open health journal', exact: true }).click();
   await expect(englishClinic.page.getByRole('heading', { name: 'Test pet' })).toBeVisible();
+  await expect(englishClinic.page.getByRole('heading',{name:'Care updates selected by the owner'})).toBeVisible();
+  await expect(englishClinic.page.getByText('Appetite follow-up',{exact:true})).toBeVisible();
+  expect(await englishClinic.page.locator('body').innerText()).not.toMatch(/PRIVATE_.*_CANARY/);
+  await expect(englishClinic.page.getByRole('button',{name:'Print brief'})).toBeVisible();
   await assertEnglish(englishClinic.page);
   await expect(englishClinic.page.locator('.portal-table-wrap')).toContainText('2026');
   await switchToThai(englishClinic.page);
@@ -194,7 +224,7 @@ try {
   await idInput.fill('');
   await englishClinic.page.getByRole('button', { name: 'Open health journal', exact: true }).click();
   expect(await idInput.evaluate(input => input.validationMessage)).toBe('Please complete this field.');
-  await englishClinic.context.route('**/api/v1/clinic/pets/**/summary', route => route.fulfill({ status: 403, contentType: 'application/json', body: JSON.stringify({ error: { code: 'GRANT_REQUIRED', message: 'เจ้าของต้องให้สิทธิ์ที่ยังไม่หมดอายุ' } }) }));
+  await englishClinic.context.route('**/api/v1/clinic/pets/**/summary*', route => route.fulfill({ status: 403, contentType: 'application/json', body: JSON.stringify({ error: { code: 'GRANT_REQUIRED', message: 'เจ้าของต้องให้สิทธิ์ที่ยังไม่หมดอายุ' } }) }));
   await idInput.fill(petId);
   await englishClinic.page.getByRole('button', { name: 'Open health journal', exact: true }).click();
   await expect(englishClinic.page.locator('.portal-error[role="alert"]')).toContainText('The owner must grant this clinic access');
@@ -207,6 +237,8 @@ try {
 
   const englishAdmin = await session('admin', true, 'en');
   await expect(englishAdmin.page.getByRole('heading', { name: 'Overview', exact: true })).toBeVisible();
+  await expect(englishAdmin.page.getByRole('heading',{name:'Care diary & continuity'})).toBeVisible();
+  await expect(englishAdmin.page.getByRole('heading',{name:'PetID reference inventory'})).toBeVisible();
   await assertEnglish(englishAdmin.page);
   await englishAdmin.page.getByRole('navigation').getByRole('button', { name: 'AI activity' }).click();
   await expect(englishAdmin.page.getByText('Journal decoration', { exact: true })).toBeVisible();

@@ -67,3 +67,11 @@ bash supabase/tests/run-local.sh --http
 เพิ่ม EXPLAIN ที่ยืนยันว่า query ใช้ HNSW ได้, exact fallback แยกจาก ANN, ตัวกรองไม่คืนสัตว์ที่ไม่เข้าเงื่อนไข และ upgrade จากสถานะ 1/4/9/13/14 รักษาแถวผู้ใช้ การทดสอบ foreign schema, core ไม่ครบ, schema drift และ checksum เปลี่ยน ต้องปฏิเสธโดยไม่แตะข้อมูล การบังคับ planner ใน fixture เล็กใช้พิสูจน์ความเข้ากันได้ของ index ไม่ใช่ benchmark ว่า production จะเลือก ANN ทุกครั้ง
 
 ผลทดสอบ SQL ไม่ยืนยันความปลอดภัยทางการแพทย์ ความตรงกับสัตวแพทย์ latency/SLO หรือการกู้ backup การประเมินเหล่านี้ยังต้องใช้ข้อมูลจริงและคนที่รับผิดชอบตามเอกสารระบบ
+
+## Care diary data and sharing (migration 16)
+
+Care diary entries are personal, owner-reported content. Removing an author removes that author's diary entries, private reflections, entry attachments, expenses and authored care episodes. Entries written by other pet family members remain; when a deleted episode previously grouped their entries, those entries become ungrouped. Existing `health.records` keep their established behavior: removing a carer anonymizes attribution, and removing the pet removes its clinical records. A shared diary entry never becomes a veterinarian-verified medical record merely because the owner grants access.
+
+Raw diaries are available only to the pet family, and reflections only to the author. Clinic access requires the new explicit `care.read` scope and the entry's own sharing selection. Existing `summary.read` grants do not widen. Clinical/public projections exclude narrative, private reflection and image references. Expense sharing requires both the entry's expense selection and the request's expense selection; integer minor units, currencies and paid/estimate categories remain separate.
+
+Public snapshots are static. Deleting a referenced diary entry, withdrawing its sharing, or withdrawing expense sharing revokes links containing that entry. Account erasure cascades diary deletion and triggers the same revocation. Follow-up reminders belong to the original entry author, use a stable `care:<entry id>` key and are removed with the entry. Updates without a date change do not re-send an already completed reminder.
