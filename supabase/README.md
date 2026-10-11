@@ -4,6 +4,8 @@
 
 ## นำ SQL ไปใช้
 
+สำหรับรอบสมุดหลายหน้าและ PetID หลายรูป ใช้ migration `202610110015_memory_books_petid_photos.sql` (migration 15): เพิ่ม `journal.books`, วันที่/สถานที่/ลำดับ/ขนาด canvas ของหน้า และ `biometric.enrollment_photos` สูงสุด 5 ตำแหน่ง พร้อม RLS และ trigger ล้างเวกเตอร์เมื่อรูปอ้างอิงถูกลบหรือใช้ไม่ได้ หน้าเดิมยังคงข้อมูล ตำแหน่ง และเวลาแก้ไขเดิมไว้ ฐานข้อมูลเดิมแนะนำรัน `upgrade.sql` เพื่อให้ตรวจรุ่นก่อนเพิ่มส่วนที่ขาด ไม่รัน `bootstrap.sql` ซ้ำ
+
 1. เปิด SQL Editor ของ **project ใหม่/ฐานข้อมูลว่าง** แล้วรัน `bootstrap.sql` ครั้งเดียวด้วย role `postgres` ไฟล์นี้รวม migration ตามลำดับเรียบร้อยแล้ว
 2. ตั้ง `DATABASE_URL` ใน backend เป็น PostgreSQL connection string จาก Supabase แบบ **transaction pooler** ใช้ DB password ของ project อย่าใช้ anon key หรือ service-role API key แทน connection string
 3. สำหรับการเปลี่ยน schema ในครั้งถัดไป ให้รันเฉพาะไฟล์ migration ที่ยังไม่ได้ใช้ ห้ามรัน bootstrap ซ้ำบนฐานข้อมูลที่มีข้อมูล

@@ -61,6 +61,7 @@ markers = [
     "exists(select 1 from pg_constraint where conrelid=to_regclass('health.records') and conname='records_created_by_fkey' and confdeltype='n')",
     "to_regclass('notify.webhook_events_retention_idx') is not null",
     "to_regclass('biometric.enrollments_embedding_hnsw_lost_ready_idx') is not null",
+    "to_regclass('journal.books') is not null and to_regclass('biometric.enrollment_photos') is not null",
 ]
 marker_case = "case k.ordinal\n" + "\n".join(f" when {i+1} then ({marker})" for i, marker in enumerate(markers)) + "\n end"
 diagnostic = """-- READ ONLY: one JSON result contains every diagnostic section; no user data.

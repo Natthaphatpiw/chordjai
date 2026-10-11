@@ -7,10 +7,10 @@ import { HttpError } from '@chordjai/service-kit';
 
 export const GENERATIVE_MODEL = 'gpt-6.1-sol';
 export const EMBEDDING_MODEL = 'text-embedding-3-small';
-export const PROMPT_VERSION = '2026-10-10.1';
+export const PROMPT_VERSION = '2026-10-12.1';
 export type AiFeature = 'assistant.chat' | 'journal.decorate' | 'triage.assess' | 'vision.photo_check' | 'ocr.vaccine_book' | 'ocr.microchip' | 'petid.signature' | 'petid.verify_pair' | 'embed.petid';
 const limits: Record<AiFeature, number> = { 'assistant.chat': 50, 'journal.decorate': 10, 'triage.assess': 10, 'vision.photo_check': 10, 'ocr.vaccine_book': 5, 'ocr.microchip': 10, 'petid.signature': 10, 'petid.verify_pair': 10, 'embed.petid': 20 };
-const deadlines:Record<AiFeature,number>={'assistant.chat':45000,'journal.decorate':45000,'triage.assess':15000,'vision.photo_check':30000,'ocr.vaccine_book':45000,'ocr.microchip':20000,'petid.signature':10000,'petid.verify_pair':8000,'embed.petid':10000};
+const deadlines:Record<AiFeature,number>={'assistant.chat':45000,'journal.decorate':45000,'triage.assess':15000,'vision.photo_check':30000,'ocr.vaccine_book':45000,'ocr.microchip':20000,'petid.signature':30000,'petid.verify_pair':20000,'embed.petid':10000};
 let client: OpenAI | undefined;
 function openai() {
   if ((process.env.OPENAI_MODEL ?? GENERATIVE_MODEL) !== GENERATIVE_MODEL) throw new HttpError(503, 'MODEL_CONFIG_INVALID', 'OPENAI_MODEL must be gpt-6.1-sol');
@@ -57,7 +57,8 @@ export async function runStructured<T>(options: Options & { schema: z.ZodType<T>
   const maxTokens = Math.min(options.maxOutputTokens ?? 4000, 8000);
   const inputText = options.instructions+JSON.stringify(options.input ?? '') + JSON.stringify(options.messages ?? []);
   const bytes=Buffer.byteLength(inputText,'utf8');
-  if (bytes > 160_000 || (options.images?.length ?? 0) > 6) throw new HttpError(413, 'AI_INPUT_TOO_LARGE', 'ข้อมูลสำหรับ AI มากเกินไป');
+  const imageLimit = options.feature === 'ocr.vaccine_book' ? 10 : 6;
+  if (bytes > 160_000 || (options.images?.length ?? 0) > imageLimit) throw new HttpError(413, 'AI_INPUT_TOO_LARGE', 'ข้อมูลสำหรับ AI มากเกินไป');
   // Text byte count is a conservative token upper bound. Gallery images are
   // resized by the media service before provider input; reserve 6000 per image.
   const reserveUsd = (maxTokens * Number(process.env.AI_OUTPUT_USD_PER_MILLION ?? 10)+(bytes+(options.images?.length??0)*6000)*Number(process.env.AI_INPUT_USD_PER_MILLION??2)) / 1_000_000;

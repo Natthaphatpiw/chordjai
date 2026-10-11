@@ -19,3 +19,15 @@ export async function verifySession(token: string): Promise<Actor> {
   }
   return { id: payload.sub, role: payload.role as Actor['role'] };
 }
+export async function signPetidDraft(ownerId: string, petId: string, mediaIds: string[], signature: unknown): Promise<string> {
+  return new SignJWT({ petId, mediaIds, signature }).setProtectedHeader({alg:'HS256',typ:'JWT'})
+    .setSubject(ownerId).setIssuer(issuer()).setAudience('chordjai-petid-draft').setIssuedAt().setExpirationTime('15m').sign(signingKey());
+}
+export async function verifyPetidDraft(token: string, ownerId: string, petId: string, mediaIds: string[]): Promise<unknown | null> {
+  try {
+    const {payload} = await jwtVerify(token,signingKey(),{algorithms:['HS256'],issuer:issuer(),audience:'chordjai-petid-draft'});
+    const signedIds=payload.mediaIds;
+    if(payload.sub!==ownerId||payload.petId!==petId||!Array.isArray(signedIds)||signedIds.length!==mediaIds.length||!mediaIds.every((id,index)=>signedIds[index]===id))return null;
+    return payload.signature ?? null;
+  }catch{return null;}
+}

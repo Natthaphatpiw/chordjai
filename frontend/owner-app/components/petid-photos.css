@@ -1,0 +1,48 @@
+.petid-enrollment-modal { max-width: 760px; }
+.petid-registration-intro { display: flex; align-items: flex-start; gap: 12px; color: var(--primary); margin: 8px 0 28px; }
+.petid-registration-intro b { font-weight: 500; color: var(--on-surface); }
+.petid-registration-intro p { font-size: 14px; margin: 4px 0 0; }
+.petid-registration-intro > svg { margin-top: 4px; flex-shrink: 0; }
+.petid-registration-step { padding: 22px 0; border-top: 1px solid var(--outline-variant); }
+.petid-step-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin: 0 0 12px; }
+.petid-step-heading h3 { display: flex; align-items: center; gap: 10px; font-size: 18px; margin: 0; }
+.petid-step-heading h3 > span { display: grid; place-items: center; width: 30px; height: 30px; border-radius: 50%; background: var(--primary-fixed); color: var(--on-primary-fixed); font-size: 14px; }
+.petid-step-heading .small-tag { flex-shrink: 0; }
+.petid-enrollment-modal .small-copy { font-size: 14px; margin-bottom: 16px; }
+.petid-photo-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; padding: 0; margin: 20px 0; list-style: none; }
+.petid-photo-card { min-width: 0; border: 1px solid var(--outline-variant); border-radius: 14px; overflow: hidden; background: var(--surface-container-lowest); }
+.petid-photo-preview { position: relative; aspect-ratio: 4 / 5; background: var(--surface-container-low); }
+.petid-photo-preview > img { display: block; width: 100%; height: 100%; object-fit: cover; }
+.petid-photo-number { position: absolute; top: 8px; left: 8px; display: grid; place-items: center; min-width: 24px; height: 24px; border-radius: 50%; padding: 2px 6px; background: var(--surface-container-lowest); color: var(--on-surface); font-size: 12px; }
+.petid-primary-badge { position: absolute; bottom: 8px; left: 8px; padding: 2px 8px; border-radius: 999px; background: var(--orange); color: var(--on-primary-container); font-size: 12px; }
+.petid-photo-controls { display: flex; align-items: center; justify-content: space-around; padding: 2px; }
+.petid-photo-controls .icon-button { width: 40px; height: 40px; }
+.petid-photo-controls .icon-button.danger { color: var(--error); }
+.petid-photo-empty { display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 150px; padding: 24px 16px; border: 1px dashed var(--outline-variant); border-radius: 14px; background: var(--surface-container-low); color: var(--primary); text-align: center; }
+.petid-photo-empty p { font-size: 14px; margin: 12px 0 0; }
+.petid-photo-add-actions { display: flex; gap: 10px; flex-wrap: wrap; }
+.petid-photo-add-actions .button { flex: 1; margin: 0; min-width: 130px; }
+.petid-upload-disabled { opacity: .48; cursor: default; }
+.petid-photo-unavailable { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; gap: 8px; color: var(--on-surface-variant); font-size: 12px; }
+.petid-enrollment-modal .petid-generate { margin-top: 6px; }
+.petid-draft-reminder { font-size: 14px!important; color: var(--primary); padding-left: 12px; border-left: 3px solid var(--orange); }
+.petid-quality-note, .petid-consent-notes { padding: 16px 18px; border-radius: 12px; background: var(--surface-container-low); font-size: 14px; color: var(--on-surface-variant); }
+.petid-quality-note b { font-weight: 500; color: var(--on-surface); }
+.petid-quality-note ul, .petid-consent-notes ul { padding-left: 20px; margin: 8px 0 0; }
+.petid-consent-notes ul { margin-top: 0; }
+.petid-quality-note li + li, .petid-consent-notes li + li { margin-top: 8px; }
+.petid-register-footer { padding-top: 12px; border-top: 1px solid var(--outline-variant); }
+.petid-register-footer > p { font-size: 12px; margin: 12px 0 0; text-align: center; }
+.petid-enrollment-modal .check-field { font-size: 14px; }
+.petid-reference-summary { display: flex; align-items: center; gap: 10px; font-size: 13px; margin: 16px 0 4px; color: var(--on-surface-variant); }
+.petid-reference-stack { display: flex; padding-left: 5px; }
+.petid-reference-stack > img { width: 42px; height: 42px; border-radius: 50%; object-fit: cover; border: 2px solid var(--surface-container-lowest); margin-left: -5px; }
+@media(max-width:600px) {
+  .petid-enrollment-modal { padding: 20px; }
+  .petid-enrollment-modal .modal-heading h2 { font-size: 22px; }
+  .petid-photo-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+  .petid-photo-controls .icon-button { width: 38px; height: 42px; }
+  .petid-enrollment-modal .button { white-space: normal; text-align: center; }
+}
+
+.petid-section label.upload-label:focus-visible { outline: 3px solid var(--primary); outline-offset: 4px; }

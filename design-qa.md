@@ -1,5 +1,23 @@
 # ChordJai bright orange + Mitr + bilingual QA
 
+## Multi-page books and photo flows — 12 October 2026
+
+Source of the refinement is the user's seven LIFF mobile screenshots: the long single-image scan dialog, repeated explanation boxes, single-page memory editor and numeric-size problem. This round intentionally changes those flows while preserving the bright orange/Mitr identity. Native LINE/browser chrome is outside the local390×844viewport capture; no pixel-identical native-shell claim is made.
+
+Evidence: `.verification/booklet-pages-10-mobile.png`, `booklet-review-mobile.png`, `booklet-review-desktop.png`, `health-booklet-mobile.png`, `memory-story-editor-en-mobile.png`, `memory-story-reader-en-mobile.png`, `memory-book-cover-en-desktop.png`, and `petid-multi-photo-mobile-en.png` / `desktop-en.png`. These are actual local frontend screenshots using explicit fixtures/demo assets, not fabricated product records. The final mobile Story reader shows the complete new9:16canvas and all navigation/date/place controls inside390×844.
+
+Findings resolved during this round:
+
+- Repeated scan explanations were combined; a second inspection found duplicated generic expiry notes and excessive box height, now three short primary bullets with expandable specific warnings inside the same box.
+- Reader initially retained ordinary app scrolling. It now opens a native modal in the top layer, with underlying navigation inert, viewport-fitting portrait canvas, tap/swipe/progress and keyboardEscape/focusreturn.
+- Legacy pages keep800×1000coordinates; new pages/cover use800×1422. Thumbnail text scales proportionally rather than inheriting the full editor's minimum font size. Selected background images preserve actual layer order instead of obscuring foreground stickers/text.
+- PostgreSQL DATE conversion originally shifted Story dates under Asia/Bangkok; API/export now return calendar-date strings. Source-photo access is checked before AI and writes. PetID registration rechecks/locks every photo after AI so a concurrent erasure cannot publish a stale vector.
+- LIFF and ordinary browser entry, expired-session retries, logout races and consent are tested separately. Dirty memory drafts are protected when changing top-level tabs/pets or logging out.
+
+Verification:133 unit/SDK/provider tests +45 real isolated PostgreSQL HTTP tests, full DBsecurity/HNSW/upgrade/concurrency suite, all workspace TypeScript checks and three production builds pass. Owner/PetID/OCR/Story/clinic/admin browser runners pass at390pxanddesktop without document overflow or page exceptions. Real AI output quality and physical LINE client sign-in remain separate live acceptance checks. Supabase production migration15 was explicitly authorized and applied; its fingerprint was read back successfully.
+
+Final result of this refinement: passed.
+
 **Source visual truth**
 - Existing source UI capture: `/Users/natthaphat/Downloads/pettech/.verification/bright-before-owner.png`.
 - Latest user direction overrides the earlier muted Kindness & Kinship colors and Sarabun: cheerful vivid orange, playful loopless Mitr, Thai/English choice throughout. Existing layout and real licensed pet imagery remain the source composition. This is a scoped refinement, not a literal color/font match to the old screen.

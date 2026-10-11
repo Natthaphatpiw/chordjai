@@ -14,13 +14,13 @@ export const idempotency:MiddlewareHandler<ServiceEnv>=async(c,next)=>{
   const requestHash=digest(Buffer.from(await c.req.raw.clone().arrayBuffer()));
   const cached=await withSystem(async db=>{
     await db.query('DELETE FROM ops.idempotency WHERE scope=$1 AND key=$2 AND expires_at<now()',[scope,key]);
-    const inserted=await db.query("INSERT INTO ops.idempotency(scope,key,request_hash,status,locked_until,user_id) VALUES($1,$2,$3,'pending',now()+interval '90 seconds',$4) ON CONFLICT DO NOTHING RETURNING key",[scope,key,requestHash,c.get('actor')?.id??null]);
+    const inserted=await db.query("INSERT INTO ops.idempotency(scope,key,request_hash,status,locked_until,user_id) VALUES($1,$2,$3,'pending',now()+interval '180 seconds',$4) ON CONFLICT DO NOTHING RETURNING key",[scope,key,requestHash,c.get('actor')?.id??null]);
     if(inserted.rowCount)return null;
     const row=(await db.query('SELECT *,locked_until>now() AS locked FROM ops.idempotency WHERE scope=$1 AND key=$2 FOR UPDATE',[scope,key])).rows[0];
     if(row.request_hash!==requestHash)throw new HttpError(409,'IDEMPOTENCY_CONFLICT','คำขอซ้ำมีข้อมูลต่างจากคำขอเดิม');
     if(row.status==='completed')return row;
     if(row.locked)throw new HttpError(409,'REQUEST_IN_PROGRESS','คำขอนี้กำลังประมวลผล กรุณารอสักครู่');
-    await db.query("UPDATE ops.idempotency SET locked_until=now()+interval '90 seconds' WHERE scope=$1 AND key=$2",[scope,key]);return null;
+    await db.query("UPDATE ops.idempotency SET locked_until=now()+interval '180 seconds' WHERE scope=$1 AND key=$2",[scope,key]);return null;
   });
   if(cached){c.header('Idempotency-Replayed','true');return c.json(cached.response,cached.response_status);}
   await next();

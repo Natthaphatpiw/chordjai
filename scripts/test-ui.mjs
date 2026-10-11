@@ -48,7 +48,9 @@ try{
   await page.getByRole('button',{name:'ลองดูพื้นที่ตัวอย่างก่อน'}).click();
   await appearance(page,'owner-home-desktop');
   await page.getByRole('button',{name:'ความทรงจำ',exact:true}).first().click();
-  await page.getByRole('button',{name:'เพิ่มข้อความ',exact:true}).click();
+  await page.getByRole('button',{name:'อ่านสมุด',exact:true}).click();
+  await page.getByRole('button',{name:'แก้ไขหน้านี้',exact:true}).click();
+  await page.getByRole('button',{name:'ข้อความ',exact:true}).click();
   await page.getByLabel('เนื้อหา').fill('ทดสอบบันทึกความทรงจำ');
   const element=page.getByRole('button',{name:'ทดสอบบันทึกความทรงจำ ลากเพื่อย้าย หรือใช้ปุ่มลูกศร'});
   await element.scrollIntoViewIfNeeded();
@@ -63,7 +65,10 @@ try{
   await page.reload({waitUntil:'networkidle'});
   await page.getByRole('button',{name:'ลองดูพื้นที่ตัวอย่างก่อน'}).click();
   await page.getByRole('button',{name:'ความทรงจำ',exact:true}).first().click();
+  await page.getByRole('button',{name:'อ่านสมุด',exact:true}).click();
+  await page.getByRole('button',{name:'แก้ไขหน้านี้',exact:true}).click();
   await expect(page.getByRole('button',{name:'ทดสอบบันทึกความทรงจำ ลากเพื่อย้าย หรือใช้ปุ่มลูกศร'})).toBeVisible();
+  await page.locator('summary').filter({hasText:'ให้ AI ช่วยแต่ง'}).click();
   await page.getByLabel('คำสั่งตกแต่งสมุด').fill('โทนพาสเทล');
   await page.getByRole('button',{name:'สร้างแบบร่าง',exact:true}).click();
   await expect(page.getByText('การตกแต่งด้วย AI ต้องเข้าสู่ระบบจริง',{exact:false})).toBeVisible();
@@ -146,7 +151,9 @@ try{
     const finderRequests=[];
     await finderContext.route('**/api/v1/**',async route=>{
       const request=route.request();finderRequests.push(new URL(request.url()).pathname);
-      if(request.method()==='GET'&&new URL(request.url()).pathname==='/api/v1/pets'){
+      if(request.method()==='GET'&&new URL(request.url()).pathname==='/api/v1/identity/consents'){
+        await route.fulfill({contentType:'application/json',body:JSON.stringify({data:[{purpose:'service',granted:true}]})});
+      }else if(request.method()==='GET'&&new URL(request.url()).pathname==='/api/v1/pets'){
         await route.fulfill({contentType:'application/json',body:JSON.stringify({data:[]})});
       }else await route.abort();
     });
@@ -157,7 +164,7 @@ try{
     await expect(finder.getByRole('heading',{name:'พบสัตว์ที่กำลังหาบ้าน?'})).toBeVisible();
     await expect(finder.locator('label').filter({hasText:'เลือกรูปน้องที่พบ'}).locator('input[type=file]')).toHaveCount(1);
     await expect(finder.getByRole('button',{name:'ลงทะเบียน PetID',exact:true})).toHaveCount(0);
-    expect(finderRequests).toEqual(['/api/v1/pets']);
+    expect([...finderRequests].sort()).toEqual(['/api/v1/identity/consents','/api/v1/pets']);
     await appearance(finder,'petid-finder-mobile');
   }finally{await finderContext.close();}
   const englishContext=await browser.newContext({viewport:{width:1440,height:1000},serviceWorkers:'block'});
@@ -170,7 +177,7 @@ try{
     expect(await english.locator('body').innerText()).not.toMatch(/[\u0E00-\u0E7F]/);
     await appearance(english,'owner-home-english-desktop');
     await english.getByRole('button',{name:'Health journal',exact:true}).first().click();
-    await expect(english.getByText('Combined feline vaccine (FVRCP)',{exact:true})).toBeVisible();
+    await expect(english.getByRole('heading',{name:'Combined feline vaccine (FVRCP)',exact:true})).toBeVisible();
     await english.getByRole('button',{name:/Does my pet need a vet/}).click();
     await english.getByRole('checkbox',{name:'Trouble breathing, heavy panting, or pale/purple gums',exact:true}).check();
     await english.getByRole('button',{name:'View emergency information',exact:true}).click();
@@ -188,10 +195,12 @@ try{
     await expect(english.getByRole('heading',{name:'Found a pet looking for home?',exact:true})).toBeVisible();
     expect(await english.locator('body').innerText()).not.toMatch(/[\u0E00-\u0E7F]/);
     await english.getByRole('button',{name:'Memories',exact:true}).first().click();
+    await english.getByRole('button',{name:'Read book',exact:true}).click();
+    await english.getByRole('button',{name:'Edit page',exact:true}).click();
     await expect(english.getByLabel('Page title')).toHaveValue('A day with you');
     expect(await english.locator('body').innerText()).not.toMatch(/[\u0E00-\u0E7F]/);
     await english.getByLabel('Page title').fill('My personal page');
-    await english.getByRole('button',{name:'Add text',exact:true}).click();
+    await english.getByRole('button',{name:'Text',exact:true}).click();
     await english.getByLabel('Content').fill('A personal note to keep');
     const edited=english.getByRole('button',{name:'A personal note to keep Drag to move, or use the arrow keys',exact:true});
     await edited.focus();await english.keyboard.press('ArrowRight');

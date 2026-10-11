@@ -59,7 +59,8 @@ app.get('/api/v1/identity/export', async c => {
     const pets = (await tx.query(`select * from pet.pets where owner_id=$1`,[actor.id])).rows;
     const consents = (await tx.query(`select purpose,granted,version,created_at from identity.consent_history where user_id=$1`,[actor.id])).rows;
     const health = (await tx.query(`select * from health.records where created_by=$1 or pet_id in (select id from pet.pets where owner_id=$1)`,[actor.id])).rows;
-    const journal = (await tx.query(`select * from journal.pages where owner_id=$1`,[actor.id])).rows;
+    const journal = (await tx.query(`select *,story_date::text as story_date from journal.pages where owner_id=$1`,[actor.id])).rows;
+    const memoryBooks = (await tx.query('select * from journal.books where owner_id=$1',[actor.id])).rows;
     const memories = (await tx.query(`select * from assistant.memories where user_id=$1`,[actor.id])).rows;
     const conversations = (await tx.query(`select * from assistant.conversations where user_id=$1`,[actor.id])).rows;
     const messages = (await tx.query(`select m.* from assistant.messages m join assistant.conversations cv on cv.id=m.conversation_id where cv.user_id=$1`,[actor.id])).rows;
@@ -71,8 +72,9 @@ app.get('/api/v1/identity/export', async c => {
     const appointments = (await tx.query('select * from clinic.appointments where user_id=$1',[actor.id])).rows;
     const lostCases = (await tx.query('select * from lostfound.cases where owner_id=$1',[actor.id])).rows;
     const petid = (await tx.query('select id,pet_id,description,signature,search_mode,status,created_at from biometric.enrollments where user_id=$1',[actor.id])).rows;
+    const petidPhotos = (await tx.query('select ep.* from biometric.enrollment_photos ep join biometric.enrollments e on e.id=ep.enrollment_id where e.user_id=$1',[actor.id])).rows;
     const shares = (await tx.query('select id,pet_id,expires_at,revoked_at,created_at from share.links where owner_id=$1',[actor.id])).rows;
-    return { exportedAt: new Date().toISOString(), profile, pets, consents, health, journal, memories, preferences, conversations, messages, triage, media, inbox, reminders, appointments, lostCases, petid, shares };
+    return { exportedAt: new Date().toISOString(), profile, pets, consents, health, journal, memoryBooks, memories, preferences, conversations, messages, triage, media, inbox, reminders, appointments, lostCases, petid, petidPhotos, shares };
   });
   c.header('Content-Disposition', 'attachment; filename="chordjai-personal-data.json"');
   return ok(c, camel(exported));

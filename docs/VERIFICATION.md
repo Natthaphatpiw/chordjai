@@ -1,5 +1,20 @@
 # ผลตรวจระบบ — 10 ตุลาคม 2026
 
+## สมุดหลายหน้า / Story / PetID หลายรูป / LIFF — 12 ตุลาคม 2026
+
+- Workspace TypeScript และ production builds ของ Owner/Clinic/Admin ผ่าน; ตรวจ runtime dependency และ isolated production install ครบ14Services ผ่าน
+- Unit/provider/SDK mocks: **133 passed**; isolated PostgreSQL HTTP: **45 passed** รวม10-page OCR, วันที่จริง/วันนัด, ยืนยันและ retry ไม่ซ้ำ, cover/page/order/version/export/RLS, PetID1–5รูป/6รูปถูกปฏิเสธ/ร่างแก้ได้/หนึ่งเวกเตอร์/ถอนทะเบียน และ identify ใช้รูปผู้พบ1รูป+รูปอ้างอิง5รูป
+- Database security/HNSW/queue/concurrency suite ผ่าน; safe upgrade จากรุ่น1/4/9/13/14/15 ไป15และรันซ้ำรักษาข้อมูล sentinel เดิม ปฏิเสธ schema drift, unrelated users และ checksum ที่ถูกเปลี่ยน
+- การลบรูป PetID ระหว่างสร้าง embedding และ transaction ลบรูปที่ยังไม่ commit ถูกจำลองด้วย PostgreSQL จริง: registration รอ lock แล้วปฏิเสธรูปที่ถูกลบ ไม่เผยแพร่เวกเตอร์ใหม่จากรูปนั้น การลบรูปรองของทะเบียนเดิมล้าง signature/vector และหยุด gallery eligibility
+- Date ของ Story คืนค่า `YYYY-MM-DD` โดยไม่ผ่านการแปลง PostgreSQL DATE เป็น timestamp ในเขตเวลาของ host ตรวจทั้ง POST/GET/PATCH/export จึงไม่เลื่อนไปวันก่อนหน้า
+- Browser fixtures: สะสม/เรียง/ลบ10หน้าก่อนประมวลผล1ครั้ง, กล่อง3bulletและรายละเอียดเฉพาะที่เปิดดูได้, ดูหน้าต้นฉบับ, แก้วัน, ยืนยันและบันทึกต่อหลัง503 ผ่าน390/1440px
+- Browser Story: แต่งปก/เพิ่ม2หน้า/อ่านเต็มจอ/ก่อนหน้า–ถัดไป/วันที่–สถานที่/save–reload, resizeด้วยปุ่ม/มุม/สองนิ้วรักษาสัดส่วน, ไม่มีช่องขนาดตัวเลข, dirty guard/สลับภาษา/thumbnail/ Escapeและfocusreturn ผ่าน โดยทั้งcanvasและปุ่มอ่านอยู่ใน390×844ไม่ต้องเลื่อน
+- Browser PetID: สูงสุด5รูป, กดGenerateก่อน, แก้จุดสังเกต, เปลี่ยนรูปทำให้ต้องตรวจใหม่, draft ticket, keyคงเดิมเมื่อ503retry, update/withdraw/finder/ownerconfirmation ผ่าน; portalทั้งสองยังผ่านโฟลว์เดิมในไทย/อังกฤษ
+- LIFF SDK mocks14ข้อผ่าน: nativeauto/manualไม่เรียกunsupportedlogin, externalcallback/redirectloop, concurrent401ใช้การrenewครั้งเดียว, public/403ไม่เริ่มlogin, logoutยกเลิกpendinglogin/APIresponse และmanualloginใหม่ไม่ถูกผลเก่าทับ
+- ผู้ใช้อนุญาตให้อัปเกรด Supabase จริงแล้ว: `npm run db:upgrade` สำเร็จ **15 migrations** และ read-only diagnostic ตรวจ fingerprintรุ่น15ตรงกับ manifest ข้อมูล credentials/ผู้ใช้ไม่ถูกพิมพ์ในการตรวจ
+
+Functional AI/Blob/LINE fixtures ไม่เรียกผู้ให้บริการจริงและไม่ส่งข้อความหาผู้ใช้ การตรวจนี้ยังไม่แทนการทดสอบ LINE/iOS/Android จริงหรือวัดความแม่นยำของ AI/PetID ภาพหลักฐานอยู่ใน `.verification/`; source และสคริปต์ทดสอบอยู่ใน Git
+
 - TypeScript ผ่าน backend/packages และหน้าบ้านทั้งสาม
 - Production build ผ่าน owner-app (รวม invite), clinic-portal และ admin-console
 - Unit tests 73 ข้อผ่าน: AI schema/budget/privacy, LINE signatures/token lifecycle/friendship verification, calendar, medical rules, media validation, queue lease handling, PetID retrieval/vision fallback, safe infrastructure diagnostics 11 ข้อ (ไม่ส่งข้อความ/URL/SQL/ข้อมูลส่วนตัวลง log) และ scoped verified TLS/pg parser 11 ข้อ

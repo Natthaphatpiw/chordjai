@@ -2,7 +2,8 @@ export interface Pet { id: string; name: string; species: 'cat' | 'dog'; sex: 'm
 export interface HealthRecord { id: string; petId: string; kind: 'vaccine' | 'weight' | 'medication' | 'parasite' | 'checkin' | 'note'; title: string; recordedAt: string; nextDueAt?: string | null; notes?: string; value?: number | null; }
 export interface JournalElement { id: string; type: 'text' | 'sticker' | 'photo'; x: number; y: number; width: number; height: number; rotation: number; content: string; color?: string; }
 export interface JournalTheme { background: string; font: string; accent: string; }
-export interface JournalPage { id: string; petId: string; title: string; theme: JournalTheme; elements: JournalElement[]; version: number; updatedAt?: string; }
+export interface JournalPage { id: string; petId: string; title: string; theme: JournalTheme; elements: JournalElement[]; version: number; canvasHeight?: 1000 | 1422; storyDate?: string | null; location?: string; pageOrder?: number; createdAt?: string; updatedAt?: string; }
+export interface JournalBook { id: string; petId: string; title: string; coverTheme: JournalTheme; coverElements: JournalElement[]; version: number; updatedAt?: string; }
 export interface Preferences { assistantName: string; tone: string; aboutUser: string; memoryEnabled: boolean; }
 export interface Memory { id: string; content: string; kind: string; petId?: string | null; }
 export interface ChatMessage { id: string; role: 'user' | 'assistant'; content: string; createdAt?: string; }

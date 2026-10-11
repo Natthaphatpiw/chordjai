@@ -35,5 +35,7 @@ if "$http_tests"; then
   test_endpoint="$(docker port "$test_container" 5432/tcp)"
   test_url="postgresql://postgres@127.0.0.1:${test_endpoint##*:}/postgres"
   cd "$test_root"
-  TEST_DATABASE_URL="$test_url" npx --no-install vitest run tests/integration.test.ts backend/biometric/src/hybrid.integration.test.ts
+  # These suites share a gallery and test exact global candidate counts.
+  # Run files serially so one suite's synthetic lost pet cannot enter another.
+  TEST_DATABASE_URL="$test_url" npx --no-install vitest run --maxWorkers=1 tests/integration.test.ts backend/biometric/src/hybrid.integration.test.ts backend/health/src/import.integration.test.ts backend/journal/src/book.integration.test.ts backend/biometric/src/photos.integration.test.ts
 fi

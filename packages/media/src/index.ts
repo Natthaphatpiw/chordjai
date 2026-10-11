@@ -17,10 +17,32 @@ export async function mediaUrl(asset:Pick<Asset,'id'|'user_id'>){
   return `/api/v1/media/${asset.id}?read=${token}`;
 }
 async function read(asset:Asset){
-  const result=await get(asset.pathname,{access:'private',token:process.env.BLOB_READ_WRITE_TOKEN});
-  if(!result||result.statusCode!==200||!result.stream)throw new HttpError(404,'IMAGE_UNAVAILABLE','ไม่พบไฟล์รูป');
-  const bytes=Buffer.from(await new Response(result.stream).arrayBuffer());
-  return sharp(bytes,{limitInputPixels:40_000_000}).rotate().resize({width:1024,height:1024,fit:'inside',withoutEnlargement:true}).jpeg({quality:85}).toBuffer();
+  // One deadline covers both response headers and the complete private stream.
+  const signal=AbortSignal.timeout(15_000);
+  try {
+    const result=await get(asset.pathname,{access:'private',token:process.env.BLOB_READ_WRITE_TOKEN,abortSignal:signal});
+    signal.throwIfAborted();
+    if(!result||result.statusCode!==200||!result.stream)throw new HttpError(404,'IMAGE_UNAVAILABLE','ไม่พบไฟล์รูป');
+    const reader=result.stream.getReader();
+    const abort=()=>{void reader.cancel(signal.reason).catch(()=>{});};
+    signal.addEventListener('abort',abort,{once:true});
+    let bytes:Buffer;
+    try {
+      const chunks:Buffer[]=[];
+      while(true){
+        signal.throwIfAborted();
+        const chunk=await reader.read();
+        signal.throwIfAborted();
+        if(chunk.done)break;
+        chunks.push(Buffer.from(chunk.value));
+      }
+      bytes=Buffer.concat(chunks);
+    }finally{signal.removeEventListener('abort',abort);reader.releaseLock();}
+    return await sharp(bytes,{limitInputPixels:40_000_000}).rotate().resize({width:1024,height:1024,fit:'inside',withoutEnlargement:true}).jpeg({quality:85}).toBuffer();
+  }catch(error){
+    if(signal.aborted)throw new HttpError(503,'SERVICE_UNAVAILABLE','โหลดรูปไม่สำเร็จในเวลาที่กำหนด กรุณาลองใหม่อีกครั้ง');
+    throw error;
+  }
 }
 export async function loadOwnedImage(userId:string,mediaId:string):Promise<string>{
   const asset=await withUser(userId,async db=>(await db.query("SELECT * FROM media.objects WHERE id=$1 AND status='ready'",[mediaId])).rows[0] as Asset|undefined);

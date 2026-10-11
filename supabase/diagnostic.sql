@@ -43,7 +43,8 @@ select jsonb_build_object('fingerprint',md5(details::text),'details',details) as
  (11,'202610100011','202610100011_pet_neutered.sql','e1d2bcc6484030119f476fb247f61110'),
  (12,'202610100012','202610100012_health_creator_erasure.sql','1b8a1e22b0f68f5c2f55a1c8f1b0076e'),
  (13,'202610100013','202610100013_webhook_retention_index.sql','5f46de2fb25d7fcdd0b18c134c510bcc'),
- (14,'202610100014','202610100014_petid_hnsw_cosine.sql','205b34a3a1e623e14d7dfa4951090bc8')
+ (14,'202610100014','202610100014_petid_hnsw_cosine.sql','205b34a3a1e623e14d7dfa4951090bc8'),
+ (15,'202610110015','202610110015_memory_books_petid_photos.sql','31dc55bf2f875051312b9df856981adb')
 ), inferred as (
  select max(k.ordinal) as version from known k,current_state s where k.fingerprint=s.state->>'fingerprint'
 )
@@ -79,6 +80,7 @@ select jsonb_build_object(
  when 12 then (exists(select 1 from pg_constraint where conrelid=to_regclass('health.records') and conname='records_created_by_fkey' and confdeltype='n'))
  when 13 then (to_regclass('notify.webhook_events_retention_idx') is not null)
  when 14 then (to_regclass('biometric.enrollments_embedding_hnsw_lost_ready_idx') is not null)
+ when 15 then (to_regclass('journal.books') is not null and to_regclass('biometric.enrollment_photos') is not null)
  end,
    'is_exact_current_state',k.fingerprint=s.state->>'fingerprint') order by k.ordinal) from known k)
 ) as chordjai_diagnostic from current_state s cross join inferred i;

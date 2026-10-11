@@ -16,6 +16,7 @@
     "hono": "^4.13.13",
     "zod": "^4.0.0",
     "@chordjai/ai": "*",
-    "@chordjai/media": "*"
+    "@chordjai/media": "*",
+    "@chordjai/auth": "*"
   }
 }

@@ -33,7 +33,7 @@
       "entrypoint": "src/index.ts",
       "functions": {
         "src/index.ts": {
-          "maxDuration": 60,
+          "maxDuration": 120,
           "regions": [
             "sin1"
           ]
@@ -57,7 +57,7 @@
       "entrypoint": "src/index.ts",
       "functions": {
         "src/index.ts": {
-          "maxDuration": 60,
+          "maxDuration": 120,
           "regions": [
             "sin1"
           ]

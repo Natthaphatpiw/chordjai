@@ -82,5 +82,11 @@
     "file": "202610100014_petid_hnsw_cosine.sql",
     "checksum": "095c58d7d0752e271d8facc89d5e409318413ebdee78bc052e6c672d5ee3c71e",
     "fingerprint": "205b34a3a1e623e14d7dfa4951090bc8"
+  },
+  {
+    "version": "202610110015",
+    "file": "202610110015_memory_books_petid_photos.sql",
+    "checksum": "48a6bda5ca95b4843e34190bb3a73a5e66eab0c3a62d5f85c130cdfab0c348a7",
+    "fingerprint": "31dc55bf2f875051312b9df856981adb"
   }
 ]

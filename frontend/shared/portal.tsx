@@ -7,7 +7,7 @@ import {
   ShieldCheck, Trash2, Users, X, ChartNoAxesCombined, CircleHelp, Fingerprint,
   MessageSquare, ArrowUpRight, AlertCircle, BookOpen, SlidersHorizontal,
 } from 'lucide-react';
-import { api, json, lineLogin, messageOf, dateForLocale } from './api';
+import { api, json, lineLogin, autoLineLogin, clearLineSession, ApiError, messageOf, dateForLocale } from './api';
 import { useLocale, LanguageSwitcher } from './locale';
 import { translate, localizedHref, type Locale } from './locale-core';
 
@@ -50,6 +50,7 @@ export default function Portal({ kind }: { kind: PortalKind }) {
   const [error, setError] = useState<unknown>(null);
   const [notice, setNotice] = useState<Notice>(null);
   const [busy, setBusy] = useState(false);
+  const [authChecking, setAuthChecking] = useState(true);
   const [memberships, setMemberships] = useState<Membership[]>([]);
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [kpis, setKpis] = useState<Kpis | null>(null);
@@ -62,9 +63,23 @@ export default function Portal({ kind }: { kind: PortalKind }) {
   const [jobFilter, setJobFilter] = useState('all');
   const [aiFilter, setAiFilter] = useState('');
   const navRef = useRef<HTMLElement>(null);
+  const asyncEpoch = useRef(0);
+  const mounted = useRef(false);
+  function current(run: number) { return mounted.current && run === asyncEpoch.current; }
 
   useEffect(() => {
-    if (sessionStorage.getItem('chordjai.session')) void establish();
+    mounted.current = true;
+    const run = ++asyncEpoch.current;
+    async function bootstrap() {
+      setBusy(true); setAuthChecking(true);
+      try {
+        if (sessionStorage.getItem('chordjai.session')) await establish(run);
+        else if (await autoLineLogin(process.env.NEXT_PUBLIC_LIFF_ID || '')) { if (current(run)) await establish(run); }
+      } catch (caught) { if (current(run)) setError(caught); }
+      finally { if (current(run)) { setBusy(false); setAuthChecking(false); } }
+    }
+    void bootstrap();
+    return () => { mounted.current = false; asyncEpoch.current++; };
   }, []);
 
   useEffect(() => {
@@ -83,42 +98,41 @@ export default function Portal({ kind }: { kind: PortalKind }) {
     return () => observer.disconnect();
   }, [tab, user, locale]);
 
-  async function establish() {
-    setBusy(true);
-    setError('');
+  async function establish(run = ++asyncEpoch.current) {
+    setBusy(true); setError('');
     try {
       const profile = await api<User>('/identity/me');
+      if (!current(run)) return;
       if (kind === 'admin' && profile.role !== 'admin') {
         throw new PortalUiError('บัญชีนี้ยังไม่มีสิทธิ์ผู้ดูแลระบบ กรุณาติดต่อผู้ดูแลเพื่อขอสิทธิ์', 'This account does not have administrator access. Contact an administrator to request access.');
       }
       if (kind === 'clinic') {
-        const [roles, data] = await Promise.all([
-          api<Membership[]>('/clinic/memberships'), api<Appointment[]>('/clinic/appointments'),
-        ]);
+        const [roles, data] = await Promise.all([api<Membership[]>('/clinic/memberships'), api<Appointment[]>('/clinic/appointments')]);
+        if (!current(run)) return;
         if (!roles.length) throw new PortalUiError('บัญชีนี้ยังไม่ได้รับสิทธิ์ในคลินิก กรุณาติดต่อผู้ดูแลคลินิก', 'This account does not have clinic access. Contact your clinic administrator.');
         const clinicIds = new Set(roles.map(role => role.clinicId));
-        setMemberships(roles);
-        setAppointments(data.filter(item => clinicIds.has(item.clinicId)));
+        setMemberships(roles); setAppointments(data.filter(item => clinicIds.has(item.clinicId)));
       } else {
-        const [data, queue, logs] = await Promise.all([
-          api<Kpis>('/analytics/kpis'), api<Job[]>('/analytics/jobs'), api<AiRequest[]>('/analytics/ai-requests'),
-        ]);
-        setKpis(data);
-        setJobs(queue);
-        setRequests(logs);
+        const [data, queue, logs] = await Promise.all([api<Kpis>('/analytics/kpis'), api<Job[]>('/analytics/jobs'), api<AiRequest[]>('/analytics/ai-requests')]);
+        if (!current(run)) return;
+        setKpis(data); setJobs(queue); setRequests(logs);
       }
-      setUser(profile);
-      setUpdatedAt(new Date().toISOString());
-    } catch (caught) { setError(caught); }
-    finally { setBusy(false); }
+      if (current(run)) { setUser(profile); setUpdatedAt(new Date().toISOString()); }
+    } catch (caught) {
+      if (current(run)) {
+        // api() already attempted renewal once. Never start a second exchange.
+        if (caught instanceof ApiError && caught.status === 401) { clearLineSession(); setUser(null); }
+        setError(caught);
+      }
+    } finally { if (current(run)) setBusy(false); }
   }
 
   async function login() {
-    setBusy(true);
-    setError('');
-    try { await lineLogin(process.env.NEXT_PUBLIC_LIFF_ID || ''); await establish(); }
-    catch (caught) { setError(caught); }
-    finally { setBusy(false); }
+    const run = ++asyncEpoch.current;
+    setBusy(true); setError('');
+    try { await lineLogin(process.env.NEXT_PUBLIC_LIFF_ID || ''); if (current(run)) await establish(run); }
+    catch (caught) { if (current(run)) setError(caught); }
+    finally { if (current(run)) setBusy(false); }
   }
 
   function selectTab(next: string) {
@@ -126,41 +140,47 @@ export default function Portal({ kind }: { kind: PortalKind }) {
   }
 
   function logout() {
-    sessionStorage.removeItem('chordjai.session');
+    asyncEpoch.current++; clearLineSession(); setBusy(false); setAuthChecking(false);
     setUser(null); setMemberships([]); setAppointments([]); setSummary(null);
     setKpis(null); setJobs([]); setRequests([]); setError(''); setNotice(null); setUpdatedAt(null);
   }
 
   async function changeAppointment(id: string, status: string) {
+    const run = asyncEpoch.current;
     setBusy(true); setError(''); setNotice(null);
     try {
       await api(`/clinic/appointments/${id}`, json('PATCH', { status }));
+      if (!current(run)) return;
       setAppointments(current => current.map(item => item.id === id ? { ...item, status } : item));
       setNotice(status === 'accepted' ? ["ตอบรับคำขอนัดแล้ว", "Appointment accepted"] : status === 'completed' ? ["บันทึกว่าตรวจแล้วเรียบร้อย", "Appointment marked as completed"] : ["อัปเดตสถานะคำขอแล้ว", "Appointment status updated"]);
-    } catch (caught) { setError(caught); }
-    finally { setBusy(false); }
+    } catch (caught) { if(current(run))setError(caught); }
+    finally { if(current(run))setBusy(false); }
   }
 
   async function openSummary(id: string) {
+    const run = asyncEpoch.current;
     selectTab('summary'); setPetId(id); setSummary(null); setBusy(true);
-    try { setSummary(await api<Summary>(`/clinic/pets/${encodeURIComponent(id.trim())}/summary`)); }
-    catch (caught) { setError(caught); }
-    finally { setBusy(false); }
+    try { const data=await api<Summary>(`/clinic/pets/${encodeURIComponent(id.trim())}/summary`); if(current(run))setSummary(data); }
+    catch (caught) { if(current(run))setError(caught); }
+    finally { if(current(run))setBusy(false); }
   }
 
   async function jobAction(id: string, action: 'replay' | 'discard') {
+    const run = asyncEpoch.current;
     if (action === 'discard' && !window.confirm(t("ทิ้งงานนี้หรือไม่? งานจะไม่ถูกนำกลับไปทำต่อ", "Discard this job? It will not be processed again."))) return;
     setBusy(true); setError(''); setNotice(null);
     try {
       await api(`/analytics/jobs/${id}/${action}`, { method: 'POST' });
+      if (!current(run)) return;
       setJobs(current => action === 'discard' ? current.filter(item => item.id !== id) : current.map(item =>
         item.id === id ? { ...item, status: 'queued', attempts: 0, lastError: undefined } : item));
       setKpis(current => current ? { ...current, deadJobs: Math.max(0, current.deadJobs - 1) } : current);
       setNotice(action === 'replay' ? ["นำงานกลับเข้าคิวแล้ว", "Job queued again"] : ["ทิ้งงานแล้ว", "Job discarded"]);
-    } catch (caught) { setError(caught); }
-    finally { setBusy(false); }
+    } catch (caught) { if(current(run))setError(caught); }
+    finally { if(current(run))setBusy(false); }
   }
 
+  if (authChecking) return <main className="portal-login"><div className="portal-loading" role="status"><span />{t('กำลังเปิดพื้นที่ทำงาน…', 'Opening your workspace…')}</div></main>;
   if (!user) return <PortalLogin kind={kind} busy={busy} error={error} onLogin={() => void login()} />;
 
   const tabs = kind === 'clinic' ? clinicTabs(t) : adminTabs(t);

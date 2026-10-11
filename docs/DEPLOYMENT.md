@@ -76,6 +76,8 @@ Preview frontend ต้องตั้ง API_ORIGINเป็น backend preview
 
 ## Supabase SQL
 
+อัปเดต 12 ตุลาคม 2026: สมุดความทรงจำ/หน้าปก/ข้อมูล Story และรูป PetID หลายมุมต้องใช้ migration 15 ก่อน deploy โค้ดรอบนี้ ฐานข้อมูลเดิมที่ผ่าน diagnostic ให้รัน `supabase/upgrade.sql` หรือ `npm run db:upgrade` ซึ่งเพิ่มเฉพาะส่วนที่ขาดและตรวจ fingerprint ก่อนทุกครั้ง Backend health และ biometric กำหนดระยะเวลา Function 120 วินาทีสำหรับ batch/รูปหลายมุม โดยตัว AI ยังมี timeout และงบของแต่ละฟีเจอร์เอง ไม่ต้องเพิ่ม env หรือเปลี่ยน LIFF endpoint
+
 1. เปิด Supabase project ที่ใช้กับระบบแล้วเข้า SQL Editor
 2. ฐานข้อมูลใหม่รัน `supabase/bootstrap.sql` **ครั้งเดียว** ถ้าฐานข้อมูลเดิมมี `identity.users` แล้ว รัน `supabase/diagnostic.sql` เพื่อดูสถานะ จากนั้นใช้ `supabase/upgrade.sql` ซึ่งตรวจ schema เทียบรุ่นที่รู้จักก่อนเพิ่มเฉพาะ migration ที่ขาดและบันทึก `ops.schema_migrations` ทุกการเปลี่ยนแปลงอยู่ใน transaction เดียว ถ้า schema ไม่ตรงสคริปต์จะหยุดโดยไม่แก้ข้อมูล ห้ามรัน bootstrap ซ้ำบน DB เดิม
 3. ไม่ expose schemasเหล่านี้ผ่าน Supabase Data API และไม่ต้องเพิ่ม frontend Supabase key
@@ -89,6 +91,8 @@ Table Editor อาจเปิดอยู่ที่ `public` ซึ่งไ
 ผู้ที่ใช้ CLI และใส่ `DATABASE_URL` แล้วสามารถรัน `npm run db:upgrade` แทน SQL Editor ได้ ใช้ SQL ชุดเดียวกันและไม่พิมพ์ connection string หรือข้อมูลผู้ใช้ ถ้า diagnostic ระบุ schema ที่ไม่รู้จัก ให้ตรวจผล JSON ก่อนเลือก migration ห้ามแก้ด้วยการลบ `users` หรือเติม `IF NOT EXISTS` ทุกคำสั่ง
 
 ## LINE / LIFF
+
+เมื่อเปิดผ่าน LIFF แอปเริ่ม SDK และแลก ID token ฝั่ง server อัตโนมัติ เพื่อไปหน้าหลักโดยไม่กดปุ่ม login ซ้ำ Native LIFF ไม่เรียก `liff.login()` ซึ่ง LINE ไม่รองรับใน client; การเปิดผ่าน external LIFF callback ใช้ redirect เมื่อจำเป็นและป้องกันการวนซ้ำ การเปิดเว็บปกติยังเลือก login/พื้นที่ตัวอย่างได้ Role และ service consent ตรวจจาก API เหมือนเดิม [LINE LIFF API reference](https://developers.line.biz/en/reference/liff/)
 
 | ใช้สำหรับ | LIFF ID | Endpoint |
 |---|---|---|

@@ -31,18 +31,18 @@ def fresh(prefix: int) -> str:
     return name
 
 try:
-    for prefix in (1, 4, 9, 13, 14):
+    for prefix in (1, 4, 9, 13, 14, len(sources)):
         db = fresh(prefix)
         sql(db, "insert into identity.users(id,line_user_id,display_name) values('e0000000-0000-0000-0000-000000000001','upgrade-preservation-fixture','SYNTHETIC SENTINEL');")
         before = json.loads(sql(db, diagnostic).stdout.strip())
         assert before["verified_migration_count"] == prefix, before["status"]
         sql(db, upgrade)
         after = json.loads(sql(db, diagnostic).stdout.strip())
-        assert after["verified_migration_count"] == 14, after["status"]
+        assert after["verified_migration_count"] == len(sources), after["status"]
         assert sql(db, "select count(*) from identity.users where line_user_id='upgrade-preservation-fixture';").stdout.strip() == "1"
-        assert sql(db, "select count(*) from ops.schema_migrations;").stdout.strip() == "14"
+        assert sql(db, "select count(*) from ops.schema_migrations;").stdout.strip() == str(len(sources))
         sql(db, upgrade)  # a second run verifies and adopts, never recreates tables
-        print(f"PASS: known state {prefix} -> 14 -> 14 preserves sentinel user and tracks 14 migrations")
+        print(f"PASS: known state {prefix} -> {len(sources)} -> {len(sources)} preserves sentinel user and tracks {len(sources)} migrations")
 
     foreign = fresh(0)
     sql(foreign, "create schema identity; create table identity.users(id integer primary key,secret text); insert into identity.users values(1,'SYNTHETIC PRESERVE');")
