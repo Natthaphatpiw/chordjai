@@ -47,7 +47,9 @@ select jsonb_build_object('fingerprint',md5(details::text),'details',details) as
  (15,'202610110015','202610110015_memory_books_petid_photos.sql','31dc55bf2f875051312b9df856981adb'),
  (16,'202610120016','202610120016_care_diary.sql','bae69448d0592fac2056a02dd11eb2ed'),
  (17,'202610120017','202610120017_petid_research_capture.sql','f308bcf7a1334482cf76f57fb4259812'),
- (18,'202610120018','202610120018_personalized_followups.sql','d97d1d3156bf85d6dda7bfd850d86d0c')
+ (18,'202610120018','202610120018_personalized_followups.sql','d97d1d3156bf85d6dda7bfd850d86d0c'),
+ (19,'202610120019','202610120019_petid_capture_review.sql','64167dbd0c3abda6a38cf9ae24dd9e36'),
+ (20,'202610120020','202610120020_petid_dataset_exports.sql','0c2dfee5c0d1fcd947fea70cbeca3968')
 ), inferred as (
  select max(k.ordinal) as version from known k,current_state s where k.fingerprint=s.state->>'fingerprint'
 )
@@ -87,6 +89,8 @@ select jsonb_build_object(
  when 16 then (to_regclass('health.care_entries') is not null and to_regprocedure('health.clinic_care_summary(uuid,boolean)') is not null)
  when 17 then (to_regclass('biometric.capture_sessions') is not null and to_regclass('biometric.training_consent_events') is not null)
  when 18 then (to_regclass('notify.followup_preferences') is not null and to_regclass('notify.followup_replies') is not null)
+ when 19 then (to_regclass('biometric.capture_checks') is not null and to_regclass('biometric.capture_reviews') is not null)
+ when 20 then (to_regclass('biometric.dataset_exports') is not null and to_regclass('biometric.training_eligible_samples') is not null)
  end,
    'is_exact_current_state',k.fingerprint=s.state->>'fingerprint') order by k.ordinal) from known k)
 ) as chordjai_diagnostic from current_state s cross join inferred i;

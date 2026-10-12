@@ -31,7 +31,7 @@ def fresh(prefix: int) -> str:
     return name
 
 try:
-    for prefix in (1, 4, 9, 13, 14, 15, 16, 17, len(sources)):
+    for prefix in (1, 4, 9, 13, 14, 15, 16, 17, 18, 19, len(sources)):
         db = fresh(prefix)
         sql(db, "insert into identity.users(id,line_user_id,display_name) values('e0000000-0000-0000-0000-000000000001','upgrade-preservation-fixture','SYNTHETIC SENTINEL');")
         before = json.loads(sql(db, diagnostic).stdout.strip())

@@ -11,6 +11,8 @@ export const idempotency:MiddlewareHandler<ServiceEnv>=async(c,next)=>{
   // permissions. Research consent carries its own durable request ID; follow-up
   // preferences use a revision check rather than replaying an old opt-in.
   const currentPermissionRoute=/^\/api\/v1\/biometric\/pets\/[^/]+\/research\/consent$/.test(c.req.path)
+    || /^\/api\/v1\/biometric\/review\//.test(c.req.path)
+    || /^\/api\/v1\/biometric\/pets\/[^/]+\/research\/sessions\/[^/]+\/checks$/.test(c.req.path)
     || /^\/api\/v1\/notification\/followup\/(?:preferences|preview)$/.test(c.req.path);
   if(!key||!c.get('actor')||!['POST','PATCH','DELETE'].includes(c.req.method)||c.req.path.startsWith('/internal/')||c.req.path==='/api/v1/identity/line'||currentPermissionRoute)return next();
   if(!/^[\w-]{8,80}$/.test(key))throw new HttpError(400,'INVALID_IDEMPOTENCY_KEY','Idempotency-Key ไม่ถูกต้อง');

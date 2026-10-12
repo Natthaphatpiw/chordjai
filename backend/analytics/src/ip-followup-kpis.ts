@@ -13,8 +13,7 @@ export async function ipFollowupMetrics(db:PoolClient){
     (SELECT count(*) FROM available)::int available_samples,
     (SELECT count(*) FROM repeated)::int pets_with_multiple_capture_days,
     (SELECT count(*) FROM biometric.training_consents WHERE granted)::int training_opted_in_pets,
-    (SELECT count(*) FROM available a JOIN biometric.training_consents c ON c.pet_id=a.pet_id AND c.owner_id=a.owner_id
-      WHERE c.granted AND a.review_status='approved' AND a.review_consent_version=c.version)::int samples_reviewed_under_current_consent`)).rows[0];
+    (SELECT count(*) FROM biometric.training_eligible_samples)::int samples_reviewed_under_current_consent`)).rows[0];
   const followups=(await db.query(`SELECT
     (SELECT count(*) FROM notify.followup_preferences WHERE enabled)::int enabled_users,
     (SELECT count(*) FROM notify.followup_preferences WHERE enabled AND paused_until>now())::int paused_users,

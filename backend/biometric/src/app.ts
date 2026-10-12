@@ -1,4 +1,6 @@
 import {registerResearchRoutes} from './research.js';
+import {registerCaptureReviewRoutes} from './review.js';
+import {registerDatasetRoutes} from './dataset.js';
 import {z} from 'zod';
 import { signPetidDraft, verifyPetidDraft } from '@chordjai/auth';
 import {withUser,withSystem} from '@chordjai/db';
@@ -166,4 +168,6 @@ app.post('/api/v1/biometric/matches/:id/confirm',async c=>{
   if(!result.rowCount)throw new HttpError(404,'MATCH_NOT_FOUND','ไม่พบผลค้นหา');return ok(c,camel(result.rows[0]));
 });
 registerResearchRoutes(app);
+registerCaptureReviewRoutes(app);
+registerDatasetRoutes(app);
 export default app;

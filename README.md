@@ -23,7 +23,7 @@ npm run dev:owner
 4. คัดลอก `.env.example` ของแต่ละ frontend เป็น `.env.local` แล้วตั้ง `API_ORIGIN=http://localhost:8787` สำหรับ local
 5. รัน `npm run dev` เพื่อเปิด API+owner, `npm run dev:clinic` หรือ `npm run dev:admin` เพื่อเปิด portal
 
-ยังไม่เรียก OpenAI จริงตามที่ผู้ใช้เลือกให้ใส่ API key ภายหลัง การทดสอบใช้ PostgreSQL/pgvector แยกต่างหาก ส่วน Supabase ของโครงการอัปเกรดถึง migration 18 และตรวจ fingerprint แล้ว โดยไม่สร้างบันทึกผู้ใช้ทดสอบใน production
+ยังไม่เรียก OpenAI จริงตามที่ผู้ใช้เลือกให้ใส่ API key ภายหลัง การทดสอบใช้ PostgreSQL/pgvector แยกต่างหาก ส่วน Supabase ของโครงการอัปเกรดถึง migration 20 และตรวจ fingerprint แล้ว โดยไม่สร้างบันทึกผู้ใช้ทดสอบใน production
 
 ## Git และ Vercel
 
@@ -67,3 +67,5 @@ TEST_DATABASE_URL=postgresql://postgres@127.0.0.1:TEST_PORT/postgres npm test
 ```
 
 ขอบเขตนี้ยังต้องเติมรายชื่อคลินิกที่ตรวจแล้ว, ตรวจบน LINE/มือถือจริง, ทดสอบ OpenAI กับบัญชีจริง และผ่าน clinical eval/การตรวจของสัตวแพทย์ก่อนเปิดผลคัดกรองให้ผู้ใช้วงกว้าง ไม่อ้างว่าครบ162APIหรือผ่านความแม่นยำ85%แล้ว
+
+PetID เพิ่มการตรวจคุณภาพภาพและความสอดคล้องด้วย AI, ผู้ตรวจหลักฐานอิสระ และ manifest ที่ตรวจความยินยอมสดสำหรับ pipeline ฝึก/ประเมินบนเครื่องแยก ดู [คู่มือ pipeline](docs/PETID_MODEL_PIPELINE.md) โมเดลทดลองไม่เปิดใช้แทนการค้นหาปัจจุบันอัตโนมัติ ไดอารี่แนบหรือถ่ายรูปยา อาการ และใบเสร็จได้สูงสุด 5 รูป พร้อม retry รูปที่ค้างโดยไม่สร้างซ้ำ

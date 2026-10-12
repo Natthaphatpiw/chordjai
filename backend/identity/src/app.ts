@@ -83,11 +83,15 @@ app.get('/api/v1/identity/export', async c => {
     const petidCaptureSamples=(await tx.query('select p.* from biometric.capture_samples p join biometric.capture_sessions s on s.id=p.session_id where s.owner_id=$1',[actor.id])).rows;
     const petidTrainingConsents=(await tx.query('select * from biometric.training_consents where owner_id=$1',[actor.id])).rows;
     const petidTrainingConsentHistory=(await tx.query('select * from biometric.training_consent_events where owner_id=$1',[actor.id])).rows;
+    const petidImageChecks=(await tx.query('select * from biometric.capture_checks where owner_id=$1',[actor.id])).rows;
+    const petidImageQuality=(await tx.query('select q.* from biometric.capture_check_samples q join biometric.capture_checks c on c.id=q.check_id where c.owner_id=$1',[actor.id])).rows;
+    const petidIndependentReviews=(await tx.query('select r.id,r.session_id,r.check_id,r.decision,r.evidence_kind,r.consent_version,r.revision,r.created_at from biometric.capture_reviews r join biometric.capture_sessions s on s.id=r.session_id where s.owner_id=$1',[actor.id])).rows;
+    const petidDatasetParticipation=(await tx.query('select export_id,sample_id,session_id,check_id,review_id,consent_version,export_created_at from biometric.dataset_export_samples where owner_id=$1',[actor.id])).rows;
     const followupPreferences=(await tx.query('select * from notify.followup_preferences where user_id=$1',[actor.id])).rows;
     const followupConsentHistory=(await tx.query('select * from notify.followup_consent_events where user_id=$1',[actor.id])).rows;
     const followupHistory=(await tx.query('select id,status,message,reason_code,selected_pet_id,accepted_at,opened_at,created_at from notify.followup_deliveries where user_id=$1',[actor.id])).rows;
     const followupReplies=(await tx.query('select id,delivery_id,pet_id,content,source,correlation,created_at from notify.followup_replies where user_id=$1',[actor.id])).rows;
-    return { exportedAt: new Date().toISOString(), profile, pets, consents, health, journal, memoryBooks, memories, preferences, conversations, messages, triage, media, inbox, reminders, appointments, lostCases, petid, petidPhotos, shares,careEntries,careEpisodes,careReflections,careCosts,careMedia,petidCaptureSessions,petidCaptureSamples,petidTrainingConsents,petidTrainingConsentHistory,followupPreferences,followupConsentHistory,followupHistory,followupReplies };
+    return { exportedAt: new Date().toISOString(), profile, pets, consents, health, journal, memoryBooks, memories, preferences, conversations, messages, triage, media, inbox, reminders, appointments, lostCases, petid, petidPhotos, shares,careEntries,careEpisodes,careReflections,careCosts,careMedia,petidCaptureSessions,petidCaptureSamples,petidTrainingConsents,petidTrainingConsentHistory,petidImageChecks,petidImageQuality,petidIndependentReviews,petidDatasetParticipation,followupPreferences,followupConsentHistory,followupHistory,followupReplies };
   });
   c.header('Content-Disposition', 'attachment; filename="chordjai-personal-data.json"');
   return ok(c, camel(exported));

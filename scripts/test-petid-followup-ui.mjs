@@ -12,7 +12,7 @@ const policy = 'petid-training-2026-10-12';
 let state = { consent: { granted: false, policyVersion: policy, version: 0, updatedAt: null }, sessions: [], hasMore: false, trainingEligibleCount: 0 };
 let prefs = { enabled: false, cadenceDays: 7, language: 'en', pausedUntil: null, sources: { care: false, booklet: false, journal: false, assistantMemory: false }, consentVersion: null, version: 0, followed: true, lastAcceptedAt: null, deliveryWindow: { timeZone: 'Asia/Bangkok', startHour: 9, endHour: 20 } };
 let captureAttempts = 0, prefAttempts = 0, uploadCount = 0, stalePrefs = false;
-const calls = [], errors = [];
+const calls = [], errors = [];let checkAttempts=0;let checkState={version:'petid-review-v1',checks:[],reviews:[],identityProof:false};
 await mkdir('.verification', { recursive: true });
 const browser = await chromium.launch();
 const context = await browser.newContext({ viewport: { width: 390, height: 844 }, serviceWorkers: 'block' });
@@ -29,6 +29,7 @@ await context.route('**/*', async route => {
     if (url.pathname === '/api/v1/pets') return reply([{ id: petId, name: 'Tofu', species: 'cat', sex: 'female', neutered: true }, { id: secondPetId, name: 'Peony', species: 'cat', sex: 'female', neutered: true }]);
     if (url.pathname === '/api/v1/identity/consents') return reply([{ purpose: 'service', granted: true }]);
     if (url.pathname === `/api/v1/biometric/pets/${petId}/research`) return reply(state);
+    if (/\/research\/sessions\/[^/]+\/checks$/.test(url.pathname)) return reply(checkState);
     if (url.pathname === '/api/v1/notification/followup/preferences') return reply(prefs);
     if (url.pathname === '/api/v1/notification/followup/history') return reply({ items: [{ id: 'delivery-one', status: 'accepted', message: 'How is Tofu doing after the vet visit?', createdAt: '2026-10-12T02:00:00Z', acceptedAt: '2026-10-12T02:00:00Z', reasonCode: null }], retentionDays: 90 });
     if (['/api/v1/health/records', '/api/v1/health/care/entries', '/api/v1/health/care/episodes', '/api/v1/biometric/enrollments', '/api/v1/biometric/matches', '/api/v1/clinics', '/api/v1/lostfound/cases', '/api/v1/notification/inbox', '/api/v1/clinic/grants', `/api/v1/pets/${petId}/members`].includes(url.pathname)) return reply([]);
@@ -38,6 +39,13 @@ await context.route('**/*', async route => {
     if (++captureAttempts === 1) return transient();
     const value = { id: '00000000-0000-4000-8000-000000000500', petId, createdAt: '2026-10-12T03:00:00Z', samePetConfirmed: true, identityStatus: 'owner_attested_unverified', reviewStatus: 'pending', samples: body.samples.map((sample, i) => ({ ...sample, id: `sample-${i}`, url: '/images/pet-home-cat.webp' })) };
     state = { ...state, sessions: [value] }; return reply(value);
+  }
+  if (/\/research\/sessions\/[^/]+\/checks$/.test(url.pathname)&&request.method()==='POST') {
+    checkAttempts++;expect(body.version).toBe('petid-review-v1');expect(body.requestId).toMatch(/^[0-9a-f-]{36}$/);
+    const check={id:'00000000-0000-4000-8000-000000000501',status:'completed',consistency:'possible_same',comparisonScope:'within_session',consentVersion:0,createdAt:'2026-10-12T04:00:00Z',observations:['The visible facial markings may be compatible.'],limitations:'Similar coats and unclear angles cannot prove identity.',samples:state.sessions[0].samples.map((sample,i)=>({sampleId:sample.id,quality:i===1?'retake':i===2?'review':'acceptable',issues:i===1?['too_dark','blur_or_low_detail']:i===2?['near_duplicate']:[],width:1200,height:1600,metrics:{meanLuminance:120,clippedDarkFraction:.02,clippedLightFraction:.01,laplacianVariance:180}}))};
+    checkState={...checkState,checks:[check]};
+    // Commit the check, then lose its response: the same request recovers it.
+    if(checkAttempts===1)return route.abort('failed');return reply(check);
   }
   if (url.pathname.endsWith('/research/consent')) { state = { ...state, consent: { granted: body.granted, policyVersion: body.policyVersion, version: state.consent.version + 1, updatedAt: new Date().toISOString() } }; return reply(state.consent); }
   if (url.pathname === '/api/v1/notification/followup/preferences' && request.method() === 'PATCH') {
@@ -80,8 +88,21 @@ try {
   expect(captureCalls).toHaveLength(2); expect(captureCalls[0].body).toEqual(captureCalls[1].body); expect(captureCalls[0].key).toEqual(captureCalls[1].key);
   expect(captureCalls[0].body.samples.map(sample => sample.angle)).toEqual(['front', 'left', 'right']);
   expect(calls.filter(call => call.path.endsWith('/research/consent'))).toHaveLength(0);
+  expect(calls.filter(call=>/\/checks$/.test(call.path))).toHaveLength(0);
+  const checks=research.locator('.petid-checks');await checks.locator('summary').click();await expect(checks.getByText('This photo set has not been checked yet.',{exact:true})).toBeVisible();
+  expect(calls.filter(call=>/\/checks$/.test(call.path)&&call.method==='GET')).toHaveLength(1);expect(checkAttempts).toBe(0);
+  const processingPermission=checks.getByRole('checkbox',{name:'I allow this photo set and a reference photo of my pet selected by the system to be sent to OpenAI for this comparison. This does not grant model-training consent.',exact:true});
+  await expect(processingPermission).not.toBeChecked();await expect(checks.getByRole('button',{name:'Check this photo set',exact:true})).toBeDisabled();await processingPermission.check();await checks.getByRole('button',{name:'Check this photo set',exact:true}).click();
+  await expect(checks.getByRole('button',{name:'Retry the same check request',exact:true})).toBeEnabled();await checks.getByRole('button',{name:'Retry the same check request',exact:true}).click();
+  await expect(checks.getByRole('heading',{name:'Some photos need retaking',exact:true})).toBeVisible();await expect(checks.getByText('Compared only within this photo set',{exact:true})).toBeVisible();await expect(checks.getByText('The image is too dark. Try even natural light.',{exact:true})).toBeVisible();await expect(checks.getByText('This looks very similar to another image. It needs review, or a clearly different angle.',{exact:true})).toBeVisible();await expect(checks.getByText('AI provides observations, not biometric proof or an accuracy score. Owner confirmation remains an unverified attestation.',{exact:true})).toBeVisible();await expect(processingPermission).not.toBeChecked();await expect(training).not.toBeChecked();
+  const checkCalls=calls.filter(call=>/\/checks$/.test(call.path)&&call.method==='POST');expect(checkCalls).toHaveLength(2);expect(checkCalls[0].body).toEqual(checkCalls[1].body);expect(checkCalls[0].key).toBeUndefined();expect(checkCalls[1].key).toBeUndefined();
+  await noOverflow();await checks.screenshot({path:'.verification/petid-checks-mobile-en.png',style:'.mobile-nav{visibility:hidden}'});
+  await checks.locator('summary').click();await checks.locator('summary').click();expect(calls.filter(call=>/\/checks$/.test(call.path)&&call.method==='GET')).toHaveLength(1);expect(checkAttempts).toBe(2);
+  expect(await checks.innerText()).not.toMatch(/[\u0e00-\u0e7f]/);await expect(checks.getByRole('button',{name:/approve/i})).toHaveCount(0);
+
   await training.click(); await expect(training).toBeChecked(); await training.click(); await expect(training).not.toBeChecked();
   await noOverflow(); await page.screenshot({ path: '.verification/petid-research-mobile-en.png', fullPage: true }); await research.screenshot({ path: '.verification/petid-research-panel-mobile-en.png' });
+  await page.getByRole('button',{name:'Thai',exact:true}).click();await expect(checks.getByRole('heading',{name:'มีรูปที่ควรถ่ายใหม่',exact:true})).toBeVisible();await expect(checks.getByText('ผลนี้ใช้ตัวเลือกความยินยอมรุ่นก่อน หากจะตรวจทบทวนเพื่อฝึกโมเดลต้องตรวจใหม่ด้วยตัวเลือกปัจจุบัน',{exact:true})).toBeVisible();await noOverflow();await checks.screenshot({path:'.verification/petid-checks-mobile-th.png',style:'.mobile-nav{visibility:hidden}'});await page.getByRole('button',{name:'ภาษาอังกฤษ',exact:true}).click();
   await page.getByRole('button', { name: 'Open settings', exact: true }).click();
   const followup = page.locator('.followup-settings');
   await expect(followup.getByRole('heading', { name: 'Follow-ups through LINE', exact: true })).toBeVisible();
@@ -121,6 +142,12 @@ try {
   expect(calls.filter(call => call.path === `/api/v1/notification/followup/${openedFollowupId}/opened` && call.method === 'POST')).toHaveLength(1);
   await page.goto(`${origin}/app?lang=en&tab=health&petId=00000000-0000-4000-8000-000000000999`, { waitUntil: 'networkidle' });
   await expect(page.getByRole('heading', { level: 1 })).toContainText('Tofu');
+
+  const demoContext=await browser.newContext({viewport:{width:390,height:844},serviceWorkers:'block'}),demoCalls=[];
+  await demoContext.addInitScript(()=>localStorage.setItem('chordjai.demo.petid-research.v1.demo-tofu',JSON.stringify({consent:{granted:false,policyVersion:'petid-training-2026-10-12',version:0,updatedAt:null},sessions:[{id:'demo-session',petId:'demo-tofu',createdAt:'2026-10-12T04:00:00Z',samePetConfirmed:true,identityStatus:'owner_attested_unverified',reviewStatus:'pending',samples:[{id:'demo-sample',mediaId:'demo-media',angle:'front',capturedAt:'2026-10-12T03:00:00Z',source:'library',url:'/images/pet-home-cat.webp'}]}],hasMore:false,trainingEligibleCount:0})));
+  await demoContext.route('**/*',async route=>{const url=new URL(route.request().url());if(url.origin!==origin)return route.abort();if(!url.pathname.startsWith('/api/v1/'))return route.continue();demoCalls.push(url.pathname);if(url.pathname==='/api/v1/clinics')return route.fulfill({contentType:'application/json',body:JSON.stringify({data:[]})});return route.abort();});
+  const demoPage=await demoContext.newPage();demoPage.on('pageerror',error=>errors.push(error.message));
+  try{await demoPage.goto(`${origin}/app?lang=en&tab=petid`,{waitUntil:'networkidle'});await demoPage.getByRole('button',{name:'Explore the demo first',exact:true}).click();const demoChecks=demoPage.locator('.petid-checks');await demoChecks.locator('summary').click();await expect(demoChecks.getByText('Sign in with LINE to check a real photo set. The demo does not call AI or train a model.',{exact:true})).toBeVisible();await expect(demoChecks.getByRole('checkbox')).toHaveCount(0);await expect(demoChecks.getByRole('button')).toHaveCount(0);expect(demoCalls.every(path=>path==='/api/v1/clinics')).toBe(true);}finally{await demoContext.close();}
   expect(errors).toEqual([]);
-  console.log('PASS: independent training consent, multi-angle owner dates/attestation, exact retries, optional-source follow-ups, preview without send, withdrawal, Thai/English/mobile, and authenticated multi-pet follow-up links with unknown-pet fallback.');
+  console.log('PASS: independent training consent, multi-angle owner dates/attestation, exact retries, lazy owner photo-quality/same-pet checks with separate processing permission and no identity-proof overclaim, optional-source follow-ups, preview without send, withdrawal, Thai/English/mobile, and authenticated multi-pet follow-up links with unknown-pet fallback.');
 } finally { await context.close(); await browser.close(); }

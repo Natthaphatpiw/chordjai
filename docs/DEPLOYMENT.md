@@ -1,5 +1,11 @@
 # Deployment ของ ChordJai
 
+## ตรวจภาพและ pipeline PetID — ฐานข้อมูล 20
+
+ใช้ repo/4 projects/LIFF/environment backend เดิม เพิ่ม migrations 19–20 ก่อน deploy backend รุ่นนี้ ไม่รัน bootstrap กับฐานข้อมูลที่มีข้อมูลแล้ว ผู้ใช้เลือกส่งตรวจภาพด้วย OpenAI ส่วน admin ตรวจหลักฐานและสร้าง manifest ได้เมื่อเจ้าของยังยินยอม ปิดการฝึกอัตโนมัติไว้ทั้งหมด
+
+Python research runtime อยู่ใน `scripts/petid-ml` พร้อม pinned requirements และ `.env.example` ของตัวเอง ใช้ `PETID_API_ORIGIN`, admin session `PETID_API_TOKEN` และ `PETID_EXPORT_ID` ผ่าน HTTPS เก็บ token ในเครื่องที่มีสิทธิ์ ไม่ใส่ใน frontend/Vercel/Git และไม่ส่งในแชต Pipeline มีอายุ manifest 24 ชั่วโมงและหยุดเมื่อ token/สิทธิ์ตรวจไม่ได้ ดู [PETID_MODEL_PIPELINE.md](PETID_MODEL_PIPELINE.md) ไม่ติดตั้ง PyTorch ในบริการ Vercel
+
 ## คลังภาพ PetID / LINE follow-up และฐานข้อมูล 18 — 12 ตุลาคม 2026
 
 ใช้ repo/4 projects/env/LIFF เดิม เพิ่ม migration 17 คลังภาพ/สิทธิฝึก PetID และ migration 18 follow-up preferences/consent/deliveries/replies ทั้งสองส่วนปิดสิทธิฝึกและข้อความเชิงรุกไว้ก่อน ทุกชุดภาพใหม่รอทบทวน ผู้ใช้ต้องเลือกเปิด follow-up กับแหล่งข้อมูลและยินยอมเอง

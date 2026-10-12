@@ -17,6 +17,7 @@
     "zod": "^4.0.0",
     "@chordjai/ai": "*",
     "@chordjai/media": "*",
-    "@chordjai/auth": "*"
+    "@chordjai/auth": "*",
+    "sharp": "0.35.5"
   }
 }

@@ -2,6 +2,7 @@ import { z } from 'zod';
 export * from './care';
 export * from './followup';
 export * from './petid-research';
+export * from './petid-review';
 export const petSchema=z.object({name:z.string().trim().min(1).max(80),species:z.enum(['cat','dog']),sex:z.enum(['male','female','unknown']).default('unknown'),neutered:z.boolean().nullable().optional(),birthDate:z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable().optional(),breed:z.string().max(100).optional(),weightKg:z.number().positive().max(150).nullable().optional(),photoUrl:z.string().max(1000).nullable().optional(),microchip:z.string().regex(/^\d{15}$/).nullable().optional()});
 export const recordSchema=z.object({petId:z.uuid(),kind:z.enum(['vaccine','weight','medication','parasite','checkin','note']),title:z.string().trim().min(1).max(200),recordedAt:z.string().min(10).max(35),nextDueAt:z.string().max(35).nullable().optional(),notes:z.string().max(4000).optional(),value:z.number().nullable().optional(),data:z.record(z.string(),z.unknown()).optional()});
 export const journalElementSchema=z.object({id:z.string().min(1).max(80),type:z.enum(['text','sticker','photo']),x:z.number().min(0).max(800),y:z.number().min(0).max(1422),width:z.number().min(10).max(800),height:z.number().min(10).max(1422),rotation:z.number().min(-180).max(180),content:z.string().max(4000),color:z.string().regex(/^#[0-9a-fA-F]{6}$/).optional()});

@@ -22,6 +22,12 @@ app.post('/api/v1/media/upload',async c=>{
 app.get('/api/v1/media/:id',async c=>{
   const image=await readMedia(uuid(c.req.param('id')),c.get('actor')?.id,c.req.query('read'));c.header('Content-Type','image/jpeg');c.header('Cache-Control','private, no-store');c.header('Referrer-Policy','no-referrer');return c.body(new Uint8Array(image));
 });
+app.get('/api/v1/media/:id/link',async c=>{
+  const actor=getActor(c),id=uuid(c.req.param('id'));
+  const asset=await withUser(actor.id,async db=>(await db.query("SELECT id,user_id FROM media.objects WHERE id=$1 AND user_id=$2 AND status='ready'",[id,actor.id])).rows[0]);
+  if(!asset)throw new HttpError(404,'IMAGE_NOT_FOUND','ไม่พบรูปที่คุณอัปโหลดหรือรูปไม่พร้อมใช้');
+  return ok(c,{id:asset.id,url:await mediaUrl(asset)});
+});
 app.delete('/api/v1/media/:id',async c=>{
   const actor=getActor(c),id=uuid(c.req.param('id'));
   const asset=await withUser(actor.id,async db=>(await db.query("UPDATE media.objects SET status='deleted' WHERE id=$1 AND user_id=$2 RETURNING pathname",[id,actor.id])).rows[0]);if(!asset)throw new HttpError(404,'NOT_FOUND','ไม่พบรูป');

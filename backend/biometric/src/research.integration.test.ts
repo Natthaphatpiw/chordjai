@@ -129,7 +129,8 @@ describe.skipIf(!isolated)('PetID longitudinal collector on isolated PostgreSQL'
   it('withdrawal invalidates ALL review epochs; an old retried grant cannot re-enable consent', async () => {
     const oldGrant = choice(true), oldHttpKey=randomUUID(); const granted = await call(`${path()}/consent`, owner, 'POST', oldGrant,oldHttpKey); expect(granted.status).toBe(200); consentVersion = 2;
     await withSystem(db => db.query("UPDATE biometric.capture_sessions SET review_status='approved',review_consent_version=$2 WHERE pet_id=$1", [pet, consentVersion]));
-    expect((await call(path())).body.data.trainingEligibleCount).toBeGreaterThan(0);
+    // A worker-written status without independent evidence is not a training label.
+    expect((await call(path())).body.data.trainingEligibleCount).toBe(0);
     const withdrawn = await call(`${path()}/consent`, owner, 'POST', choice(false)); expect(withdrawn.status).toBe(200); expect(withdrawn.body.data.version).toBe(3); consentVersion = 3;
     const view = await call(path()); expect(view.body.data.trainingEligibleCount).toBe(0); expect(view.body.data.sessions.every((row: { reviewStatus: string }) => row.reviewStatus === 'pending')).toBe(true);
     const replayed = await call(`${path()}/consent`, owner, 'POST', oldGrant,oldHttpKey); expect(replayed.status).toBe(200); expect(replayed.body.data.granted).toBe(false); expect(replayed.body.data.version).toBe(3);

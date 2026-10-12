@@ -106,5 +106,17 @@
     "file": "202610120018_personalized_followups.sql",
     "checksum": "07e7814ad56d03c34e10cf2760a809cbd07d85f6ec180b4a8521406ebff33198",
     "fingerprint": "d97d1d3156bf85d6dda7bfd850d86d0c"
+  },
+  {
+    "version": "202610120019",
+    "file": "202610120019_petid_capture_review.sql",
+    "checksum": "43447027d72a7dfd37ca62829a4af525d4e6db8c17017362bb1adac2a5b2c947",
+    "fingerprint": "64167dbd0c3abda6a38cf9ae24dd9e36"
+  },
+  {
+    "version": "202610120020",
+    "file": "202610120020_petid_dataset_exports.sql",
+    "checksum": "cebe074ba7dc4f25cdc95fc03ee4c7044128cc367e1c707c4213c2a9e0f4738e",
+    "fingerprint": "0c2dfee5c0d1fcd947fea70cbeca3968"
   }
 ]

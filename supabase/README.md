@@ -4,6 +4,8 @@
 
 ## รุ่น 17–18: คลังภาพ PetID และ LINE follow-up
 
+รุ่น 19–20 เพิ่ม `capture_checks`, คุณภาพรายภาพ, `capture_reviews` พร้อมผู้ตรวจ/หลักฐาน/consent epoch, eligibility view ที่เคารพ RLS และ manifest/lineage อายุ 24 ชั่วโมง ถอนสิทธิ์หรือลบต้นทางแล้ว snapshot เดิมใช้ต่อไม่ได้ Pipeline ต้องตรวจสิทธิ์สดต่อเนื่อง เอกสารและคำสั่งอยู่ใน [PETID_MODEL_PIPELINE.md](../docs/PETID_MODEL_PIPELINE.md) ไม่เปิดฝึกหรือแทนโมเดลค้นหาอัตโนมัติ
+
 Migration 17 เพิ่ม capture sessions/samples และความยินยอมฝึกโมเดลเฉพาะน้องแต่ละตัว; ทุกชุดเริ่ม pending และไม่เปิดฝึกอัตโนมัติ Migration 18 เพิ่ม follow-up preferences/consent ledger/deliveries/replies โดยไม่เปิดรับให้บัญชีเดิม พร้อม RLS และ FK ลบตามบัญชี ใช้ safe upgrade สำหรับฐานข้อมูลเดิม ไม่มี env เพิ่ม
 
 ## นำ SQL ไปใช้

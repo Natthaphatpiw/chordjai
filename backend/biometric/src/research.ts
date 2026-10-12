@@ -64,12 +64,7 @@ export function registerResearchRoutes(app: Hono<ServiceEnv>) {
         count(DISTINCT p.angle)::int AS angle_count,count(DISTINCT (p.captured_at AT TIME ZONE 'Asia/Bangkok')::date)::int AS capture_day_count,
         count(*)::int AS ready_sample_count FROM biometric.capture_samples p JOIN biometric.capture_sessions s ON s.id=p.session_id
         JOIN media.objects m ON m.id=p.media_id AND m.status='ready' WHERE s.pet_id=$1`, [petId])).rows[0];
-      const trainingEligibleCount = (await db.query(`SELECT count(*)::int AS count FROM biometric.capture_samples p
-        JOIN biometric.capture_sessions s ON s.id=p.session_id JOIN biometric.training_consents c ON c.pet_id=s.pet_id AND c.owner_id=s.owner_id
-        JOIN media.objects m ON m.id=p.media_id AND m.status='ready' WHERE s.pet_id=$1 AND c.granted AND c.policy_version=$2
-          AND s.review_status='approved' AND s.review_consent_version=c.version
-          AND s.sample_count=(SELECT count(*) FROM biometric.capture_samples p2 JOIN media.objects m2 ON m2.id=p2.media_id AND m2.status='ready' WHERE p2.session_id=s.id)`,
-      [petId, PETID_TRAINING_POLICY_VERSION])).rows[0].count;
+      const trainingEligibleCount=(await db.query('SELECT count(*)::int AS count FROM biometric.training_eligible_samples WHERE pet_id=$1 AND owner_id=$2',[petId,actor.id])).rows[0].count;
       const consentEvents = (await db.query('SELECT purpose,policy_version,granted,version,created_at FROM biometric.training_consent_events WHERE pet_id=$1 ORDER BY version DESC LIMIT 20', [petId])).rows;
       return { collectorVersion: PETID_CAPTURE_VERSION, policyVersion: PETID_TRAINING_POLICY_VERSION, consent: await consent(db, petId),
         sessions: rows.slice(0, page.limit), hasMore: rows.length > page.limit, trainingEligibleCount, stats, consentEvents,

@@ -10,6 +10,7 @@ import {
 import { api, json, lineLogin, autoLineLogin, clearLineSession, ApiError, messageOf, dateForLocale } from './api';
 import { useLocale, LanguageSwitcher } from './locale';
 import { CareSummary,type ClinicalCareEntry } from './care-summary';
+import PetidReview from './petid-review';
 import { translate, localizedHref, type Locale } from './locale-core';
 
 type PortalKind = 'clinic' | 'admin';
@@ -43,6 +44,7 @@ const adminTabs = (t: Translator) => [
   { id: 'ai', label: t("การทำงานของ AI", "AI activity"), icon: Activity, help: t("ตรวจการเรียกใช้ เวลา และต้นทุน โดยไม่เปิดข้อความของผู้ใช้", "Review requests, timings, and costs without opening private user messages.") },
   { id: 'jobs', label: t("งานเบื้องหลัง", "Background jobs"), icon: Layers, help: t("ดูสถานะการส่งงาน และช่วยงานที่ทำไม่สำเร็จกลับไปทำต่อ", "Check job delivery and give unsuccessful jobs another attempt.") },
   { id: 'clinics', label: t("เครือข่ายคลินิก", "Clinic network"), icon: Hospital, help: t("ข้อมูลติดต่อที่ตรวจสอบแล้ว เพื่อให้เจ้าของหาความช่วยเหลือได้", "Verified contact details so owners can find care.") },
+  { id: 'petid-review', label: t('ตรวจหลักฐาน PetID', 'PetID evidence'), icon: Fingerprint, help: t('ตรวจภาพและหลักฐานก่อนใช้ข้อมูลที่เจ้าของยินยอม', 'Review image and identity evidence before using opted-in data.') },
 ];
 const appointmentFilters = (t: Translator) => [
   { value: 'requested', label: t("รอตอบรับ", "Pending") }, { value: 'accepted', label: t("ตอบรับแล้ว", "Accepted") }, { value: 'all', label: t("ทั้งหมด", "All") },
@@ -291,6 +293,7 @@ export default function Portal({ kind }: { kind: PortalKind }) {
         <div className="portal-panel-footnote"><CircleHelp size={16} /><span>{t("ลองทำอีกครั้งหรือทิ้งงานได้เฉพาะงานที่ล้มเหลวครบจำนวนครั้งแล้ว", "Only jobs that have failed all their attempts can be retried or discarded.")}</span></div>
       </section> : null}
       {kind === 'admin' && tab === 'clinics' ? <ClinicDirectory onSuccess={() => setNotice(["บันทึกคลินิกที่ตรวจสอบแล้วในรายชื่อสาธารณะ", "Verified clinic saved in the public directory"])} /> : null}
+      {kind === 'admin' && tab === 'petid-review' ? <PetidReview/> : null}
       <footer className="portal-footer"><span>{t("ชิดใจ · ดูแลกันในทุกวัน", "ChordJai · Care for each other, every day")}</span><span>{kind === 'clinic' ? t("ข้อมูลสุขภาพที่เจ้าของเลือกแชร์", "Health records shared by the owner") : t("เวลาการทำงานแสดงตาม Asia/Bangkok", "Activity times use Asia/Bangkok")}</span></footer>
     </main>
   </div>;

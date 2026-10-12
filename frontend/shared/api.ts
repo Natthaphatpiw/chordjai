@@ -5,6 +5,18 @@ const englishErrors: Record<string, string> = {
   CAPTURE_DATE_INVALID: 'Enter a valid capture date that is not in the future.',
   CAPTURE_IMAGE_REUSED: 'This photo is already in a capture session. Upload a new photo.',
   CAPTURE_NOT_FOUND: 'This capture session is unavailable.',
+  CAPTURE_IMAGE_INVALID: 'This image could not be checked. Please choose a different photo.',
+  CAPTURE_IMAGES_CHANGED: 'A photo was removed or is unavailable. Please submit a new photo set.',
+  CAPTURE_CHECK_IN_PROGRESS: 'This photo set is being checked. Reload the result shortly.',
+  CAPTURE_CHECK_STALE: 'Please check this photo set again under your current consent.',
+  REVIEW_NOT_FOUND: 'This photo set is unavailable for evidence review.',
+  INDEPENDENT_REVIEW_REQUIRED: 'An independent authorised reviewer must review this photo set.',
+  CAPTURE_REVIEW_BLOCKED: 'Every photo must pass quality and consistency checks before evidence approval.',
+  INDEPENDENT_EVIDENCE_REQUIRED: 'Please provide independent evidence and a current reviewed reference.',
+  DATASET_EMPTY: 'No photos currently meet review and consent requirements.',
+  DATASET_INVALIDATED: 'This dataset is expired or its permission or evidence changed. Stop using it and prepare a new eligible dataset.',
+  DATASET_MANIFEST_MISMATCH: 'The dataset manifest does not match the authorised snapshot.',
+  DATASET_IMAGE_CHANGED: 'The image no longer matches its reviewed checksum.',
   FOLLOWUP_CONSENT_REQUIRED: 'Enable follow-ups and explicitly consent before using a preview.',
   FOLLOWUP_INVALID_OUTPUT: 'A suitable follow-up could not be prepared. Please try again later.',
   FOLLOWUP_NOT_FOUND: 'This follow-up is unavailable or you cannot access it.',
@@ -81,7 +93,7 @@ export async function api<T>(path: string, init: RequestInit = {}, publicRequest
   const token = !publicRequest && typeof window !== 'undefined' ? window.sessionStorage.getItem('chordjai.session') : null;
   const headers = new Headers(init.headers);
   headers.set('Accept-Language', browserLocale());
-  if (init.body && !(init.body instanceof FormData)) headers.set('Content-Type', 'application/json');
+  if (init.body && !(init.body instanceof FormData) && !headers.has('Content-Type')) headers.set('Content-Type', 'application/json');
   if (token) headers.set('Authorization', `Bearer ${token}`);
   const response = await fetch(`/api/v1${path}`, { ...init, headers, cache: 'no-store' });
   const envelope = await response.json().catch(() => ({})) as { data?: T; error?: { code?: string; message?: string } };

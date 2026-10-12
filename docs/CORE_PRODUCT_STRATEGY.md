@@ -1,5 +1,12 @@
 # ChordJai: Core product and business strategy
 
+## PetID review and model pipeline delivered
+
+The owner can request deterministic photo-quality and bounded visual consistency checks. An independent active admin records evidence and privacy review under current consent before a photo becomes eligible. AI similarity remains supporting evidence, not a verified identity. A short-lived pseudonymous dataset manifest and local training/evaluation pipeline now enforce fresh permission checks and distinguish owner-disjoint calibration/test cohorts and capture days. Synthetic training proves execution only. No trained model is automatically promoted into live PetID search, and cross-version holdout/serving governance remains future work. See [PETID_MODEL_PIPELINE.md](PETID_MODEL_PIPELINE.md).
+
+Care Diary photo controls now appear beside the owner narrative, with camera/library uploads, partial-upload retry and an in-app viewer. Images do not become model-training samples or clinical disclosures automatically.
+
+
 Research reviewed on 12 October 2026. This document distinguishes verified external evidence, product choices, current implementation, and work that still needs validation. It does not establish clinical effectiveness, biometric certification, patentability, or a commercial partnership for ChordJai.
 
 ## อัปเดตการพัฒนา: คลังภาพและข้อความติดตาม

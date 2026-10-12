@@ -1,0 +1,4 @@
+# Separate local research runtime; never installed in a Vercel service.
+torch==2.14.1
+numpy==2.5.4
+Pillow==12.3.0
