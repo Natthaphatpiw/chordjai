@@ -127,7 +127,10 @@ export async function processFollowups(now=new Date()){
       const source=state.context.sources.find(s=>s.id===result.sourceIds[0])!;
       const footer=state.prefs.language==='en'?'Optional update. To pause, reply PAUSE.':'อัปเดตเมื่อสะดวก หากอยากพัก พิมพ์ พัก';
       message=`${result.message}\n${appLink(`/app?tab=health&followupId=${delivery.id}&petId=${result.petId}&lang=${state.prefs.language}`)}\n${footer}`;
-      if(message.length>500||hasUnsafeMedicalAdvice(message))throw new HttpError(502,'FOLLOWUP_INVALID_OUTPUT','ข้อความติดตามยาวเกินไป');
+      // generate() checks the composed human text for medical advice. Trusted
+      // link UUIDs can contain dose-like substrings such as "81cc-" and must
+      // not be interpreted as instructions to the owner.
+      if(message.length>500)throw new HttpError(502,'FOLLOWUP_INVALID_OUTPUT','ข้อความติดตามยาวเกินไป');
       const saved=await withSystem(tx=>tx.query(`update notify.followup_deliveries set status='ready',message=$3,context_hash=$4,source_refs=$5::jsonb,selected_pet_id=$6,reason_code=$7,updated_at=now() where id=$1 and lease_token=$2 and lease_until>now() and status='generating' returning id`,[delivery.id,delivery.lease_token,message,hash,JSON.stringify([{id:source.id,petId:source.petId,source:source.source,updatedAt:source.updatedAt}]),result.petId,result.reason]));
       if(!saved.rowCount)return {processed:1,accepted:0,reason:'lease_lost'};
       delivery.context_hash=hash;

@@ -1,5 +1,6 @@
 import {describe,it,expect,vi} from 'vitest';
 import type {PoolClient} from '@chordjai/db';
+import {hasUnsafeMedicalAdvice} from '@chordjai/ai';
 import {randomUUID} from 'node:crypto';
 import {followupPreferencesSchema,followupDecisionSchema,FOLLOWUP_CONSENT_VERSION} from '@chordjai/contracts';
 import {bangkokDay,deliveryWindow,composeFollowup,validateDecision,type FollowupContext} from './followup-context';
@@ -35,6 +36,15 @@ describe('grounded nonintrusive followup selection',()=>{
   it('model output is selection-only, rejects arbitrary medical claims and supports genuine skip',()=>{
     expect(followupDecisionSchema.safeParse({...decision,message:'Give two drops'}).success).toBe(false);
     expect(composeFollowup({...decision,shouldSend:false,intent:'skip',reason:'no_useful_context',sourceId:null,petId:null},context,'en')).toBeNull();
+  });
+  it('checks medical advice in prose while a trusted pet UUID may contain a dose-like substring',()=>{
+    const selectedPet='11111111-1111-4111-81cc-111111111111';
+    const selected={...decision,petId:selectedPet},safeContext={...context,pets:[{...context.pets[0]!,id:selectedPet}],sources:[{...context.sources[0]!,petId:selectedPet}]};
+    const prose=composeFollowup(selected,safeContext,'en')!;
+    expect(hasUnsafeMedicalAdvice(prose)).toBe(false);
+    expect(hasUnsafeMedicalAdvice('Give 2 cc of medicine')).toBe(true);
+    // Applying the prose detector to the URL would falsely classify "81cc-".
+    expect(hasUnsafeMedicalAdvice(`https://www.chordjai.life/app?petId=${selectedPet}`)).toBe(true);
   });
   it('exact pause/resume commands do not mistake symptom narrative for navigation or opt-in',()=>{
     expect(followupCommand('PAUSE')).toBe('pause');expect(followupCommand('พัก')).toBe('pause');expect(followupCommand('ติดตามต่อ')).toBe('resume');expect(followupCommand('วันนี้น้องพักบ่อยและกินน้อย')).toBeNull();
