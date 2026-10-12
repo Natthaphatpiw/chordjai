@@ -5,7 +5,9 @@ import {enqueue} from '@chordjai/queue';
 import {verifyWebhookSignature,replyLine,pushLine,appLink,LineApiError} from '@chordjai/line';
 import {createService,getActor,HttpError,jsonBody,ok,camel,uuid,type ServiceContext} from '@chordjai/service-kit';
 import {buildCalendar} from './calendar.js';
+import {registerFollowupRoutes,processFollowups,followupCommand,processFollowupCommand,captureFollowupReply} from './followup.js';
 export const app=createService('notification');
+registerFollowupRoutes(app);
 const lineEventSchema=z.object({webhookEventId:z.string().min(1).max(100),type:z.string().max(80),replyToken:z.string().max(200).optional(),source:z.object({type:z.string(),userId:z.string().max(100).optional()}),message:z.object({type:z.string(),text:z.string().max(5000).optional()}).passthrough().optional()}).passthrough();
 type LineEvent=z.infer<typeof lineEventSchema>;
 const hash=(token:string)=>createHash('sha256').update(token).digest('hex');
@@ -35,11 +37,20 @@ export async function processLineEvent(eventId:string){
   const event=lineEventSchema.parse(stored.payload),lineUserId=event.source.userId;
   const user=lineUserId?await withSystem(async tx=>(await tx.query<{id:string}>('select id from identity.users where line_user_id=$1 and status=\'active\'',[lineUserId])).rows[0]):null;
   if(user&&(event.type==='follow'||event.type==='unfollow'))await withSystem(tx=>tx.query(`insert into notify.line_accounts(user_id,followed) values($1,$2) on conflict(user_id) do update set followed=excluded.followed,updated_at=now()`,[user.id,event.type==='follow']));
+  const command=event.type==='message'&&event.message?.type==='text'?followupCommand(event.message.text??''):null;
+  let specialReply:string|null=null;
+  if(user&&event.source.type==='user'&&command){
+    const result=await processFollowupCommand(user.id,command);
+    specialReply=result.language==='en'?(result.changed?(command==='pause'?'Personalized check-ins are paused. Reply RESUME when you are ready.':'Personalized check-ins resumed. You can change sources or turn them off in settings.'):'Open settings to choose and consent to personalized check-ins first.'):(result.changed?(command==='pause'?'พักข้อความติดตามส่วนตัวแล้วครับ พิมพ์ ติดตามต่อ เมื่อพร้อม':'กลับมาติดตามน้องแล้วครับ เลือกข้อมูลหรือปิดได้ในตั้งค่า'):'เปิดตั้งค่าเพื่อเลือกข้อมูลและยินยอมรับข้อความติดตามก่อนครับ');
+  }else if(user&&event.type==='message'&&event.source.type==='user'&&event.message?.type==='text'){
+    const captured=await captureFollowupReply(user.id,event.webhookEventId,event.message.text??'');
+    if(captured){const prefs=await withUser(user.id,async tx=>(await tx.query('select language from notify.followup_preferences where user_id=$1',[user.id])).rows[0]);specialReply=prefs?.language==='en'?'Your reply is saved privately in check-in history. You can review it and record a care update in the app.':'เก็บคำตอบไว้เป็นส่วนตัวในประวัติติดตามแล้วครับ เปิดแอปเพื่อทบทวนและจดอัปเดตการดูแลได้';}
+  }
   if(event.replyToken&&(event.type==='message'||event.type==='follow')&&event.source.type==='user'){
     // Quick navigation replies contain no health facts or private user data.
     // Expired reply tokens are not replaced with paid, duplicate push messages.
     const text=event.message?.text??'',path=/วัคซีน|สมุด|บันทึก/.test(text)?'/app?tab=health':/หาย|พบ/.test(text)?'/app?tab=care':/อาการ|ป่วย/.test(text)?'/app?tab=triage':/คุย|ai/i.test(text)?'/app?tab=chat':'/app';
-    try{await replyLine(event.replyToken,[{type:'text',text:`ดูแลน้องไปด้วยกันกับ ChordJai 🐾\nเปิดแอป: ${appLink(path)}\nหากน้องหายใจลำบาก ชัก หมดสติ หรือปัสสาวะไม่ออก ให้ไปโรงพยาบาลสัตว์ทันที`}]);}
+    try{await replyLine(event.replyToken,[{type:'text',text:specialReply?`${specialReply}\n${appLink('/app?tab=settings')}`:`ดูแลน้องไปด้วยกันกับ ChordJai\nเปิดแอป: ${appLink(path)}\nหากน้องหายใจลำบาก ชัก หมดสติ หรือปัสสาวะไม่ออก ให้ไปโรงพยาบาลสัตว์ทันที`}]);}
     catch(error){if(!(error instanceof LineApiError)||error.status!==400)throw error;/* invalid/expired reply token; do not replace with paid push */}
   }
   await withSystem(tx=>tx.query('update notify.webhook_events set processed_at=now(),payload=\'{}\'::jsonb where event_id=$1',[eventId]));
@@ -98,14 +109,30 @@ export async function processReminders(){
       if(delivery.status==='sent')continue;
       const lines=items.slice(0,5).map(item=>`• ${item.title}`);
       if(items.length>5)lines.push(`และอีก ${items.length-5} รายการ`);
-      await pushLine(first.line_user_id,[{type:'text',text:`🐾 สรุปการดูแลน้องวันนี้\n${lines.join('\n')}\nเปิดรายละเอียด: ${appLink('/app?tab=health')}`}],delivery.id);
-      await withSystem(tx=>tx.query('update notify.deliveries set status=\'sent\',sent_at=now() where id=$1',[delivery.id]));
+      const pushed=await withSystem(async tx=>{
+        await tx.query("select pg_advisory_xact_lock(hashtext('followup-user:'||$1))",[userId]);
+        const followupToday=await tx.query(`select id from notify.followup_deliveries where user_id=$1 and first_push_at>=$2::date::timestamp at time zone 'Asia/Bangkok' limit 1`,[userId,local.day]);
+        if(followupToday.rowCount)return false;
+        const current=(await tx.query(`select u.line_user_id from identity.users u join notify.line_accounts la on la.user_id=u.id where u.id=$1 and u.status='active' and la.followed for share of u,la`,[userId])).rows[0];
+        if(!current)return false;
+        const already=(await tx.query('select status from notify.deliveries where id=$1 for update',[delivery.id])).rows[0];
+        if(already?.status==='sent')return false;
+        await pushLine(current.line_user_id,[{type:'text',text:`สรุปการดูแลน้องวันนี้\n${lines.join('\n')}\nเปิดรายละเอียด: ${appLink('/app?tab=health')}`}],delivery.id);
+        await tx.query('update notify.deliveries set status=\'sent\',sent_at=now() where id=$1',[delivery.id]);return true;
+      });
+      if(!pushed)continue;
     }
     await withSystem(async tx=>{for(const reminder of items)await tx.query('update notify.reminders set sent_at=now() where id=$1 and due_at=$2',[reminder.id,reminder.due_at]);});sent+=items.length;
   }
   return sent;
 }
 app.post('/internal/reminders',async c=>{requireCron(c);return ok(c,{sent:await processReminders()});});
+app.post('/internal/followups',async c=>{
+  requireCron(c);
+  const outcomes=await Promise.allSettled([processFollowups(),processFollowups()]);
+  const completed=outcomes.flatMap(result=>result.status==='fulfilled'?[result.value]:[]);
+  return ok(c,{processed:completed.reduce((sum,result)=>sum+result.processed,0),accepted:completed.reduce((sum,result)=>sum+result.accepted,0),failed:outcomes.filter(result=>result.status==='rejected').length,reasons:completed.map(result=>result.reason)});
+});
 app.get('/api/v1/notification/calendar',async c=>{
   const actor=getActor(c),rows=await withUser(actor.id,async tx=>(await tx.query('select id,title,due_at from notify.reminders where user_id=$1 and completed_at is null and ($2::uuid is null or pet_id=$2) order by due_at limit 300',[actor.id,c.req.query('petId')?uuid(c.req.query('petId')):null])).rows);
   c.header('Content-Type','text/calendar; charset=utf-8');c.header('Content-Disposition','attachment; filename="chordjai.ics"');return c.body(buildCalendar(rows));

@@ -63,6 +63,8 @@ markers = [
     "to_regclass('biometric.enrollments_embedding_hnsw_lost_ready_idx') is not null",
     "to_regclass('journal.books') is not null and to_regclass('biometric.enrollment_photos') is not null",
     "to_regclass('health.care_entries') is not null and to_regprocedure('health.clinic_care_summary(uuid,boolean)') is not null",
+    "to_regclass('biometric.capture_sessions') is not null and to_regclass('biometric.training_consent_events') is not null",
+    "to_regclass('notify.followup_preferences') is not null and to_regclass('notify.followup_replies') is not null",
 ]
 marker_case = "case k.ordinal\n" + "\n".join(f" when {i+1} then ({marker})" for i, marker in enumerate(markers)) + "\n end"
 diagnostic = """-- READ ONLY: one JSON result contains every diagnostic section; no user data.

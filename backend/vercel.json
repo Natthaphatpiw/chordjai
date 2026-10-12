@@ -105,7 +105,7 @@
       "entrypoint": "src/index.ts",
       "functions": {
         "src/index.ts": {
-          "maxDuration": 60,
+          "maxDuration": 120,
           "regions": [
             "sin1"
           ]
@@ -165,7 +165,7 @@
       "entrypoint": "src/index.ts",
       "functions": {
         "src/index.ts": {
-          "maxDuration": 60,
+          "maxDuration": 120,
           "regions": [
             "sin1"
           ]
@@ -292,6 +292,10 @@
     },
     {
       "path": "/internal/cron/reminders",
+      "schedule": "*/5 * * * *"
+    },
+    {
+      "path": "/internal/cron/followups",
       "schedule": "*/5 * * * *"
     }
   ]

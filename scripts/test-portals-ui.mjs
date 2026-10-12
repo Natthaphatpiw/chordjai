@@ -32,7 +32,7 @@ const data = {
   '/clinic/memberships': [{ clinicId, name: 'คลินิกสำหรับทดสอบ UI', role: 'vet' }],
   '/clinic/appointments': [{ id: appointmentId, clinicId, petId, reason: 'ฉีดวัคซีนประจำปี', requestedAt: '2026-10-12T03:00:00Z', status: 'requested' }],
   [`/clinic/pets/${petId}/summary`]: { pet: { name: 'น้องสำหรับทดสอบ', species: 'cat', sex: 'female', weightKg: 3.5 }, careAccess:true,careEntries:[clinicalEntry], records: [{ kind: 'vaccine', title: 'วัคซีนรวม', recordedAt: '2026-09-01', nextDueAt: '2027-09-01', notes: 'ข้อมูลตัวอย่างสำหรับทดสอบ' }] },
-  '/analytics/kpis': { users: 2, pets: 3, healthRecords: 4, summaryViews: 1, clinics: 1, triageSessions: 0, activeLostCases: 0, journalPages: 2, conversations: 1, aiCostTodayUsd: 0, deadJobs: 1,care:careMetrics,petid:{enrolledPets:2,availableReferencePhotos:5,petsWithMultipleReferencePhotos:1} },
+  '/analytics/kpis': { users: 2, pets: 3, healthRecords: 4, summaryViews: 1, clinics: 1, triageSessions: 0, activeLostCases: 0, journalPages: 2, conversations: 1, aiCostTodayUsd: 0, deadJobs: 1,care:careMetrics,petid:{enrolledPets:2,availableReferencePhotos:5,petsWithMultipleReferencePhotos:1},petidResearch:{sessions:4,availableSamples:12,petsWithMultipleCaptureDays:2,trainingOptedInPets:1,samplesReviewedUnderCurrentConsent:0},personalizedFollowups:{enabledUsers:3,pausedUsers:1,lineAcceptedLast30Days:2,openedFromLinkLast30Days:1,followupsWithRepliesLast30Days:1,uncertainRequests:0} },
   '/analytics/jobs': [{ id: jobId, topic: 'test.only', status: 'dead', attempts: 3, maxAttempts: 3, runAt: '2026-10-10T03:00:00Z', lastError: 'ข้อความทดสอบ UI' }, { id: '66666666-6666-4666-8666-666666666666', topic: 'test.completed', status: 'completed', attempts: 1, maxAttempts: 3, runAt: '2026-10-10T03:00:00Z' }],
   '/analytics/ai-requests': [{ id: 'test-ai', feature: 'journal.decorate', model: 'gpt-6.1-sol', inputTokens: 0, outputTokens: 0, latencyMs: 0, costUsd: 0, status: 'ok', createdAt: '2026-10-10T03:00:00Z' }],
   '/clinics': [{ id: clinicId, name: 'คลินิกสำหรับทดสอบ UI', district: 'ย่านทดสอบ', address: 'ที่อยู่สำหรับทดสอบ', phone: '020000000', is24h: true }],
@@ -148,6 +148,8 @@ try {
   const admin = await session('admin');
   await expect(admin.page.getByRole('heading', { name: 'การใช้งานแต่ละส่วน' })).toBeVisible();
   await expect(admin.page.getByRole('heading',{name:'ไดอารี่และความต่อเนื่องในการดูแล'})).toBeVisible();
+  await expect(admin.page.getByRole('heading',{name:'ชุดภาพ PetID ต่างช่วงเวลา'})).toBeVisible();
+  await expect(admin.page.getByRole('heading',{name:'LINE ที่เจ้าของเลือกเปิดรับ'})).toBeVisible();
   await expect(admin.page.getByRole('heading',{name:'ข้อมูลอ้างอิง PetID'})).toBeVisible();
   await admin.page.screenshot({ path: '.verification/admin-overview-desktop.png', fullPage: true });
   await admin.page.getByRole('navigation').getByRole('button', { name: 'การทำงานของ AI' }).click();
@@ -238,6 +240,8 @@ try {
   const englishAdmin = await session('admin', true, 'en');
   await expect(englishAdmin.page.getByRole('heading', { name: 'Overview', exact: true })).toBeVisible();
   await expect(englishAdmin.page.getByRole('heading',{name:'Care diary & continuity'})).toBeVisible();
+  await expect(englishAdmin.page.getByRole('heading',{name:'PetID capture over time'})).toBeVisible();
+  await expect(englishAdmin.page.getByRole('heading',{name:'Opted-in LINE follow-ups'})).toBeVisible();
   await expect(englishAdmin.page.getByRole('heading',{name:'PetID reference inventory'})).toBeVisible();
   await assertEnglish(englishAdmin.page);
   await englishAdmin.page.getByRole('navigation').getByRole('button', { name: 'AI activity' }).click();

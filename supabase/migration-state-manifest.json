@@ -94,5 +94,17 @@
     "file": "202610120016_care_diary.sql",
     "checksum": "3ea25ff62a394ec8282837bb44a3715f7ada1f30ac8e7669c5d8395f030889d6",
     "fingerprint": "bae69448d0592fac2056a02dd11eb2ed"
+  },
+  {
+    "version": "202610120017",
+    "file": "202610120017_petid_research_capture.sql",
+    "checksum": "237ab892c28750eb5dcd651fa030a8676f33c67d1f0356fbe5e56e12ce21c668",
+    "fingerprint": "f308bcf7a1334482cf76f57fb4259812"
+  },
+  {
+    "version": "202610120018",
+    "file": "202610120018_personalized_followups.sql",
+    "checksum": "07e7814ad56d03c34e10cf2760a809cbd07d85f6ec180b4a8521406ebff33198",
+    "fingerprint": "d97d1d3156bf85d6dda7bfd850d86d0c"
   }
 ]

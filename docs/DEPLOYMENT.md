@@ -1,6 +1,14 @@
 # Deployment ของ ChordJai
 
-## รุ่นปัจจุบัน: Care Diary และฐานข้อมูล 16 — 12 ตุลาคม 2026
+## คลังภาพ PetID / LINE follow-up และฐานข้อมูล 18 — 12 ตุลาคม 2026
+
+ใช้ repo/4 projects/env/LIFF เดิม เพิ่ม migration 17 คลังภาพ/สิทธิฝึก PetID และ migration 18 follow-up preferences/consent/deliveries/replies ทั้งสองส่วนปิดสิทธิฝึกและข้อความเชิงรุกไว้ก่อน ทุกชุดภาพใหม่รอทบทวน ผู้ใช้ต้องเลือกเปิด follow-up กับแหล่งข้อมูลและยินยอมเอง
+
+Backend Cron `/internal/cron/followups` เรียกทุก 5 นาทีผ่าน scheduler → private notification binding ประมวลผลสูงสุดสองผู้ใช้พร้อมกัน ตรวจ 24 ชั่วโมงหลังเปลี่ยนตัวเลือก, 5/7 วันหลังข้อความก่อน, ช่วง 09:00–20:00 Bangkok และสิทธิ/แหล่งข้อมูลก่อนส่งด้วย LINE Push API เพิ่มเวลา function ของ notification/scheduler เป็น 120 วินาที ไม่เพิ่ม credential หรือ public route สำหรับสั่งส่งให้คนอื่น
+
+รายละเอียด [PETID_DATASET.md](PETID_DATASET.md) และ [PERSONALIZED_FOLLOWUPS.md](PERSONALIZED_FOLLOWUPS.md) เครื่องติดตั้งเดิมตรวจ diagnostic แล้วใช้ upgrade.sql; ไม่รัน bootstrap ซ้ำ
+
+## Care Diary และฐานข้อมูล 16 — 12 ตุลาคม 2026
 
 Core ใหม่อยู่ในบริการ `health` เดิม: สมุดสุขภาพเปิดที่ไดอารี่ดูแลน้อง และแยกมุมสมุดประจำตัว/วัคซีนไว้ข้างกัน บันทึกวันปกติ อาการ ไปพบหมอ ค่ารักษา และติดตามหลังรักษาเชื่อมเป็นเรื่องการดูแล เจ้าของเลือกข้อความ/รูปไปสร้างร่างความทรงจำได้ ข้อความสำหรับคุณหมอแยกจากเรื่องเล่าและความรู้สึกส่วนตัว
 

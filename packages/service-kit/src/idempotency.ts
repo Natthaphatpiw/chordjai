@@ -7,7 +7,12 @@ export const idempotency:MiddlewareHandler<ServiceEnv>=async(c,next)=>{
   const key=c.req.header('Idempotency-Key');
   // Authentication exchanges return bearer tokens; their responses must never enter a cache.
   // Public webhook events and capability writes have their own domain-level deduplication.
-  if(!key||!c.get('actor')||!['POST','PATCH','DELETE'].includes(c.req.method)||c.req.path.startsWith('/internal/')||c.req.path==='/api/v1/identity/line')return next();
+  // Mutable consent and source-dependent previews must revalidate current
+  // permissions. Research consent carries its own durable request ID; follow-up
+  // preferences use a revision check rather than replaying an old opt-in.
+  const currentPermissionRoute=/^\/api\/v1\/biometric\/pets\/[^/]+\/research\/consent$/.test(c.req.path)
+    || /^\/api\/v1\/notification\/followup\/(?:preferences|preview)$/.test(c.req.path);
+  if(!key||!c.get('actor')||!['POST','PATCH','DELETE'].includes(c.req.method)||c.req.path.startsWith('/internal/')||c.req.path==='/api/v1/identity/line'||currentPermissionRoute)return next();
   if(!/^[\w-]{8,80}$/.test(key))throw new HttpError(400,'INVALID_IDEMPOTENCY_KEY','Idempotency-Key ไม่ถูกต้อง');
   const digest=(value:string|Buffer)=>createHash('sha256').update(value).digest('hex');
   const scope=digest(`${c.get('actor')?.id??'anonymous'}:${c.req.method}:${c.req.path}`);

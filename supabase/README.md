@@ -2,6 +2,10 @@
 
 ใช้ Supabase project เดียวกับ PostgreSQL + pgvector รหัสผู้ใช้และน้องเป็น UUID เวลาเก็บ UTC และแสดงผล Asia/Bangkok ใช้ region/connection hostname ที่ project ของคุณแสดงจริง
 
+## รุ่น 17–18: คลังภาพ PetID และ LINE follow-up
+
+Migration 17 เพิ่ม capture sessions/samples และความยินยอมฝึกโมเดลเฉพาะน้องแต่ละตัว; ทุกชุดเริ่ม pending และไม่เปิดฝึกอัตโนมัติ Migration 18 เพิ่ม follow-up preferences/consent ledger/deliveries/replies โดยไม่เปิดรับให้บัญชีเดิม พร้อม RLS และ FK ลบตามบัญชี ใช้ safe upgrade สำหรับฐานข้อมูลเดิม ไม่มี env เพิ่ม
+
 ## นำ SQL ไปใช้
 
 สำหรับรอบสมุดหลายหน้าและ PetID หลายรูป ใช้ migration `202610110015_memory_books_petid_photos.sql` (migration 15): เพิ่ม `journal.books`, วันที่/สถานที่/ลำดับ/ขนาด canvas ของหน้า และ `biometric.enrollment_photos` สูงสุด 5 ตำแหน่ง พร้อม RLS และ trigger ล้างเวกเตอร์เมื่อรูปอ้างอิงถูกลบหรือใช้ไม่ได้ หน้าเดิมยังคงข้อมูล ตำแหน่ง และเวลาแก้ไขเดิมไว้ ฐานข้อมูลเดิมแนะนำรัน `upgrade.sql` เพื่อให้ตรวจรุ่นก่อนเพิ่มส่วนที่ขาด ไม่รัน `bootstrap.sql` ซ้ำ

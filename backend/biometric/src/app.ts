@@ -1,3 +1,4 @@
+import {registerResearchRoutes} from './research.js';
 import {z} from 'zod';
 import { signPetidDraft, verifyPetidDraft } from '@chordjai/auth';
 import {withUser,withSystem} from '@chordjai/db';
@@ -164,4 +165,5 @@ app.post('/api/v1/biometric/matches/:id/confirm',async c=>{
   const result=await withUser(actor.id,tx=>tx.query(`update biometric.matches m set owner_confirmed=$3 from biometric.enrollments e where m.id=$1 and e.id=m.enrollment_id and e.user_id=$2 returning m.id,m.owner_confirmed`,[uuid(c.req.param('id')),actor.id,body.confirmed]));
   if(!result.rowCount)throw new HttpError(404,'MATCH_NOT_FOUND','ไม่พบผลค้นหา');return ok(c,camel(result.rows[0]));
 });
+registerResearchRoutes(app);
 export default app;

@@ -2,6 +2,14 @@
 
 Research reviewed on 12 October 2026. This document distinguishes verified external evidence, product choices, current implementation, and work that still needs validation. It does not establish clinical effectiveness, biometric certification, patentability, or a commercial partnership for ChordJai.
 
+## อัปเดตการพัฒนา: คลังภาพและข้อความติดตาม
+
+รุ่น 17–18 เพิ่มคลังภาพหลายมุม/ต่างเวลาพร้อม owner attestation, identity anchor และสิทธิฝึกโมเดลเฉพาะสัตว์ที่แยกจากบริการค้นหาน้องหายแล้ว วันที่และตัวสัตว์ยังไม่ยืนยันอิสระ ทุกชุดใหม่รอทบทวน ยังไม่ส่งออกหรือฝึกอัตโนมัติ รายละเอียดใน [PETID_DATASET.md](PETID_DATASET.md)
+
+เพิ่ม follow-up ที่เจ้าของเลือกเปิดรับ แหล่งข้อมูลแยก ควบคุม 5/7 วันและช่วงส่ง LLM เลือกเรื่องและหัวข้อที่ตรวจเทียบกับแหล่งจริงได้ รวมถึงเรื่องรักษาที่เจ้าของเล่าในสมุดความทรงจำ คำตอบ LINE เป็นข้อมูลส่วนตัวแยกจากเวชระเบียน รายละเอียดใน [PERSONALIZED_FOLLOWUPS.md](PERSONALIZED_FOLLOWUPS.md) ตัวนับการเปิด/ตอบมีไว้ศึกษา ยังไม่พิสูจน์ผล retention
+
+ตารางแผนเดิมด้านล่างเป็นกรอบการขยายงาน การนำภาพไปฝึก/ทดสอบกับ identity ground truth, dataset/model version, PIMS, partner pilots และผลทางคลินิกยังต้องพิสูจน์ต่อ
+
 ## ข้อเสนอหลักสำหรับผลิตภัณฑ์
 
 ให้ **ไดอารี่ดูแลน้องอยู่ในสมุดสุขภาพและเป็นจุดเริ่มต้นที่เจ้าของกลับมาบันทึก** ตั้งแต่วันปกติ วันที่เริ่มมีอาการ ไปพบหมอ ค่าใช้จ่าย และผลหลังรักษา การอัปเดตเรื่องเดิมเชื่อมเป็นเรื่องการดูแลเดียวกัน ส่วนสมุดความทรงจำยังใช้เก็บหน้า Story ที่เจ้าของเลือกสร้างเอง ไม่จำเป็นต้องเพิ่มเมนูไดอารี่ที่แย่งบทบาทกับสองสมุดนี้

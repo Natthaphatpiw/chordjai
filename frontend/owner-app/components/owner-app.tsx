@@ -67,36 +67,49 @@ export default function OwnerApp() { const {locale,t}=useLocale(); const tabs=us
   const mounted = useRef(false);
   const journalDirty = useRef(false);
   const careDirty = useRef(false);
+  const petidResearchDirty=useRef(false);
+  const followupDirty=useRef(false);
+  const followupOpened=useRef('');
   const localeRef = useRef(locale);
   localeRef.current = locale;
   function current(run: number) { return mounted.current && run === asyncEpoch.current; }
   function mayLeaveJournal() {
-    return !(journalDirty.current||careDirty.current) || window.confirm(t('มีบันทึกที่ยังไม่ได้บันทึก ต้องการออกโดยไม่บันทึกหรือไม่?', 'You have unsaved changes. Leave without saving?'));
+    return !(journalDirty.current||careDirty.current||petidResearchDirty.current||followupDirty.current) || window.confirm(t('มีบันทึกที่ยังไม่ได้บันทึก ต้องการออกโดยไม่บันทึกหรือไม่?', 'You have unsaved changes. Leave without saving?'));
   }
   function changeTab(next: Tab) {
     if (next === tab || !mayLeaveJournal()) return;
-    journalDirty.current = false; careDirty.current=false;
+    journalDirty.current = false; careDirty.current=false;petidResearchDirty.current=false;followupDirty.current=false;
     setTab(next); setStartDiary(false); setMemoryDraft(null); setStartOcr(false); setStartTriage(false); setError(''); setNotice('');
   }
   function changePet(next: string) {
     if (next === pet?.id || !mayLeaveJournal()) return;
-    journalDirty.current = false; careDirty.current=false;
+    journalDirty.current = false; careDirty.current=false;petidResearchDirty.current=false;followupDirty.current=false;
     setMemoryDraft(null);setShareOptions(false);setShareLink(null);setStartDiary(false);setSelectedId(next);
   }
   function logout() {
     if (!mayLeaveJournal()) return;
     asyncEpoch.current++;
     clearLineSession();
-    journalDirty.current = false; careDirty.current=false;
+    journalDirty.current = false; careDirty.current=false;petidResearchDirty.current=false;followupDirty.current=false;
     setMode('choose'); setPets([]); setRecords([]); setConsent(false); setServiceAccepted(false); setAiConsent(false);
     setShowInbox(false); setInbox([]); setShareLink(null);setShareOptions(false);setMemoryDraft(null); setAddingPet(false); setLoading(false); setAuthChecking(false); setError(''); setNotice('');
   }
   useEffect(() => {
     const changed = (event: Event) => { journalDirty.current = Boolean((event as CustomEvent<{dirty:boolean}>).detail?.dirty); };
     const careChanged=(event:Event)=>{careDirty.current=Boolean((event as CustomEvent<{dirty:boolean}>).detail?.dirty);};
+    const researchChanged=(event:Event)=>{petidResearchDirty.current=Boolean((event as CustomEvent<{dirty:boolean}>).detail?.dirty);};
+    const followupChanged=(event:Event)=>{followupDirty.current=Boolean((event as CustomEvent<{dirty:boolean}>).detail?.dirty);};
+    window.addEventListener('chordjai:petid-research-dirty',researchChanged);window.addEventListener('chordjai:followup-dirty',followupChanged);
     window.addEventListener('chordjai:journal-dirty', changed);window.addEventListener('chordjai:care-dirty',careChanged);
-    return () => {window.removeEventListener('chordjai:journal-dirty', changed);window.removeEventListener('chordjai:care-dirty',careChanged);};
+    return () => {window.removeEventListener('chordjai:petid-research-dirty',researchChanged);window.removeEventListener('chordjai:followup-dirty',followupChanged);window.removeEventListener('chordjai:journal-dirty', changed);window.removeEventListener('chordjai:care-dirty',careChanged);};
   }, []);
+  useEffect(()=>{
+    if(mode!=='live'||consent)return;
+    const id=new URLSearchParams(window.location.search).get('followupId');
+    if(!id||! /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)||followupOpened.current===id)return;
+    followupOpened.current=id;
+    void api(`/notification/followup/${encodeURIComponent(id)}/opened`,{method:'POST'}).catch(()=>{});
+  },[mode,consent]);
   useEffect(() => { window.scrollTo({ top: 0, left: 0, behavior: 'instant' }); }, [mode]);
   useEffect(()=>{if(demo)setPets(current=>localizeDemoPets(current,locale));},[locale,demo]);
   useEffect(() => {
@@ -124,7 +137,9 @@ export default function OwnerApp() { const {locale,t}=useLocale(); const tabs=us
       api<Pet[]>('/pets'), api<{purpose:string;granted:boolean}[]>('/identity/consents'),
     ]);
     if (!current(run)) return;
-    setPets(data); setSelectedId(data[0]?.id || ''); setMode('live');
+    const requestedPetId=new URLSearchParams(window.location.search).get('petId');
+    const selectedPet=data.find(item=>item.id===requestedPetId)??data[0];
+    setPets(data); setSelectedId(selectedPet?.id || ''); setMode('live');
     setConsent(!permissions.some(item => item.purpose === 'service' && item.granted));
   }
   async function bootstrap(run: number) {
@@ -166,7 +181,7 @@ export default function OwnerApp() { const {locale,t}=useLocale(); const tabs=us
   function persistPets(next: Pet[]) { localStorage.setItem('chordjai.demo.pets.v1', JSON.stringify(next));setPets(next); }
   function updateRecords(next: HealthRecord[]) { if (demo && pet) { const all = loadDemo('chordjai.demo.records.v1', demoRecords); localStorage.setItem('chordjai.demo.records.v1', JSON.stringify([...all.filter(item => item.petId !== pet.id), ...next])); }setRecords(next); }
   async function openInbox() { const run=asyncEpoch.current; setShowInbox(true); if (demo) { setInbox([]); return; } try { const data=await api<Notification[]>('/notification/inbox'); if(current(run))setInbox(data); } catch (caught) { if(current(run))setError(messageOf(caught,localeRef.current)); } }
-  function openDiary(){if(!mayLeaveJournal())return;journalDirty.current=false;careDirty.current=false;setStartOcr(false);setStartTriage(false);setStartDiary(true);setTab('health');}
+  function openDiary(){if(!mayLeaveJournal())return;journalDirty.current=false;careDirty.current=false;petidResearchDirty.current=false;followupDirty.current=false;setStartOcr(false);setStartTriage(false);setStartDiary(true);setTab('health');}
   function keepMemory(draft:CareMemoryDraft){setMemoryDraft({...draft,key:crypto.randomUUID()});setTab('journal');}
   function createShare(){shareCreationKey.current=crypto.randomUUID();shareAttempt.current=null;setShareFrozen(false);setShareError('');setIncludeCare(false);setIncludeCosts(false);setSharePreviewReady(false);setShareOptions(true);}
   async function commitShare(){

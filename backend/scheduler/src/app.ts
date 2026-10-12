@@ -11,7 +11,7 @@ export function machineAuthorized(header:string|undefined){
 async function notification(path:string,body:unknown){
   const origin=process.env.NOTIFICATION_INTERNAL_URL??(process.env.VERCEL?'':`http://localhost:${process.env.API_PORT??8787}`);
   if(!origin)throw new Error('missing_notification_binding');
-  const res=await fetch(new URL(`/internal/${path}`,origin),{method:'POST',headers:{'Content-Type':'application/json',Authorization:`Bearer ${process.env.CRON_SECRET}`},body:JSON.stringify(body),signal:AbortSignal.timeout(45000)});
+  const res=await fetch(new URL(`/internal/${path}`,origin),{method:'POST',headers:{'Content-Type':'application/json',Authorization:`Bearer ${process.env.CRON_SECRET}`},body:JSON.stringify(body),signal:AbortSignal.timeout(path==='followups'?85000:45000)});
   if(!res.ok)throw new Error('notification_failed');
 }
 const handlers:Record<string,(payload:Record<string,unknown>,job:Job)=>Promise<void>>={
@@ -27,7 +27,8 @@ export async function cleanupExpiredData(){
     const rates=await db.query('DELETE FROM ops.rate_limits WHERE ctid IN (SELECT ctid FROM ops.rate_limits WHERE expires_at<now() LIMIT 1000)');
     const requests=await db.query('DELETE FROM ops.idempotency WHERE ctid IN (SELECT ctid FROM ops.idempotency WHERE expires_at<now() LIMIT 1000)');
     const events=await db.query("DELETE FROM notify.webhook_events WHERE event_id IN (SELECT event_id FROM notify.webhook_events WHERE received_at<now()-interval '7 days' LIMIT 1000)");
-    return {expiredRateLimits:rates.rowCount,expiredRequests:requests.rowCount,expiredWebhooks:events.rowCount};
+    const followups=await db.query("DELETE FROM notify.followup_deliveries WHERE id IN (SELECT id FROM notify.followup_deliveries WHERE created_at<now()-interval '90 days' LIMIT 1000)");
+    return {expiredRateLimits:rates.rowCount,expiredRequests:requests.rowCount,expiredWebhooks:events.rowCount,expiredFollowups:followups.rowCount};
   });
 }
 app.get('/internal/cron/jobs',async c=>{
@@ -38,5 +39,9 @@ app.get('/internal/cron/jobs',async c=>{
 app.get('/internal/cron/reminders',async c=>{
   if(!machineAuthorized(c.req.header('Authorization')))throw new HttpError(401,'UNAUTHORIZED','ไม่อนุญาต');
   await notification('reminders',{});return ok(c,{dispatched:true});
+});
+app.get('/internal/cron/followups',async c=>{
+  if(!machineAuthorized(c.req.header('Authorization')))throw new HttpError(401,'UNAUTHORIZED','ไม่อนุญาต');
+  await notification('followups',{});return ok(c,{dispatched:true});
 });
 export default app;

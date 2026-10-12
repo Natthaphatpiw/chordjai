@@ -2,6 +2,15 @@ import { browserLocale, translate, type Locale } from './locale-core';
 import { automaticLiff, initializedLiff } from './liff-session';
 
 const englishErrors: Record<string, string> = {
+  CAPTURE_DATE_INVALID: 'Enter a valid capture date that is not in the future.',
+  CAPTURE_IMAGE_REUSED: 'This photo is already in a capture session. Upload a new photo.',
+  CAPTURE_NOT_FOUND: 'This capture session is unavailable.',
+  FOLLOWUP_CONSENT_REQUIRED: 'Enable follow-ups and explicitly consent before using a preview.',
+  FOLLOWUP_INVALID_OUTPUT: 'A suitable follow-up could not be prepared. Please try again later.',
+  FOLLOWUP_NOT_FOUND: 'This follow-up is unavailable or you cannot access it.',
+  FOLLOWUP_PAUSE_INVALID: 'Choose a pause date within one year.',
+  FOLLOWUP_STALE: 'Your settings or source data changed. Reload the latest version.',
+
   UNAUTHORIZED: 'Please sign in with LINE to continue.',
   SESSION_ENDED: 'You have signed out. Please sign in again to continue.',
   FORBIDDEN: 'You do not have permission to access this item.',

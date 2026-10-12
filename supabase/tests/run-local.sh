@@ -37,5 +37,5 @@ if "$http_tests"; then
   cd "$test_root"
   # These suites share a gallery and test exact global candidate counts.
   # Run files serially so one suite's synthetic lost pet cannot enter another.
-  TEST_DATABASE_URL="$test_url" npx --no-install vitest run --maxWorkers=1 tests/integration.test.ts backend/biometric/src/hybrid.integration.test.ts backend/health/src/import.integration.test.ts backend/journal/src/book.integration.test.ts backend/biometric/src/photos.integration.test.ts backend/health/src/care.integration.test.ts backend/analytics/src/care-kpis.integration.test.ts
+  TEST_DATABASE_URL="$test_url" npx --no-install vitest run --maxWorkers=1 tests/integration.test.ts backend/biometric/src/hybrid.integration.test.ts backend/health/src/import.integration.test.ts backend/journal/src/book.integration.test.ts backend/biometric/src/photos.integration.test.ts backend/health/src/care.integration.test.ts backend/analytics/src/care-kpis.integration.test.ts backend/biometric/src/research.integration.test.ts backend/notification/src/followup.integration.test.ts backend/analytics/src/ip-followup-kpis.integration.test.ts
 fi

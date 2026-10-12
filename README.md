@@ -4,6 +4,8 @@
 
 แกน B2C คือ **ไดอารี่ดูแลน้อง** ในสมุดสุขภาพ: เล่าเรื่องประจำวัน อาการ การพบหมอ ค่าใช้จ่าย และการติดตามที่เชื่อมเป็นเรื่องเดียว แยกความรู้สึกส่วนตัวจากข้อมูลคลินิกที่เลือกแชร์ และส่งข้อความ/รูปที่เลือกไปแต่งเป็นหน้าความทรงจำได้ ดูงานวิจัย แผนธุรกิจคลินิก/PetID และขอบเขตที่พัฒนาแล้วใน [docs/CORE_PRODUCT_STRATEGY.md](docs/CORE_PRODUCT_STRATEGY.md)
 
+เพิ่ม [คลังภาพ PetID ต่างช่วงเวลาและสิทธิ์ฝึกโมเดลแยก](docs/PETID_DATASET.md) และ [LINE follow-up แบบเลือกเปิดรับ](docs/PERSONALIZED_FOLLOWUPS.md) ซึ่งใช้ข้อมูลที่เจ้าของเลือกเพื่อถามต่ออย่างพอดี ทั้งสองฟีเจอร์ใช้ migration 17–18
+
 ## เริ่มดูระบบ
 
 ```bash
@@ -21,7 +23,7 @@ npm run dev:owner
 4. คัดลอก `.env.example` ของแต่ละ frontend เป็น `.env.local` แล้วตั้ง `API_ORIGIN=http://localhost:8787` สำหรับ local
 5. รัน `npm run dev` เพื่อเปิด API+owner, `npm run dev:clinic` หรือ `npm run dev:admin` เพื่อเปิด portal
 
-ยังไม่เรียก OpenAI จริงตามที่ผู้ใช้เลือกให้ใส่ API key ภายหลัง การทดสอบใช้ PostgreSQL/pgvector แยกต่างหาก ส่วน Supabase ของโครงการอัปเกรดถึง migration 16 และตรวจ fingerprint แล้ว โดยไม่สร้างบันทึกผู้ใช้ทดสอบใน production
+ยังไม่เรียก OpenAI จริงตามที่ผู้ใช้เลือกให้ใส่ API key ภายหลัง การทดสอบใช้ PostgreSQL/pgvector แยกต่างหาก ส่วน Supabase ของโครงการอัปเกรดถึง migration 18 และตรวจ fingerprint แล้ว โดยไม่สร้างบันทึกผู้ใช้ทดสอบใน production
 
 ## Git และ Vercel
 

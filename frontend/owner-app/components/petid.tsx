@@ -11,6 +11,7 @@ import { canRegisterPetId, movePhoto, PETID_PHOTO_LIMIT, photoCapacity, photoFin
 import type { Pet } from '../lib/types';
 import { Busy, ErrorBox, Modal, Notice } from './ui';
 import './petid-photos.css';
+import PetIdResearch from './petid-research';
 
 type Enrollment = { id: string; petId: string; description: string; status: string; searchMode: string; mediaId?: string; mediaIds?: string[]; photos?: { id: string; url: string }[] };
 type Match = { id: string; petId: string; createdAt: string; ownerConfirmed: boolean | null; evidenceImageUrl?: string | null; evidence: { verification?: { observations?: string[]; limitations?: string } } };
@@ -267,6 +268,7 @@ export default function PetId({ pet, demo }: { pet?: Pet; demo: boolean }) {
         <div className="form-actions"><button className="button secondary small" disabled={busy || match.ownerConfirmed === true} onClick={() => void confirmMatch(match.id, true)}><Check size={15}/>{match.ownerConfirmed === true ? t('เจ้าของยืนยันแล้ว', 'Owner confirmed') : t('เป็นน้องของฉัน', 'This is my pet')}</button><button className="button secondary small" disabled={busy || match.ownerConfirmed === false} onClick={() => void confirmMatch(match.id, false)}><X size={15}/>{match.ownerConfirmed === false ? t('ยืนยันว่าไม่ใช่', 'Confirmed not a match') : t('ไม่ใช่น้องของฉัน', 'Not my pet')}</button></div>
       </div></article>)}
     </section> : null}
+    {pet ? <PetIdResearch key={pet.id} pet={pet} demo={demo}/> : null}
     {showEnroll && pet ? <Modal className="petid-enrollment-modal" title={t(`PetID ของ${pet.name}`, `PetID for ${pet.name}`)} onClose={() => setShowEnroll(false)}>
       <div className="petid-registration-intro"><ShieldCheck size={22}/><div><b>{t('ให้รูปเล่าเอกลักษณ์ของน้อง', 'Let their photos tell their story')}</b><p>{t('เลือกรูป → เขียนจุดสังเกต → ตรวจทานและลงทะเบียน', 'Choose photos → draft identifying features → review and register')}</p></div></div>
       <section className="petid-registration-step" aria-labelledby="petid-photo-heading">
