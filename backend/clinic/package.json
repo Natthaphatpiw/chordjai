@@ -6,6 +6,8 @@
   "dependencies": {
     "@chordjai/service-kit": "*",
     "@chordjai/db": "*",
+    "@chordjai/media": "*",
+    "@chordjai/contracts": "*",
     "hono": "4.13.13",
     "zod": "4.6.5"
   }

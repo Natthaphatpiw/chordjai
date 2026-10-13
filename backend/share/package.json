@@ -4,6 +4,8 @@
   "private": true,
   "type": "module",
   "dependencies": {
+    "@chordjai/contracts": "*",
+    "@chordjai/media": "*",
     "@chordjai/service-kit": "*",
     "@chordjai/db": "*",
     "hono": "4.13.13",

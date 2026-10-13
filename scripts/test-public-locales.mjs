@@ -16,6 +16,8 @@ const fixture = createServer(async (request, response) => {
   if (request.method === 'GET' && path === '/api/v1/clinics') data = [{ id: 'clinic-public-locale', name: authored[3], district: authored[2], address: authored[4], phone: '020000000', is24h: true, lat: 0, lng: 0 }];
   else if (request.method === 'GET' && path === '/api/v1/lostfound/public/locale-test') data = { petName: authored[0], species: 'cat', description: authored[1], district: authored[2] };
   else if (request.method === 'GET' && path === '/api/v1/share/public/locale-test') data = { pet: { id: 'pet-public-locale', name: authored[0], species: 'cat', birthDate: '2023-04-05', sex: 'female', neutered: true }, records: [{ id: 'record-public-locale', petId: 'pet-public-locale', kind: 'vaccine', title: authored[5], recordedAt: '2026-10-09', nextDueAt: '2027-10-09', notes: authored[6] }], careEntries:[{id:'care-public-locale',kind:'visit',title:authored[7],observedAt:'2026-10-10T03:30:00Z',clinicalNote:authored[8],provenance:'owner_reported',observations:{trend:'better',appetite:'reduced',onsetAt:'2026-10-09T10:00:00Z'},visit:{vetReportedFindings:authored[9]},costs:[{label:authored[10],amountMinor:125050,currency:'THB',kind:'paid'}],narrative:'PRIVATE_NARRATIVE_CANARY',reflection:'PRIVATE_REFLECTION_CANARY',photos:[{url:'PRIVATE_PHOTO_CANARY'}]}],careTruncated:true,createdAt: '2026-10-10', expiresAt: '2026-10-17' };
+  else if (request.method === 'GET' && path === '/api/v1/share/public/passport/locale-test') data={document:{protocol:'passport-intake-v1',sessionId:'passport-locale',petId:'pet-public-locale',language:'th',pet:{name:authored[0],species:'cat',sex:'female',birthDate:'2023-04-05',weightKg:4.3},concern:authored[8],episodeId:null,answers:[{questionId:'onset',status:'answered',value:authored[6],attempts:1,updatedAt:'2026-10-13T03:30:00Z',question:{id:'onset',text:'เริ่มสังเกตเรื่องนี้เมื่อไร?',help:'บอกวันที่หรือช่วงคร่าว ๆ ได้',choices:[],rephrased:false}},{questionId:'medications',status:'unknown',value:'',attempts:2,updatedAt:'2026-10-13T03:32:00Z',question:{id:'medications',text:'มีรูปยา ฉลาก หรือชื่อยาที่ให้ครั้งล่าสุดไหม?',help:'',choices:[],rephrased:true}}],history:[],mediaIds:['passport-photo'],emergency:{urgent:false,codes:[],message:''},summary:{concern:authored[8],answeredCount:1,unknownQuestionIds:['medications'],notApplicableQuestionIds:[]},provenance:'owner_reported',confirmedAt:'2026-10-13T03:35:00Z',sessionVersion:5},expiresAt:'2026-10-20T03:35:00Z',photos:[{mediaId:'passport-photo',url:'/api/v1/share/public/passport/locale-test/media/passport-photo'}]};
+  else if(request.method==='GET'&&path==='/api/v1/share/public/passport/locale-test/media/passport-photo'){response.setHeader('Content-Type','image/png');response.setHeader('Cache-Control','private, no-store');response.end(Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+a1z8AAAAASUVORK5CYII=','base64'));return;}
   else if (request.method === 'POST' && path === '/api/v1/lostfound/public/locale-test/tips') {
     let raw = ''; for await (const chunk of request) raw += chunk;
     const body = JSON.parse(raw);
@@ -70,6 +72,8 @@ try {
       ['/lost/locale-test', authored[0], authored[0]], ['/s/locale-test', 'สรุปสุขภาพก่อนพบหมอ', 'Health summary for your vet'],
       ['/lost/invalid', 'ประกาศนี้ไม่พร้อมแสดง', 'This notice is unavailable'],
       ['/s/invalid', 'สรุปสุขภาพก่อนพบหมอ', 'Health summary for your vet'],
+      ['/passport/locale-test', 'เตรียมพบคุณหมอ', 'Prepared for the vet'],
+      ['/passport/invalid', 'เตรียมพบคุณหมอ', 'Prepared for the vet'],
     ]) {
       await page.goto(`${origin}${path}?lang=${locale}`, { waitUntil: 'networkidle' });
       await expect(page.getByRole('heading', { level: 1 })).toContainText(locale === 'en' ? english : thai);
@@ -92,6 +96,17 @@ try {
         expect(await page.locator('body').innerText()).not.toMatch(/PRIVATE_.*_CANARY/);
         await page.locator('.clinical-care-costs summary').click();
         await expect(page.locator('.clinical-care-costs')).toContainText('1,250.50');
+      }
+      if(path==='/passport/locale-test'){
+        await expect(page.getByRole('heading',{name:authored[0],exact:true})).toBeVisible();
+        await expect(page.getByText(authored[8],{exact:true}).first()).toBeVisible();
+        await expect(page.getByRole('button',{name:locale==='en'?'Print visit brief':'พิมพ์เตรียมพบหมอ'})).toBeVisible();
+        await expect(page.locator('.passport-brief-photos img')).toHaveCount(1);
+        await expect.poll(()=>page.locator('.passport-brief-photos img').evaluate(node=>node.complete&&node.naturalWidth>0)).toBe(true);
+        await page.locator('.passport-brief-answers summary').click();
+        await expect(page.getByRole('heading',{name:locale==='en'?'When did you first notice this?':'เริ่มสังเกตเรื่องนี้เมื่อไร?',exact:true})).toBeVisible();
+        expect(await page.locator('meta[name="robots"]').getAttribute('content')).toContain('noindex');
+        expect(await page.locator('meta[name="referrer"]').getAttribute('content')).toBe('no-referrer');
       }
       if (path === '/emergency') {
         await expect(page.getByRole('heading', { name: authored[3], exact: true })).toBeVisible();

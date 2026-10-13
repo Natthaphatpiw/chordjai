@@ -21,7 +21,7 @@ function pageQuery(query:Record<string,string>){
 // pg's JavaScript Date parser drops microseconds. Cursor fields must retain
 // PostgreSQL's full precision in a canonical UTC string on every response.
 const episodeTimestamps=`to_char(started_at AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS started_at,to_char(resolved_at AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS resolved_at`;
-const entryColumns=`e.id,e.pet_id,e.created_by,e.client_entry_id,e.episode_id,e.kind,e.title,to_char(e.observed_at AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS observed_at,e.narrative,e.clinical_note,e.observations,e.visit,e.share_with_clinic,e.share_costs,e.provenance,e.version,e.edited_by,e.created_at,e.updated_at,
+const entryColumns=`e.id,e.pet_id,e.created_by,e.client_entry_id,e.episode_id,e.kind,e.title,to_char(e.observed_at AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS observed_at,e.narrative,e.clinical_note,e.observations,e.visit,e.share_with_clinic,e.share_costs,e.provenance,e.passport_session_id,e.passport_clinic_note_id,e.passport_source,e.version,e.edited_by,e.created_at,e.updated_at,
   (public.can_write_pet(e.pet_id) AND (e.created_by=public.current_user_id() OR public.is_pet_owner(e.pet_id))) AS can_edit,
   e.created_by=public.current_user_id() AS can_edit_reflection,
   coalesce((SELECT r.content FROM health.care_reflections r WHERE r.entry_id=e.id),'') AS reflection,

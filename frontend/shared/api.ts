@@ -2,6 +2,18 @@ import { browserLocale, translate, type Locale } from './locale-core';
 import { automaticLiff, initializedLiff } from './liff-session';
 
 const englishErrors: Record<string, string> = {
+  PASSPORT_OWNER_REQUIRED: 'Only the pet owner with active service consent can manage this Passport.',
+  PASSPORT_NOT_FOUND: 'This Pet Passport is unavailable or you cannot access it.',
+  PASSPORT_CONFIRM_REQUIRED: 'Review and confirm the current Passport before sharing or recording the visit.',
+  PASSPORT_REVIEW_INCOMPLETE: 'Answer the remaining questions or mark them unknown before reviewing.',
+  PASSPORT_HISTORY_MISMATCH: 'Choose available care entries for the same pet.',
+  PASSPORT_QUESTION_NOT_ASKED: 'Answer the current question or edit a previously recorded answer.',
+  PASSPORT_VISIT_ALREADY_SAVED: 'This visit has already been saved. Edit its entry in the care diary.',
+  PASSPORT_NOTE_MISMATCH: 'Choose a clinic note belonging to this Passport.',
+  PASSPORT_GRANT_REQUIRED: 'The owner must confirm and publish this Passport and grant this clinic current access.',
+  PASSPORT_PHOTO_UNAVAILABLE: 'This photo is unavailable or is outside your current Passport access.',
+  PASSPORT_CHANGED: 'The Passport changed. Reload the current version before continuing.',
+  IDEMPOTENCY_CONFLICT: 'This request identifier was used with different information. Reload before trying again.',
   CAPTURE_DATE_INVALID: 'Enter a valid capture date that is not in the future.',
   CAPTURE_IMAGE_REUSED: 'This photo is already in a capture session. Upload a new photo.',
   CAPTURE_NOT_FOUND: 'This capture session is unavailable.',

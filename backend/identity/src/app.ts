@@ -91,7 +91,13 @@ app.get('/api/v1/identity/export', async c => {
     const followupConsentHistory=(await tx.query('select * from notify.followup_consent_events where user_id=$1',[actor.id])).rows;
     const followupHistory=(await tx.query('select id,status,message,reason_code,selected_pet_id,accepted_at,opened_at,created_at from notify.followup_deliveries where user_id=$1',[actor.id])).rows;
     const followupReplies=(await tx.query('select id,delivery_id,pet_id,content,source,correlation,created_at from notify.followup_replies where user_id=$1',[actor.id])).rows;
-    return { exportedAt: new Date().toISOString(), profile, pets, consents, health, journal, memoryBooks, memories, preferences, conversations, messages, triage, media, inbox, reminders, appointments, lostCases, petid, petidPhotos, shares,careEntries,careEpisodes,careReflections,careCosts,careMedia,petidCaptureSessions,petidCaptureSamples,petidTrainingConsents,petidTrainingConsentHistory,petidImageChecks,petidImageQuality,petidIndependentReviews,petidDatasetParticipation,followupPreferences,followupConsentHistory,followupHistory,followupReplies };
+    const passportSessions=(await tx.query('select * from health.passport_sessions where created_by=$1',[actor.id])).rows;
+    const passportTurns=(await tx.query('select * from health.passport_turns where owner_id=$1',[actor.id])).rows;
+    const passportSnapshots=(await tx.query('select * from health.passport_snapshots where owner_id=$1',[actor.id])).rows;
+    const passportPhotos=(await tx.query('select m.* from health.passport_snapshot_media m join health.passport_snapshots s on s.id=m.snapshot_id where s.owner_id=$1',[actor.id])).rows;
+    const passportLinks=(await tx.query('select id,session_id,snapshot_id,expires_at,revoked_at,created_at from health.passport_share_links where owner_id=$1',[actor.id])).rows;
+    const passportClinicNotes=(await tx.query('select n.id,n.session_id,n.snapshot_id,n.pet_id,n.clinic_id,n.author_id,n.findings,n.treatment,n.care_instructions,n.next_followup_at,n.created_at from health.passport_clinic_notes n where n.author_id=$1 or n.pet_id in(select id from pet.pets where owner_id=$1)',[actor.id])).rows;
+    return { exportedAt: new Date().toISOString(), profile, pets, consents, health, journal, memoryBooks, memories, preferences, conversations, messages, triage, media, inbox, reminders, appointments, lostCases, petid, petidPhotos, shares,careEntries,careEpisodes,careReflections,careCosts,careMedia,petidCaptureSessions,petidCaptureSamples,petidTrainingConsents,petidTrainingConsentHistory,petidImageChecks,petidImageQuality,petidIndependentReviews,petidDatasetParticipation,followupPreferences,followupConsentHistory,followupHistory,followupReplies,passportSessions,passportTurns,passportSnapshots,passportPhotos,passportLinks,passportClinicNotes };
   });
   c.header('Content-Disposition', 'attachment; filename="chordjai-personal-data.json"');
   return ok(c, camel(exported));

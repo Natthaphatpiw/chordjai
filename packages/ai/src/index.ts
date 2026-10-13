@@ -8,9 +8,9 @@ import { HttpError } from '@chordjai/service-kit';
 export const GENERATIVE_MODEL = 'gpt-6.1-sol';
 export const EMBEDDING_MODEL = 'text-embedding-3-small';
 export const PROMPT_VERSION = '2026-10-12.1';
-export type AiFeature = 'notification.followup' | 'assistant.chat' | 'journal.decorate' | 'triage.assess' | 'vision.photo_check' | 'ocr.vaccine_book' | 'ocr.microchip' | 'petid.signature' | 'petid.verify_pair' | 'petid.capture_review' | 'embed.petid';
-const limits: Record<AiFeature, number> = { 'notification.followup': 2, 'assistant.chat': 50, 'journal.decorate': 10, 'triage.assess': 10, 'vision.photo_check': 10, 'ocr.vaccine_book': 5, 'ocr.microchip': 10, 'petid.signature': 10, 'petid.verify_pair': 10, 'petid.capture_review': 10, 'embed.petid': 20 };
-const deadlines:Record<AiFeature,number>={'notification.followup':20000,'assistant.chat':45000,'journal.decorate':45000,'triage.assess':15000,'vision.photo_check':30000,'ocr.vaccine_book':45000,'ocr.microchip':20000,'petid.signature':30000,'petid.verify_pair':20000,'petid.capture_review':30000,'embed.petid':10000};
+export type AiFeature = 'passport.question' | 'notification.followup' | 'assistant.chat' | 'journal.decorate' | 'triage.assess' | 'vision.photo_check' | 'ocr.vaccine_book' | 'ocr.microchip' | 'petid.signature' | 'petid.verify_pair' | 'petid.capture_review' | 'embed.petid';
+const limits: Record<AiFeature, number> = { 'passport.question': 40, 'notification.followup': 2, 'assistant.chat': 50, 'journal.decorate': 10, 'triage.assess': 10, 'vision.photo_check': 10, 'ocr.vaccine_book': 5, 'ocr.microchip': 10, 'petid.signature': 10, 'petid.verify_pair': 10, 'petid.capture_review': 10, 'embed.petid': 20 };
+const deadlines:Record<AiFeature,number>={'passport.question':15000,'notification.followup':20000,'assistant.chat':45000,'journal.decorate':45000,'triage.assess':15000,'vision.photo_check':30000,'ocr.vaccine_book':45000,'ocr.microchip':20000,'petid.signature':30000,'petid.verify_pair':20000,'petid.capture_review':30000,'embed.petid':10000};
 let client: OpenAI | undefined;
 function openai() {
   if ((process.env.OPENAI_MODEL ?? GENERATIVE_MODEL) !== GENERATIVE_MODEL) throw new HttpError(503, 'MODEL_CONFIG_INVALID', 'OPENAI_MODEL must be gpt-6.1-sol');

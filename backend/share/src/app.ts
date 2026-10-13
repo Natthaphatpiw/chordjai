@@ -2,7 +2,9 @@ import { createHash,randomBytes } from 'node:crypto';
 import { z } from 'zod';
 import { withUser,withSystem,careSummary } from '@chordjai/db';
 import { createService,getActor,ok,jsonBody,uuid,HttpError } from '@chordjai/service-kit';
+import {registerPassportShareRoutes} from './passport';
 const app=createService('share'),base='/api/v1/share';
+registerPassportShareRoutes(app);
 app.get(`${base}/links`,async c=>ok(c,await withUser(getActor(c).id,async db=>(await db.query('SELECT id,pet_id,expires_at,revoked_at,created_at FROM share.links ORDER BY created_at DESC LIMIT 100')).rows)));
 app.post(`${base}/links`,async c=>{
   const actor=getActor(c),b=await jsonBody(c,z.object({petId:z.uuid(),expiresInDays:z.number().int().min(1).max(14).default(7),includeCare:z.boolean().default(false),includeCosts:z.boolean().default(false)}));const token=randomBytes(32).toString('base64url');

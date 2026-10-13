@@ -1,5 +1,11 @@
 # Deployment ของ ChordJai
 
+## Pet Passport Q&A — ฐานข้อมูล 21
+
+เพิ่ม migration `202610130021_pet_passport.sql` ก่อน deploy โค้ด health/clinic/share รุ่นนี้ ใช้ 1 repo/4 projects และ environment เดิมทั้งหมด ไม่ขยายสิทธิ์คลินิกเดิม เจ้าของเลือก `passport.read` และ `passport.write` แยก รูปให้หมอโหลดด้วยสิทธิ์ปัจจุบัน ลิงก์ที่แก้/เพิกถอนใช้ต่อไม่ได้ ขั้นตอนและ API อยู่ใน [PET_PASSPORT.md](PET_PASSPORT.md)
+
+ผลหลังพบหมอเข้าสู่ care diary และ reminder เดิมโดยเจ้าของยืนยัน ไม่ส่ง LINE ทันทีหรือเปิด optional follow-up เอง Scheduler และ webhook เดิมยังใช้ endpoint เดิม
+
 ## ตรวจภาพและ pipeline PetID — ฐานข้อมูล 20
 
 ใช้ repo/4 projects/LIFF/environment backend เดิม เพิ่ม migrations 19–20 ก่อน deploy backend รุ่นนี้ ไม่รัน bootstrap กับฐานข้อมูลที่มีข้อมูลแล้ว ผู้ใช้เลือกส่งตรวจภาพด้วย OpenAI ส่วน admin ตรวจหลักฐานและสร้าง manifest ได้เมื่อเจ้าของยังยินยอม ปิดการฝึกอัตโนมัติไว้ทั้งหมด

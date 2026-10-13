@@ -20,6 +20,7 @@ export interface CareVisit {
 }
 export interface CareCost { label: string; amountMinor: number; currency: 'THB' | 'USD'; kind: 'paid' | 'estimate'; }
 export interface CarePhoto { mediaId: string; url: string; }
+export interface PassportCareSource {kind:'owner_confirmed_clinic_note'|'owner_reported_visit';sessionId:string;snapshotId:string;clinicNoteId?:string;clinicId?:string;clinicName?:string;clinicianAuthoredAt?:string;confirmedBy:string;confirmedAt:string;}
 export interface CareEntryInput {
   episodeId: string | null;
   kind: CareKind;
@@ -47,6 +48,7 @@ export interface CareEntry extends CareEntryInput {
   photos: CarePhoto[];
   canEdit: boolean;
   canEditReflection: boolean;
+  passportSource?:PassportCareSource|null;
 }
 export interface CareEpisode {
   id: string;
@@ -73,6 +75,7 @@ export interface CareSummaryEntry {
   episode: Pick<CareEpisode, 'id' | 'title' | 'status'> | null;
   provenance: 'owner_reported';
   costs?: CareCost[];
+  passportSource?:PassportCareSource|null;
 }
 export interface CareSummary { entries: CareSummaryEntry[]; generatedAt: string; provenance: 'owner_reported'; truncated?: boolean; sharedOnly?: boolean; }
 /** This bridge only contains items explicitly selected in the memory dialog. */

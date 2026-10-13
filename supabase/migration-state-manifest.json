@@ -118,5 +118,11 @@
     "file": "202610120020_petid_dataset_exports.sql",
     "checksum": "cebe074ba7dc4f25cdc95fc03ee4c7044128cc367e1c707c4213c2a9e0f4738e",
     "fingerprint": "0c2dfee5c0d1fcd947fea70cbeca3968"
+  },
+  {
+    "version": "202610130021",
+    "file": "202610130021_pet_passport.sql",
+    "checksum": "e1761c820d58375ed29380eedcf74b6d8e0588c40a877200d72c14570109b06c",
+    "fingerprint": "5ff3a6478e28e83e84c4ffb6d5f74478"
   }
 ]

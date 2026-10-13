@@ -11,6 +11,7 @@ import { api, json, lineLogin, autoLineLogin, clearLineSession, ApiError, messag
 import { useLocale, LanguageSwitcher } from './locale';
 import { CareSummary,type ClinicalCareEntry } from './care-summary';
 import PetidReview from './petid-review';
+import { ClinicPassport } from './clinic-passport';
 import { translate, localizedHref, type Locale } from './locale-core';
 
 type PortalKind = 'clinic' | 'admin';
@@ -37,6 +38,7 @@ type Clinic = { id: string; name: string; district: string; phone: string; addre
 const clinicTabs = (t: Translator) => [
   { id: 'appointments', label: t("คำขอนัด", "Appointments"), icon: CalendarDays, help: t("เริ่มจากคำขอของเจ้าของ แล้วเตรียมการดูแลให้พร้อม", "Start with the owner's request and prepare for their pet's care.") },
   { id: 'summary', label: t("สมุดสุขภาพ", "Health journal"), icon: FileHeart, help: t("ข้อมูลที่เจ้าของเลือกให้คลินิกอ่าน เพื่อดูแลต่อได้อย่างเข้าใจ", "Records the owner has shared, so your clinic can continue their care.") },
+  { id: 'passport', label: 'Pet Passport', icon: BookOpen, help: t('คำตอบที่เจ้าของตรวจแล้ว พร้อมข้อมูลสำหรับการพบหมอและดูแลต่อ', 'Owner-confirmed answers for the visit and continuing care.') },
   { id: 'membership', label: t("คลินิกของฉัน", "My clinics"), icon: Hospital, help: t("พื้นที่ทำงานและสิทธิ์ที่คุณได้รับในแต่ละคลินิก", "Your workspace and access within each clinic.") },
 ];
 const adminTabs = (t: Translator) => [
@@ -64,6 +66,7 @@ export default function Portal({ kind }: { kind: PortalKind }) {
   const [jobs, setJobs] = useState<Job[]>([]);
   const [requests, setRequests] = useState<AiRequest[]>([]);
   const [petId, setPetId] = useState('');
+  const [passportPetId,setPassportPetId]=useState(''),[passportClinicId,setPassportClinicId]=useState('');
   const [summary, setSummary] = useState<Summary | null>(null);
   const [summaryCosts,setSummaryCosts]=useState(false);
   const [appointmentFilter, setAppointmentFilter] = useState('requested');
@@ -172,6 +175,7 @@ export default function Portal({ kind }: { kind: PortalKind }) {
     catch (caught) { if(current(run))setError(caught); }
     finally { if(current(run))setBusy(false); }
   }
+  function openPassport(id:string,clinicId:string){setPassportPetId(id);setPassportClinicId(clinicId);selectTab('passport');}
 
   async function jobAction(id: string, action: 'replay' | 'discard') {
     const run = asyncEpoch.current;
@@ -230,7 +234,7 @@ export default function Portal({ kind }: { kind: PortalKind }) {
           <div className="portal-appointment-list">
             {filteredAppointments.map(item => <article className="portal-appointment" key={item.id}>
               <div className="portal-appointment-date"><CalendarDays size={19} /><time dateTime={item.requestedAt}><b>{dateForLocale(item.requestedAt, locale)}</b><span>{timeForLocale(item.requestedAt, locale)} {t("น.", "")}</span></time></div>
-              <div className="portal-appointment-detail"><span className="portal-clinic-name">{memberships.find(role => role.clinicId === item.clinicId)?.name}</span><h3>{item.reason}</h3><div className="portal-pet-reference"><PawPrint size={14} /><span title={item.petId}>{t("รหัสน้อง", "Pet ID")} {item.petId.slice(0, 8)}</span><button className="portal-text-button" type="button" disabled={busy} onClick={() => void openSummary(item.petId)}>{t("เปิดสมุดสุขภาพ", "Open health journal")}<ArrowRight size={14} /></button></div></div>
+              <div className="portal-appointment-detail"><span className="portal-clinic-name">{memberships.find(role => role.clinicId === item.clinicId)?.name}</span><h3>{item.reason}</h3><div className="portal-pet-reference"><PawPrint size={14} /><span title={item.petId}>{t("รหัสน้อง", "Pet ID")} {item.petId.slice(0, 8)}</span><button className="portal-text-button" type="button" disabled={busy} onClick={() => void openSummary(item.petId)}>{t("เปิดสมุดสุขภาพ", "Open health journal")}<ArrowRight size={14} /></button><button className="portal-text-button" type="button" disabled={busy} onClick={()=>openPassport(item.petId,item.clinicId)}>{t('เปิด Passport','Open Passport')}<ArrowRight size={14}/></button></div></div>
               <div className="portal-appointment-manage"><Status status={item.status} /><div className="portal-row-actions">
                 {item.status === 'requested' ? <><button disabled={busy} type="button" onClick={() => void changeAppointment(item.id, 'accepted')} className="portal-button small"><Check size={15} />{t("ตอบรับ", "Accept")}</button><button disabled={busy} type="button" onClick={() => void changeAppointment(item.id, 'declined')} className="portal-button small secondary">{t("ปฏิเสธ", "Decline")}</button></> : item.status === 'accepted' ? <button className="portal-button small secondary" type="button" disabled={busy} onClick={() => void changeAppointment(item.id, 'completed')}><Check size={15} />{t("ตรวจแล้ว", "Completed")}</button> : null}
               </div></div>
@@ -259,6 +263,7 @@ export default function Portal({ kind }: { kind: PortalKind }) {
         <div className="portal-panel-footnote"><ShieldCheck size={16} /><span>{t("เจ้าของถอนสิทธิ์ได้ทุกเมื่อ และระบบบันทึกการเปิดสมุดสุขภาพแต่ละครั้ง", "The owner can revoke access at any time. Each health journal view is recorded.")}</span></div>
       </section> : null}
 
+      {kind === 'clinic' && tab === 'passport' ? <ClinicPassport key={`${passportPetId}:${passportClinicId}`} memberships={memberships} initialPetId={passportPetId} initialClinicId={passportClinicId}/> : null}
       {kind === 'clinic' && tab === 'membership' ? <section className="portal-panel">
         <div className="portal-section-title"><div><span className="portal-eyebrow">{t("พื้นที่ทำงานของคุณ", "Your workspace")}</span><h2>{t("คลินิกที่ได้รับสิทธิ์", "Clinics you can access")}</h2></div><span className="portal-count">{memberships.length} {t("คลินิก", "Clinics")}</span></div>
         <div className="portal-membership-list">{memberships.map(item => <article className="portal-membership" key={item.clinicId}><span className="portal-membership-icon"><Hospital size={25} /></span><div><h3>{item.name}</h3><p>{roleLabel(item.role, locale)}</p><span className="portal-reference">{t("รหัสคลินิก", "Clinic ID")} <code>{item.clinicId}</code></span></div><span className="portal-membership-verified"><ShieldCheck size={16} />{t("มีสิทธิ์เข้าถึง", "Access granted")}</span></article>)}</div>
@@ -328,6 +333,7 @@ function Status({ status, domain }: { status: string; domain?: 'job' | 'ai' }) {
 }
 function statusLabel(status: string, t: Translator, domain?: 'job' | 'ai') {
   const labels: Record<string, string> = {
+    'passport.question': t('คำถามเตรียมพบหมอ', 'Visit preparation questions'),
     requested: t("รอตอบรับ", "Pending"), accepted: t("ตอบรับแล้ว", "Accepted"), declined: t("ปฏิเสธ", "Declined"),
     cancelled: t("ยกเลิก", "Cancelled"), completed: domain === 'job' ? t('สำเร็จ', 'Completed') : t("ตรวจแล้ว", "Completed"),
     queued: t("เข้าคิว", "Queued"), running: t("กำลังทำ", "Running"), done: t("สำเร็จ", "Succeeded"),

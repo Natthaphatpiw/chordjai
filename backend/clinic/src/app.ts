@@ -1,7 +1,9 @@
 import { z } from 'zod';
 import { withUser,withSystem } from '@chordjai/db';
 import { createService,getActor,requireRole,ok,jsonBody,uuid,HttpError } from '@chordjai/service-kit';
+import { registerClinicPassportRoutes } from './passport';
 const app=createService('clinic');
+registerClinicPassportRoutes(app);
 app.get('/api/v1/clinic/grants',async c=>{
   const actor=getActor(c),petId=uuid(c.req.query('petId'));
   return ok(c,await withUser(actor.id,async db=>(await db.query('SELECT g.id,g.pet_id,g.clinic_id,c.name AS clinic_name,g.scopes,g.expires_at,g.revoked_at,g.created_at FROM identity.grants g JOIN clinic.clinics c ON c.id=g.clinic_id WHERE g.pet_id=$1 AND public.is_pet_owner(g.pet_id) ORDER BY g.created_at DESC LIMIT 100',[petId])).rows));
@@ -27,7 +29,7 @@ app.patch('/api/v1/clinic/appointments/:id',async c=>{
   });return ok(c,row);
 });
 app.post('/api/v1/clinic/grants',async c=>{
-  const actor=getActor(c),b=await jsonBody(c,z.object({petId:z.uuid(),clinicId:z.uuid(),scopes:z.array(z.enum(['summary.read','vaccines.write','due_list.read','care.read'])).min(1),expiresInDays:z.number().int().min(1).max(14).default(7)}));
+  const actor=getActor(c),b=await jsonBody(c,z.object({petId:z.uuid(),clinicId:z.uuid(),scopes:z.array(z.enum(['summary.read','vaccines.write','due_list.read','care.read','passport.read','passport.write'])).min(1),expiresInDays:z.number().int().min(1).max(14).default(7)}));
   const row=await withUser(actor.id,async db=>(await db.query("INSERT INTO identity.grants(pet_id,clinic_id,granted_by,scopes,expires_at) VALUES($1,$2,$3,$4,now()+($5*interval '1 day')) RETURNING *",[b.petId,b.clinicId,actor.id,b.scopes,b.expiresInDays])).rows[0]);return ok(c,row,201);
 });
 app.delete('/api/v1/clinic/grants/:id',async c=>{await withUser(getActor(c).id,db=>db.query('UPDATE identity.grants SET revoked_at=now() WHERE id=$1',[uuid(c.req.param('id'))]));return ok(c,{revoked:true});});

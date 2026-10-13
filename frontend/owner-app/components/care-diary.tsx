@@ -9,7 +9,9 @@ import type { Pet } from '../lib/types';
 import type { CareEntry, CareEpisode, CareEpisodeStatus, CareKind, CareMemoryDraft, CareObservations, CareSummary, CareSummaryEntry } from '../lib/care-types';
 import { bangkokLocalDateTime, CARE_PAGE_SIZE, CARE_PHOTO_LIMIT, clinicalProjection, draftFromEntry, freshCareDraft, mergeCareEntries, moneyTotals, orderCareEntries, orderCareEpisodes, payloadFromDraft, safeCarePhoto, validateCareDraft, type CareEntryDraft, type CareValidation } from './care-diary-model';
 import { Busy, Empty, ErrorBox, Modal, Notice } from './ui';
+import dynamic from 'next/dynamic';
 import './care-diary.css';
+const PetPassport = dynamic(() => import('./pet-passport'), { loading: () => <Busy/> });
 
 export interface CareDiaryProps {
   pet: Pet;
@@ -18,6 +20,8 @@ export interface CareDiaryProps {
   onCheckUrgency: () => void;
   onShare?: () => void;
   initialComposer?: boolean;
+  initialPassport?: boolean;
+  onPassportClose?:()=>void;
 }
 type Translator = (thai: string, english: string) => string;
 type DemoState = { schema: 1; entries: CareEntry[]; episodes: CareEpisode[] };
@@ -41,7 +45,7 @@ async function demoPhoto(file: File): Promise<string> {
   } finally { bitmap.close(); }
 }
 
-export default function CareDiary({pet,demo,onMemory,onCheckUrgency,onShare,initialComposer=false}:CareDiaryProps) {
+export default function CareDiary({pet,demo,onMemory,onCheckUrgency,onShare,initialComposer=false,initialPassport=false,onPassportClose}:CareDiaryProps) {
   const {locale,t}=useLocale();
   const [entries,setEntries]=useState<CareEntry[]>([]), [episodes,setEpisodes]=useState<CareEpisode[]>([]);
   const [hasOlderEntries,setHasOlderEntries]=useState(false), [hasOlderEpisodes,setHasOlderEpisodes]=useState(false);
@@ -52,6 +56,7 @@ export default function CareDiary({pet,demo,onMemory,onCheckUrgency,onShare,init
   const [photoQueue,setPhotoQueue]=useState<PhotoUploadDraft[]>([]), [photoViewer,setPhotoViewer]=useState<{url:string;title:string}|null>(null);
   const photoPreviews=useRef(new Set<string>());
   const [summary,setSummary]=useState<CareSummary|null>(null), [summaryCosts,setSummaryCosts]=useState(false), [summarySelection,setSummarySelection]=useState<string[]>([]);
+  const [passportOpen,setPassportOpen]=useState(initialPassport);
   const [memory,setMemory]=useState<CareEntry|null>(null), [memoryText,setMemoryText]=useState(false), [memoryPhoto,setMemoryPhoto]=useState('');
   const [episodeEditing,setEpisodeEditing]=useState<CareEpisode|null>(null), [episodeStatus,setEpisodeStatus]=useState<CareEpisodeStatus>('ongoing');
   const generation=useRef(0), localeRef=useRef(locale), creationId=useRef(''), episodeCreationId=useRef(''), submission=useRef<{fingerprint:string;key:string}|null>(null), initialOpened=useRef(false);
@@ -76,6 +81,12 @@ export default function CareDiary({pet,demo,onMemory,onCheckUrgency,onShare,init
   const totals=moneyTotals(entries), openEpisodes=episodes.filter(item=>item.status!=='resolved');
   const dueEntries=entries.filter(entry=>entry.visit?.nextFollowupAt && new Date(entry.visit.nextFollowupAt).getTime()>=Date.now()-24*60*60*1000).sort((a,b)=>(a.visit?.nextFollowupAt??'').localeCompare(b.visit?.nextFollowupAt??'')).slice(0,3);
   function persist(nextEntries:CareEntry[],nextEpisodes:CareEpisode[]){if(demo)localStorage.setItem(storageKey,JSON.stringify({schema:1,entries:nextEntries,episodes:nextEpisodes} satisfies DemoState));}
+  async function afterPassportVisit(savedEntry?:CareEntry,savedEpisode?:CareEpisode){
+    if(demo&&savedEntry){const nextEntries=orderCareEntries([savedEntry,...entries.filter(item=>item.id!==savedEntry.id)]),nextEpisodes=savedEpisode?orderCareEpisodes([savedEpisode,...episodes.filter(item=>item.id!==savedEpisode.id)]):episodes;persist(nextEntries,nextEpisodes);setEntries(nextEntries);setEpisodes(nextEpisodes);return;}
+    const current=generation.current;
+    try{const [next,nextEpisodes]=await Promise.all([api<CareEntry[]>(`/health/care/entries?petId=${encodeURIComponent(pet.id)}&limit=${CARE_PAGE_SIZE}`),api<CareEpisode[]>(`/health/care/episodes?petId=${encodeURIComponent(pet.id)}&limit=${CARE_PAGE_SIZE}`)]);if(generation.current===current){setEntries(orderCareEntries(next));setEpisodes(orderCareEpisodes(nextEpisodes));setHasOlderEntries(next.length===CARE_PAGE_SIZE);setHasOlderEpisodes(nextEpisodes.length===CARE_PAGE_SIZE);}}
+    catch(cause){if(generation.current===current)setError(messageOf(cause,localeRef.current));}
+  }
   function closeComposer(){if(busy)return;if(dirty&&!window.confirm(t('ยังไม่ได้บันทึก ต้องการทิ้งการแก้ไขนี้หรือไม่?','Discard the changes you have not saved?')))return;clearPhotoQueue();setDraft(null);setEditing(null);setDirty(false);setConflict(false);setError('');}
   function openComposer(kind:CareKind,episodeId:string|null=null){if(busy)return;clearPhotoQueue();creationId.current=crypto.randomUUID();episodeCreationId.current=crypto.randomUUID();submission.current=null;setDraft(freshCareDraft(kind,episodeId));setEditing(null);setDirty(false);setRetryLocked(false);setConflict(false);setError('');setNotice('');}
   function openEdit(entry:CareEntry){if(!entry.canEdit||busy)return;clearPhotoQueue();submission.current=null;setEditing(entry);setDraft(draftFromEntry(entry));setDirty(false);setRetryLocked(false);setConflict(false);setError('');setNotice('');}
@@ -182,10 +193,11 @@ export default function CareDiary({pet,demo,onMemory,onCheckUrgency,onShare,init
     {notice?<div className="care-saved" role="status"><Check size={18}/>{notice}</div>:null}
     {error&&!draft&&!summary&&!episodeEditing?<ErrorBox message={error}/>:null}
     {loading?<Busy label={t('เปิดเรื่องราวของน้อง…','Opening your pet’s diary…')}/>:<div className="care-layout"><div className="care-main">
-      <div className="care-timeline-heading"><h2>{t('ทุกเรื่องที่อยากจำ','The story so far')}</h2><button className="text-button" onClick={()=>void openSummary()} disabled={busy||!entries.length}><ClipboardList size={18}/>{t('เตรียมพบคุณหมอ','Prepare for the vet')}</button></div>
+      <div className="care-timeline-heading"><h2>{t('ทุกเรื่องที่อยากจำ','The story so far')}</h2><div className="care-passport-actions"><button className="text-button" onClick={()=>setPassportOpen(true)} disabled={busy}><ClipboardList size={18}/>{t('เตรียมพบคุณหมอ','Prepare for the vet')}</button>{entries.length?<button className="text-button" onClick={()=>void openSummary()} disabled={busy}>{t('สรุปสุขภาพที่บันทึกไว้','Recorded health summary')}</button>:null}</div></div>
       <div className="care-filters"><div role="group" aria-label={t('กรองประเภทบันทึก','Filter updates')}>{(['all','daily','symptom','visit','followup'] as const).map(kind=><button key={kind} aria-pressed={kindFilter===kind} onClick={()=>setKindFilter(kind)}>{kind==='all'?t('ทั้งหมด','All'):kindLabel(kind,t)}</button>)}</div><label className="care-episode-filter"><span className="sr-only">{t('กรองเรื่องที่ดูแล','Filter care episodes')}</span><select aria-label={t('กรองเรื่องที่ดูแล','Filter care episodes')} value={episodeFilter} onChange={event=>setEpisodeFilter(event.target.value)}><option value="all">{t('ทุกเรื่องที่ดูแล','All care episodes')}</option><option value="none">{t('ยังไม่เชื่อมกับเรื่องที่ดูแล','No care episode')}</option>{episodes.map(item=><option key={item.id} value={item.id}>{item.title}</option>)}</select></label></div>
       {!visible.length?<Empty icon={<BookHeart size={34}/>} title={entries.length?t('ยังไม่มีบันทึกในหมวดนี้','No updates in this view'):t('เริ่มจากเรื่องเล็ก ๆ วันนี้ก็ได้','Start with one little moment today')} detail={t('พิมพ์สั้น ๆ ว่าน้องเป็นอย่างไร ไม่ต้องกรอกข้อมูลครบทุกช่อง','A few words about how your pet is doing are enough. You do not need to fill in every field.')}/>:<ol className="care-timeline">{visible.map(entry=>{const Icon=icons[entry.kind], episode=episodes.find(item=>item.id===entry.episodeId);return <li className="care-entry" key={entry.id}>
         <div className="care-entry-top"><span className="care-type"><Icon size={17}/>{kindLabel(entry.kind,t)}</span><time dateTime={entry.observedAt}>{reportDate(entry.observedAt,locale)}</time></div><h3>{entry.title}</h3><p className="care-narrative">{entry.narrative}</p>
+        {entry.passportSource?<p className="care-passport-source"><ClipboardList size={14}/>{entry.passportSource.kind==='owner_confirmed_clinic_note'?t('เจ้าของตรวจและบันทึกผลโดยอ้างอิงโน้ตคลินิก','Owner-reviewed update linked to a clinic note'):t('เจ้าของยืนยันผลหลังพบหมอจาก Passport','Owner-confirmed visit results from Passport')}</p>:null}
         {episode?<button className="care-episode-tag" onClick={()=>setEpisodeFilter(episode.id)}>{episode.title}<span>{episodeLabel(episode.status,t)}</span></button>:null}
         {observationText(entry.observations,t,locale)?<p className="care-observation-copy">{observationText(entry.observations,t,locale)}</p>:null}
         {entry.photos?.length?<div className="care-entry-photos">{entry.photos.map((photo,index)=>{const url=safeCarePhoto(photo.url,demo);return url?<button type="button" key={photo.mediaId} aria-label={t(`ดูรูปประกอบบันทึก ${index+1} ขนาดเต็ม`,`View update photo ${index+1} in full`)} onClick={()=>setPhotoViewer({url,title:t(`รูปประกอบบันทึก ${index+1}`,`Update photo ${index+1}`)})}><img src={url} alt={t(`รูปประกอบบันทึก ${index+1}`,`Update photo ${index+1}`)} loading="lazy"/></button>:null;})}</div>:null}
@@ -201,6 +213,7 @@ export default function CareDiary({pet,demo,onMemory,onCheckUrgency,onShare,init
       <button className="care-urgency" onClick={onCheckUrgency}><Siren size={19}/><span>{t('กังวลเรื่องอาการตอนนี้?','Worried about symptoms now?')}<small>{t('เปิดตัวช่วยดูความเร่งด่วน','Open the urgency check')}</small></span><ArrowRight size={17}/></button>
     </aside></div>}
 
+    {passportOpen?<PetPassport pet={pet} demo={demo} entries={entries} episodes={episodes} onClose={()=>{setPassportOpen(false);onPassportClose?.();}} onAfterVisit={(entry,episode)=>void afterPassportVisit(entry,episode)}/>:null}
     {draft?<Modal title={editing?t('แก้ไขบันทึกของน้อง','Edit your pet’s update'):t('วันนี้มีอะไรอยากเล่า?','What happened today?')} onClose={closeComposer} className="care-composer-modal"><form onSubmit={event=>{event.preventDefault();void save();}}>
       <div className="care-composer-scroll"><fieldset disabled={busy||retryLocked}><legend className="sr-only">{t('รายละเอียดบันทึก','Update details')}</legend><div className="care-composer-kinds" role="group" aria-label={t('ประเภทบันทึก','Update type')}>{(['daily','symptom','visit','followup'] as const).map(kind=>{const Icon=icons[kind];return <button type="button" key={kind} aria-pressed={draft.kind===kind} onClick={()=>patchDraft({kind})}><Icon size={17}/>{kindLabel(kind,t)}</button>;})}</div>
       <label className="field care-main-field">{t(`เล่าเรื่องของ${pet.name}`,`Tell us about ${pet.name}`)}<textarea aria-label={t(`เล่าเรื่องของ${pet.name}`,`Tell us about ${pet.name}`)} required rows={4} maxLength={6000} value={draft.narrative} onChange={event=>patchDraft({narrative:event.target.value})} placeholder={t('วันนี้น้องเป็นยังไง มีอะไรเกิดขึ้น หรืออยากเล่าอะไรให้เราฟัง','How is your pet today? What happened, or what would you like to tell us?')}/><small>{t('ครอบครัวที่ได้รับสิทธิ์ดูข้อมูลน้องอ่านเรื่องเล่านี้ได้ หากอยากระบายเป็นส่วนตัว ใช้พื้นที่ระบายของฉันด้านล่าง','Family members with access to your pet can read this story. Use My private space below for feelings you want to keep to yourself.')}</small></label>

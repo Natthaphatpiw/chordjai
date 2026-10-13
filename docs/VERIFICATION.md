@@ -1,4 +1,15 @@
-# ผลตรวจระบบ — อัปเดต 12 ตุลาคม 2026
+# ผลตรวจระบบ — อัปเดต 13 ตุลาคม 2026
+
+## Pet Passport Q&A และการดูแลหลังพบหมอ — 13 ตุลาคม 2026
+
+- **224 unit tests และ 152 isolated PostgreSQL/API tests ผ่าน รวม 376 ข้อ** รวมการถามต่อ/ถามให้ง่ายเมื่อไม่ทราบ, version conflict, retry ไม่สร้างซ้ำ, owner confirmation, clinic role/scope, selected-photo access และคำตอบ/รูป/ความรู้สึกส่วนตัวที่ไม่ได้เลือกไม่รั่วไปในฉบับแชร์
+- SQL/RLS, append-only source history, ยกเลิกฉบับเก่าหลังแก้ข้อมูล/ลบรูป/ถอนสิทธิ์, account cascade, concurrent writes และ known-prefix upgrades ผ่าน พร้อมตรวจเส้นทาง **20→21→21** ที่รักษา sentinel เดิม และ fingerprint ของ migration 1–20 ไม่เปลี่ยน
+- ผลหลังพบหมอสร้างไดอารี่และนัดติดตามเพียงครั้งเดียว เชื่อม care episode เดิมหรือสร้างเรื่องการดูแลใหม่ แยก clinic-authored note จากข้อมูลที่เจ้าของตรวจ/แก้แล้ว รายการติดตามเข้า context ของ LINE เฉพาะสิทธิ์และแหล่งข้อมูลที่เปิดรับอยู่ การทดสอบหยุดที่ preview ไม่ส่งข้อความจริง
+- TypeScript ทั้ง workspace, production builds Owner/Clinic/Admin, runtime dependency declarations และ isolated production startup ของทั้ง 14 service entrypoints ผ่าน
+- Browser fixtures ของ Owner/Clinic ผ่านโฟลว์ Q&A→ตรวจ→ยืนยัน→เลือกแชร์→ผลหลังพบหมอ ทั้งไทย/อังกฤษและจอมือถือ รวม draft recovery, photo retry, grant controls และ Blob URL cleanup; public SSR/ภาษา/selected photos/หน้าไม่พร้อมใช้งาน/robots/referrer ผ่าน ตรวจหน้าสรุปด้วย Computer Use และเก็บภาพข้อมูลจำลองใน `.verification/passport/`
+- Supabase จริงอัปเกรดจากรุ่น 20 เป็น **21** สำเร็จ read-only diagnostic ยืนยัน 21 migrations และ fingerprint `5ff3a6478e28e83e84c4ffb6d5f74478` โดยไม่สร้างข้อมูลผู้ใช้ทดสอบหรือพิมพ์ credentials
+
+รอบนี้ไม่ได้เรียก OpenAI จริง ส่ง LINE หาผู้ใช้จริง หรือยืนยันผลทางคลินิก/การใช้งานบน LINE iOS/Android จริง หลักฐานและ log อยู่ใน ignored `.verification/passport/` ส่วนสคริปต์และ source อยู่ใน Git ดู [คู่มือ Pet Passport](PET_PASSPORT.md)
 
 
 ## Care Diary: แกน B2C และข้อมูลสำหรับคลินิก — 12 ตุลาคม 2026

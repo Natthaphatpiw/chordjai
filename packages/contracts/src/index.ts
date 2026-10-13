@@ -1,5 +1,6 @@
 import { z } from 'zod';
 export * from './care';
+export * from './passport';
 export * from './followup';
 export * from './petid-research';
 export * from './petid-review';
@@ -8,3 +9,5 @@ export const recordSchema=z.object({petId:z.uuid(),kind:z.enum(['vaccine','weigh
 export const journalElementSchema=z.object({id:z.string().min(1).max(80),type:z.enum(['text','sticker','photo']),x:z.number().min(0).max(800),y:z.number().min(0).max(1422),width:z.number().min(10).max(800),height:z.number().min(10).max(1422),rotation:z.number().min(-180).max(180),content:z.string().max(4000),color:z.string().regex(/^#[0-9a-fA-F]{6}$/).optional()});
 export const journalThemeSchema=z.object({background:z.string().regex(/^#[0-9a-fA-F]{6}$/),font:z.enum(['sans','serif','handwritten']),accent:z.string().regex(/^#[0-9a-fA-F]{6}$/)});
 export const journalPageSchema=z.object({title:z.string().trim().min(1).max(120),theme:journalThemeSchema,elements:z.array(journalElementSchema).max(100),canvasHeight:z.union([z.literal(1000),z.literal(1422)]).default(1000),storyDate:z.iso.date().nullable().optional(),location:z.string().trim().max(160).default(''),pageOrder:z.number().int().min(0).default(0)});
+
+export * from './passport-plan';

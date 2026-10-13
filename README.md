@@ -6,6 +6,8 @@
 
 เพิ่ม [คลังภาพ PetID ต่างช่วงเวลาและสิทธิ์ฝึกโมเดลแยก](docs/PETID_DATASET.md) และ [LINE follow-up แบบเลือกเปิดรับ](docs/PERSONALIZED_FOLLOWUPS.md) ซึ่งใช้ข้อมูลที่เจ้าของเลือกเพื่อถามต่ออย่างพอดี ทั้งสองฟีเจอร์ใช้ migration 17–18
 
+เพิ่ม **Pet Passport แบบ Q&A** ที่ **สมุดสุขภาพ → เตรียมพบคุณหมอ**: ถามต่อจากคำตอบ บันทึกสิ่งที่ไม่ทราบไว้ตามจริง เจ้าของตรวจคำตอบและเลือกรูปก่อนยืนยันและแชร์ คุณหมออ่านสรุป คำตอบต้นฉบับ และรูปที่เลือกได้ ผลหลังพบหมอที่เจ้าของตรวจแล้วเชื่อมกลับเข้าไดอารี่ เรื่องการดูแล และการติดตาม LINE ที่เลือกเปิดรับ ดู [คู่มือ Pet Passport](docs/PET_PASSPORT.md) ใช้ migration 21 โดยไม่เพิ่ม repo, LIFF หรือ environment variables
+
 ## เริ่มดูระบบ
 
 ```bash
@@ -23,7 +25,7 @@ npm run dev:owner
 4. คัดลอก `.env.example` ของแต่ละ frontend เป็น `.env.local` แล้วตั้ง `API_ORIGIN=http://localhost:8787` สำหรับ local
 5. รัน `npm run dev` เพื่อเปิด API+owner, `npm run dev:clinic` หรือ `npm run dev:admin` เพื่อเปิด portal
 
-ยังไม่เรียก OpenAI จริงตามที่ผู้ใช้เลือกให้ใส่ API key ภายหลัง การทดสอบใช้ PostgreSQL/pgvector แยกต่างหาก ส่วน Supabase ของโครงการอัปเกรดถึง migration 20 และตรวจ fingerprint แล้ว โดยไม่สร้างบันทึกผู้ใช้ทดสอบใน production
+การทดสอบใช้ provider mocks และ PostgreSQL/pgvector แยกต่างหาก ส่วน Supabase ของโครงการอัปเกรดถึง migration 21 และตรวจ fingerprint แล้ว โดยไม่สร้างบันทึกผู้ใช้ทดสอบใน production หรือส่ง LINE หาผู้ใช้จริง
 
 ## Git และ Vercel
 
@@ -56,11 +58,14 @@ npm run test:db -- --http
 npm run test:ui
 node scripts/test-portals-ui.mjs
 node scripts/test-care-diary-ui.mjs
+node scripts/test-passport-owner-ui.mjs
+node scripts/test-passport-clinic-ui.mjs
+node scripts/test-public-locales.mjs
 node scripts/check-runtime-dependencies.mjs
 node scripts/test-runtime-startup.mjs
 ```
 
-`test:db` ต้องมี Docker และสร้าง Postgres/pgvector ชั่วคราวของตัวเอง ไม่ใช้ฐานข้อมูลผู้ใช้ รวมการทดสอบอัปเกรดและ HNSW query plan เพิ่ม `--http` เพื่อรัน 68 API integration tests ในฐานข้อมูลชั่วคราวเดียวกัน สำหรับฐานข้อมูลทดสอบ local ที่มี schema อยู่แล้ว ใช้ `TEST_DATABASE_URL` ที่ชี้ localhost เท่านั้น:
+`test:db` ต้องมี Docker และสร้าง Postgres/pgvector ชั่วคราวของตัวเอง ไม่ใช้ฐานข้อมูลผู้ใช้ รวมการทดสอบอัปเกรดและ HNSW query plan เพิ่ม `--http` เพื่อรัน 152 API integration tests ในฐานข้อมูลชั่วคราวเดียวกัน สคริปต์ browser ของ Passport ใช้ข้อมูลจำลองตาม fixture ในไฟล์และต้องเปิด frontend local ที่ตรงกับแต่ละสคริปต์ สำหรับฐานข้อมูลทดสอบ local ที่มี schema อยู่แล้ว ใช้ `TEST_DATABASE_URL` ที่ชี้ localhost เท่านั้น:
 
 ```bash
 TEST_DATABASE_URL=postgresql://postgres@127.0.0.1:TEST_PORT/postgres npm test

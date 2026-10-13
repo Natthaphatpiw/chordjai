@@ -2,6 +2,12 @@
 
 ใช้ Supabase project เดียวกับ PostgreSQL + pgvector รหัสผู้ใช้และน้องเป็น UUID เวลาเก็บ UTC และแสดงผล Asia/Bangkok ใช้ region/connection hostname ที่ project ของคุณแสดงจริง
 
+## รุ่น 21: Pet Passport แบบ Q&A
+
+เพิ่ม sessions, ประวัติคำตอบ, ฉบับที่เจ้าของยืนยัน, รูปที่เลือก, ลิงก์อ่านอย่างเดียว และบันทึกจากคลินิก พร้อมการเชื่อมผลหลังพบหมอกลับเข้า Care Diary/เรื่องการดูแล/นัดติดตามใน transaction เดียว ใช้สิทธิ์ใหม่ `passport.read` และ `passport.write` แยกจาก grant เดิม หมอที่เขียนต้องมีบทบาท vet ทั้งบัญชีและสมาชิกคลินิก การแก้คำตอบ ลบรูป ถอนความยินยอม หรือเพิกถอนสิทธิ์ทำให้ฉบับเดิมใช้ต่อไม่ได้
+
+ฐานข้อมูลโครงการอัปเกรดจากสถานะ 20 ที่ตรวจแล้วเป็น 21 เมื่อ 13 ตุลาคม 2026 และ read-only diagnostic ยืนยัน fingerprint `5ff3a6478e28e83e84c4ffb6d5f74478` รายละเอียด API/ขอบเขตข้อมูลอยู่ใน [PET_PASSPORT.md](../docs/PET_PASSPORT.md) ใช้ `upgrade.sql` สำหรับฐานข้อมูลเดิม ไม่ต้องรัน bootstrap ซ้ำและไม่มี env เพิ่ม
+
 ## รุ่น 17–18: คลังภาพ PetID และ LINE follow-up
 
 รุ่น 19–20 เพิ่ม `capture_checks`, คุณภาพรายภาพ, `capture_reviews` พร้อมผู้ตรวจ/หลักฐาน/consent epoch, eligibility view ที่เคารพ RLS และ manifest/lineage อายุ 24 ชั่วโมง ถอนสิทธิ์หรือลบต้นทางแล้ว snapshot เดิมใช้ต่อไม่ได้ Pipeline ต้องตรวจสิทธิ์สดต่อเนื่อง เอกสารและคำสั่งอยู่ใน [PETID_MODEL_PIPELINE.md](../docs/PETID_MODEL_PIPELINE.md) ไม่เปิดฝึกหรือแทนโมเดลค้นหาอัตโนมัติ
