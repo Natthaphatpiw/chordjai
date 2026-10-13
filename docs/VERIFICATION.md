@@ -6,6 +6,7 @@
 - SQL/RLS, append-only source history, ยกเลิกฉบับเก่าหลังแก้ข้อมูล/ลบรูป/ถอนสิทธิ์, account cascade, concurrent writes และ known-prefix upgrades ผ่าน พร้อมตรวจเส้นทาง **20→21→21** ที่รักษา sentinel เดิม และ fingerprint ของ migration 1–20 ไม่เปลี่ยน
 - ผลหลังพบหมอสร้างไดอารี่และนัดติดตามเพียงครั้งเดียว เชื่อม care episode เดิมหรือสร้างเรื่องการดูแลใหม่ แยก clinic-authored note จากข้อมูลที่เจ้าของตรวจ/แก้แล้ว รายการติดตามเข้า context ของ LINE เฉพาะสิทธิ์และแหล่งข้อมูลที่เปิดรับอยู่ การทดสอบหยุดที่ preview ไม่ส่งข้อความจริง
 - TypeScript ทั้ง workspace, production builds Owner/Clinic/Admin, runtime dependency declarations และ isolated production startup ของทั้ง 14 service entrypoints ผ่าน
+- แก้ runtime dependency ของทั้งสาม frontend หลัง Vercel พบ `zod` ขาดใน graph: fresh install เฉพาะ frontend โดยไม่รวม root ผ่าน และ production builds ทั้งสามผ่าน โดยไม่มี `openai`/`hono`/`pg`/`vitest` จาก root เพิ่ม checker ให้ตรวจ 156 source files รวม relative workspace/shared frontend imports และ negative fixture ที่ลบ declaration ต้องถูกปฏิเสธ
 - Browser fixtures ของ Owner/Clinic ผ่านโฟลว์ Q&A→ตรวจ→ยืนยัน→เลือกแชร์→ผลหลังพบหมอ ทั้งไทย/อังกฤษและจอมือถือ รวม draft recovery, photo retry, grant controls และ Blob URL cleanup; public SSR/ภาษา/selected photos/หน้าไม่พร้อมใช้งาน/robots/referrer ผ่าน ตรวจหน้าสรุปด้วย Computer Use และเก็บภาพข้อมูลจำลองใน `.verification/passport/`
 - Supabase จริงอัปเกรดจากรุ่น 20 เป็น **21** สำเร็จ read-only diagnostic ยืนยัน 21 migrations และ fingerprint `5ff3a6478e28e83e84c4ffb6d5f74478` โดยไม่สร้างข้อมูลผู้ใช้ทดสอบหรือพิมพ์ credentials
 
