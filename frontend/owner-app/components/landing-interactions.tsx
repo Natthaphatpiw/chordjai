@@ -113,7 +113,13 @@ export function LandingExperience({
   );
 }
 
-export function LandingNav({ locale }: { locale: Locale }) {
+export function LandingNav({
+  locale,
+  page = "home",
+}: {
+  locale: Locale;
+  page?: "home" | "product";
+}) {
   const [open, setOpen] = useState(false);
   const t = (th: string, en: string) => (locale === "en" ? en : th);
   const menuId = "landing-navigation";
@@ -125,7 +131,7 @@ export function LandingNav({ locale }: { locale: Locale }) {
       <div className="cj-wrap cj-nav">
         <a
           className="cj-brand"
-          href="#top"
+          href={page === "home" ? "#top" : localizedHref("/", locale)}
           aria-label={t("ชิดใจ หน้าหลัก", "ChordJai home")}
           onClick={() => setOpen(false)}
         >
@@ -157,10 +163,17 @@ export function LandingNav({ locale }: { locale: Locale }) {
             }
           }}
         >
-          <a href="#everyday">{t("ดูแลกันทุกวัน", "Everyday care")}</a>
+          <Link
+            href={localizedHref("/product", locale)}
+            aria-current={page === "product" ? "page" : undefined}
+          >
+            {t("รู้จักชิดใจ", "Our product")}
+          </Link>
+          <a href={page === "home" ? "#everyday" : "#care-diary"}>
+            {t("ดูแลกันทุกวัน", "Everyday care")}
+          </a>
           <a href="#petid">PetID</a>
           <a href="#memories">{t("ความทรงจำ", "Memories")}</a>
-          <a href="#questions">{t("คำถามที่พบบ่อย", "Good to know")}</a>
         </nav>
         <div className="cj-nav-actions">
           <LanguageSwitcher />
@@ -369,7 +382,13 @@ export function CareStories({
           {index === selected && (
             <div className="cj-story-panel">
               <div className="cj-story-visual">
-                <LandingMedia source={item.media} label={item.mediaLabel} />
+                <LandingMedia
+                  source={item.media}
+                  label={item.mediaLabel}
+                  className={
+                    item.id === "followup" ? "cj-media-wide" : undefined
+                  }
+                />
                 <span className="cj-frame-caption">
                   0{index + 1} / {item.title}
                 </span>

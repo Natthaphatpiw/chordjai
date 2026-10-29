@@ -1553,3 +1553,69 @@ html:has(.cj-landing[data-motion="off"]) {
     font-size: 6px;
   }
 }
+
+/* Match the delivered films: preserve both animals and PetID reference panels. */
+.cj-hero-media {
+  aspect-ratio: 16 / 9;
+  border-radius: 28px 28px 68px 28px;
+}
+.cj-hero-layout {
+  min-height: 580px;
+}
+.cj-petid-media {
+  aspect-ratio: 16 / 9;
+  border-radius: 24px 70px 24px 24px;
+}
+.cj-petid-signature {
+  position: relative;
+  inset: auto;
+  margin: 22px 3px 0;
+}
+.cj-petid-layout {
+  grid-template-columns: 1.15fr 1fr;
+  gap: 72px;
+}
+.cj-memory-figure {
+  width: min(100%, 380px);
+  justify-self: center;
+}
+.cj-memory-figure .cj-media {
+  aspect-ratio: 9 / 16;
+}
+.cj-story-visual .cj-media-wide {
+  aspect-ratio: 16 / 9;
+}
+.cj-nav-links a[aria-current="page"] {
+  color: #a43708;
+  text-decoration: underline;
+  text-underline-offset: 6px;
+}
+@media (max-width: 970px) {
+  .cj-petid-layout {
+    gap: 38px;
+  }
+}
+@media (max-width: 680px) {
+  .cj-hero-layout {
+    min-height: 0;
+  }
+  .cj-hero-media {
+    aspect-ratio: 16 / 9;
+    border-radius: 20px 20px 50px 20px;
+  }
+  .cj-petid-layout {
+    grid-template-columns: 1fr;
+    gap: 30px;
+  }
+  .cj-memory-figure {
+    width: min(calc(100% - 14px), 350px);
+  }
+}
+.cj-closing-media {
+  aspect-ratio: 2 / 1;
+}
+@media (max-width: 680px) {
+  .cj-closing-media {
+    aspect-ratio: 2 / 1;
+  }
+}

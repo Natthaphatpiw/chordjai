@@ -58,8 +58,8 @@ export default async function Landing() {
       href: "/app?tab=health",
       media: landingMedia["story-diary"],
       mediaLabel: t(
-        "พื้นที่ภาพเรื่องราวการดูแลสัตว์เลี้ยงที่บ้าน",
-        "Reserved visual: everyday pet care at home",
+        "ช่วงเวลาดูแลสัตว์เลี้ยงและเก็บเรื่องราวที่บ้าน",
+        "Everyday pet care and memories at home",
       ),
     },
     {
@@ -77,8 +77,8 @@ export default async function Landing() {
       href: "/app?tab=health",
       media: landingMedia["story-passport"],
       mediaLabel: t(
-        "พื้นที่ภาพเจ้าของเตรียมข้อมูลก่อนพบสัตวแพทย์",
-        "Reserved visual: an owner preparing for a vet visit",
+        "เจ้าของเตรียมข้อมูลก่อนพาสัตว์เลี้ยงพบสัตวแพทย์",
+        "An owner preparing for a vet visit",
       ),
     },
     {
@@ -96,8 +96,8 @@ export default async function Landing() {
       href: "/app?tab=chat",
       media: landingMedia["story-followup"],
       mediaLabel: t(
-        "พื้นที่ภาพช่วงเวลาสบาย ๆ ของเจ้าของกับสัตว์เลี้ยง",
-        "Reserved visual: a quiet moment with a pet",
+        "สัตว์เลี้ยงพักผ่อนใกล้เจ้าของในบ้าน",
+        "A quiet moment at home with a pet",
       ),
     },
   ];
@@ -183,10 +183,10 @@ export default async function Landing() {
                   {t("เริ่มพื้นที่ของเรากับน้อง", "Start your little space")}
                   <ArrowUpRight size={19} aria-hidden="true" />
                 </Link>
-                <a className="cj-text-link" href="#everyday">
+                <Link className="cj-text-link" href={href("/product")}>
                   {t("ชิดใจช่วยอะไรได้บ้าง", "Meet ChordJai")}
-                  <ArrowDown size={17} aria-hidden="true" />
-                </a>
+                  <ArrowUpRight size={17} aria-hidden="true" />
+                </Link>
               </div>
               <span className="cj-hero-note">
                 <MessageCircle size={16} aria-hidden="true" />
@@ -201,8 +201,8 @@ export default async function Landing() {
                 hero
                 source={landingMedia.hero}
                 label={t(
-                  "พื้นที่วิดีโอสัตว์เลี้ยงของชิดใจ",
-                  "Reserved ChordJai pet film",
+                  "แมวสีส้มกับสุนัขสีครีมนั่งข้างกันบนโซฟา",
+                  "An orange cat and a cream dog sitting together on a sofa",
                 )}
                 className="cj-hero-media"
                 fallback={
@@ -428,8 +428,8 @@ export default async function Landing() {
                 "หน้าจอของชิดใจ · ข้อมูลตัวอย่าง",
                 "A ChordJai screen · sample data",
               )}
-              <Link href={href("/app")}>
-                {t("ลองเปิดดู", "Take a look")}
+              <Link href={href("/product")}>
+                {t("ดูการใช้งานจริง", "See the product")}
                 <ArrowUpRight size={16} aria-hidden="true" />
               </Link>
             </figcaption>
@@ -445,8 +445,8 @@ export default async function Landing() {
               <LandingMedia
                 source={landingMedia.petid}
                 label={t(
-                  "พื้นที่ภาพสัตว์เลี้ยงตัวเดียวกันจากหลายมุม",
-                  "Reserved visual: the same pet from different angles",
+                  "แมวสีส้มพร้อมภาพเทียบหลายมุมและกราฟิกจุดสังเกต",
+                  "An orange cat with multi-angle reference images and feature-tracking graphics",
                 )}
                 className="cj-petid-media"
               />
@@ -550,8 +550,8 @@ export default async function Landing() {
             <LandingMedia
               source={landingMedia.memories}
               label={t(
-                "พื้นที่ภาพความทรงจำของเจ้าของกับสัตว์เลี้ยง",
-                "Reserved visual: an owner and pet sharing a moment",
+                "เจ้าของลูบหัวแมวที่นั่งอยู่ข้างกันบนโซฟา",
+                "An owner gently petting their cat on a sofa",
               )}
             />
             <figcaption>
@@ -647,8 +647,8 @@ export default async function Landing() {
             <LandingMedia
               source={landingMedia.closing}
               label={t(
-                "พื้นที่ภาพครอบครัวกับสัตว์เลี้ยง",
-                "Reserved visual: a family with their pets",
+                "เจ้าของอยู่กับแมวและสุนัขในห้องนั่งเล่นที่สว่าง",
+                "An owner with a cat and dog in a bright living room",
               )}
               className="cj-closing-media"
             />

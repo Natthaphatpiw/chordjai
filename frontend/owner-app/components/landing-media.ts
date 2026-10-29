@@ -6,12 +6,20 @@ export type LandingMediaSource = {
   mobileVideo?: string | null;
 };
 export const landingMedia = {
-  hero: { image: null, video: null, mobileImage: null, mobileVideo: null },
-  "story-diary": { image: null, video: null },
-  "story-passport": { image: null, video: null },
-  "story-followup": { image: null, video: null },
-  petid: { image: null, video: null },
-  memories: { image: null, video: null },
-  closing: { image: null, video: null },
+  hero: {
+    image: "/landing/hero.webp",
+    video: "/landing/hero.mp4",
+    mobileImage: null,
+    mobileVideo: null,
+  },
+  "story-diary": { image: "/landing/story-diary.webp", video: null },
+  "story-passport": { image: "/landing/story-passport.webp", video: null },
+  "story-followup": {
+    image: "/landing/story-followup.webp",
+    video: "/landing/story-followup.mp4",
+  },
+  petid: { image: "/landing/petid.webp", video: "/landing/petid.mp4" },
+  memories: { image: "/landing/memories.webp", video: "/landing/memories.mp4" },
+  closing: { image: "/landing/closing.webp", video: null },
 } satisfies Record<string, LandingMediaSource>;
 export type LandingMediaId = keyof typeof landingMedia;
