@@ -94,6 +94,31 @@ describe.skipIf(!isolated)('durable LINE Agent with isolated PostgreSQL and mock
   const resultCard=provider.push.mock.calls.map(([,messages])=>JSON.stringify(messages)).find(text=>text.includes('https://liff.line.me/'))!;
   expect(resultCard).toContain('2010549060-FRfLt9mJ');expect(resultCard).toContain(`agentTaskId=${current.id}`);expect(resultCard).toContain(`petId=${pet}`);
  });
+ it('keeps a planned Peony care update as Chat until an explicit save, then asks, saves once and opens the result without leaking facts in telemetry',async()=>{
+  const planned='วันนี้จะพาน้องพีโอนีไปหยอดหลังคอเพื่อจัดการไรหู',detail='พีโอนีตอนนี้ยังไม่ได้ไปคลินิก ให้บันทึกเป็นแผนของวันนี้ก่อน',logs=vi.spyOn(console,'info').mockImplementation(()=>{});
+  await withSystem(db=>db.query("update pet.pets set name='พีโอนี' where id=$1",[pet]));
+  try{
+   provider.text.mockResolvedValue('รับทราบครับ ยังเป็นแผนดูแลน้อง หากอยากจด พิมพ์บันทึกเรื่องนี้ได้');
+   normalizations.push(normalized({route:'chat',normalizedText:planned,petMentions:['พีโอนี']}));await input(planned);
+   expect(await task()).toBeUndefined();expect(await entries()).toHaveLength(0);await deliverPending();
+   expect(provider.structured.mock.calls.filter(([o])=>o.feature==='agent.plan')).toHaveLength(0);
+   normalizations.push(normalized({normalizedText:'บันทึกเรื่องนี้ให้หน่อย เดี๋ยวฉันเพิ่มรายละเอียด',petMentions:['พีโอนี']}));
+   plans.push(ask('มีรายละเอียดอะไรที่อยากจดเพิ่มครับ?', [{label:'พิมพ์รายละเอียดเอง',value:'ฉันจะพิมพ์รายละเอียดเอง'}]));
+   await input('บันทึกเรื่องนี้ให้หน่อย เดี๋ยวฉันเพิ่มรายละเอียด');const pending=await task();expect(pending.status).toBe('collecting');expect(await entries()).toHaveLength(0);await deliverPending();
+   const narrative=`${planned}\n${detail}`;
+   normalizations.push(normalized({normalizedText:detail,petMentions:['พีโอนี']}));plans.push(ready([action('care.entries.create',diary({kind:'daily',title:'แผนไปดูแลพีโอนี',narrative}))]));await input(detail);
+   const planner=provider.structured.mock.calls.filter(([o])=>o.feature==='agent.plan').at(-1)![0];expect(planner.input.history.some((row:{input_text:string})=>row.input_text===planned)).toBe(true);
+   expect((await task()).status).toBe('queued');await executeAgentTask(pending.id);await executeAgentTask(pending.id);await deliverPending();
+   const saved=await entries();expect(saved).toHaveLength(1);expect(saved[0]).toMatchObject({narrative,kind:'daily',visit:null});expect(saved[0].narrative).toContain('ยังไม่ได้ไปคลินิก');
+   expect(provider.push.mock.calls.map(([,messages])=>JSON.stringify(messages)).some(text=>text.includes('https://liff.line.me/')&&text.includes(`agentTaskId=${pending.id}`))).toBe(true);
+   expect((await call(`/api/v1/assistant/agent/tasks/${pending.id}`)).status).toBe(200);
+   const stages=logs.mock.calls.flatMap(([line])=>{try{const row=JSON.parse(line);return row.event==='line_agent_stage'?[row]:[];}catch{return[];}});
+   expect(stages).toContainEqual(expect.objectContaining({stage:'normalized',route:'chat'}));
+   for(const stage of ['question_queued','task_queued','tool_succeeded','task_finished','delivery_sent','result_requested'])expect(stages.some(row=>row.stage===stage),stage).toBe(true);
+   expect(stages.some(row=>row.stage==='delivery_sent'&&row.kind==='succeeded'&&row.hasLiff===true)).toBe(true);
+   expect(JSON.stringify(stages)).not.toMatch(/พีโอนี|ไรหู|คลินิก|https:|agent-fixture/);expect(JSON.stringify(stages)).not.toContain(owner);expect(JSON.stringify(stages)).not.toContain(pending.id);
+  }finally{logs.mockRestore();await withSystem(db=>db.query("update pet.pets set name='ถั่วเหลือง' where id=$1",[pet]));}
+ });
  it('asks with a card when the pet is ambiguous, then accepts a private versioned postback answer',async()=>{
   plans.push(ready([action('care.entries.create',diary())]));await input('ไปพบหมอมา บันทึกให้หน่อย');const pending=await task();expect(pending.status).toBe('collecting');
   await deliverPending();const card=JSON.stringify(provider.push.mock.calls[0]![1]);expect(card).toContain('postback');expect(card).toContain('กดตัวเลือกหรือพิมพ์คำตอบ');expect(await entries()).toHaveLength(0);

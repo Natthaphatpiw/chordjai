@@ -57,4 +57,26 @@ describe('single-provider Responses API and bounded audit',()=>{
     expect(hasUnsafeMedicalAdvice('Administer a quarter of a tablet.')).toBe(true);
     expect(hasUnsafeMedicalAdvice('ควรปรึกษาสัตวแพทย์เพื่อประเมิน')).toBe(false);
   });
+  it('allows routine vet plans, narrow referrals and attributed non-dosage reports',()=>{
+    for(const text of [
+      'วันนี้จะพาน้องพีโอนีไปหยอดหลังคอเพื่อจัดการไรหู',
+      'ให้คุณหมอประเมินเรื่องยานะครับ หลังพบหมอค่อยเล่าสิ่งที่หมอบอกได้',
+      'ควรให้สัตวแพทย์เลือกยา',
+      'คุณเล่าว่าคุณหมอให้ยาหยอดหู แต่ยังไม่ทราบชื่อยา',
+      'อย่าให้ยาเอง ควรปรึกษาสัตวแพทย์',
+      'ใช้ยาตามคำแนะนำของสัตวแพทย์',
+      'Do not give medicine. Ask your vet to assess the symptoms.'
+    ])expect(hasUnsafeMedicalAdvice(text),text).toBe(false);
+  });
+  it('does not let vet attributions or harmless prefaces hide doses and appended prescriptions',()=>{
+    for(const text of [
+      'คุณหมอให้ยา 5 mg',
+      'ให้คุณหมอประเมินเรื่องยา แล้วให้ amoxicillin เองได้',
+      'อย่าให้ยาเอง แต่ให้กิน amoxicillin วันละสองครั้ง',
+      'คุณหมอให้ยา แต่ฉันแนะนำให้ยา amoxicillin',
+      'Do not give medicine. Administer amoxicillin instead.',
+      'The owner reports the vet said give half a tablet.',
+      'ให้สัตวแพทย์เลือกยา แต่น้องเป็นโรคนี้แน่นอน'
+    ])expect(hasUnsafeMedicalAdvice(text),text).toBe(true);
+  });
 });

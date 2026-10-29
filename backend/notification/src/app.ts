@@ -7,7 +7,7 @@ import {verifyWebhookSignature,replyLine,pushLine,appLink,LineApiError} from '@c
 import {createService,getActor,HttpError,jsonBody,ok,camel,uuid,type ServiceContext} from '@chordjai/service-kit';
 import {buildCalendar} from './calendar.js';
 import {registerFollowupRoutes,processFollowups,followupCommand,processFollowupCommand,captureFollowupReply} from './followup.js';
-import {queueAgentLineEvent} from './agent-channel.js';
+import {queueAgentLineEvent,markAcceptedLineEventRead} from './agent-channel.js';
 export const app=createService('notification');
 registerFollowupRoutes(app);
 const lineEventSchema=z.object({webhookEventId:z.string().min(1).max(100),type:z.string().max(80),replyToken:z.string().max(200).optional(),source:z.object({type:z.string(),userId:z.string().max(100).optional()}),message:z.object({type:z.string(),text:z.string().max(5000).optional()}).passthrough().optional(),postback:z.object({data:z.string().min(1).max(300)}).passthrough().optional()}).passthrough();
@@ -25,15 +25,22 @@ app.post('/api/v1/notification/webhooks/line',async c=>{
   let payload:unknown;try{payload=JSON.parse(new TextDecoder().decode(bytes));}catch{throw new HttpError(400,'INVALID_JSON','Invalid webhook body');}
   const parsed=z.object({events:z.array(lineEventSchema).max(100),destination:z.string().optional()}).safeParse(payload);
   if(!parsed.success)throw new HttpError(400,'INVALID_LINE_EVENT','LINE event body is invalid');
-  const body=parsed.data;
+  const body=parsed.data,newEvents:LineEvent[]=[];
   for(const event of body.events){
-    await withSystem(async tx=>{
+    const inserted=await withSystem(async tx=>{
       const inserted=await tx.query<{id:string}>('insert into notify.webhook_events(event_id,event_type,payload) values($1,$2,$3::jsonb) on conflict(event_id) do nothing returning id',[event.webhookEventId,event.type,JSON.stringify(event)]);
       if(inserted.rowCount)await enqueue('line.event',{eventId:event.webhookEventId},`line:${event.webhookEventId}`,tx);
+      return Boolean(inserted.rowCount);
     });
+    if(inserted)newEvents.push(event);
   }
+  // Receipt means the signed event has durably entered our queue, not that an
+  // LLM or a human has interpreted it. Never let this optional UI feedback
+  // fail an accepted webhook or run before its transaction commits.
+  const readable=newEvents.filter(event=>event.source.type==='user'&&event.type==='message'&&typeof event.message?.markAsReadToken==='string');
+  if(readable.length){const feedback=Promise.allSettled(readable.map(markAcceptedLineEventRead));if(process.env.VERCEL)waitUntil(feedback);else await feedback;}
   // LINE verification sends an empty events array and must also return 200.
-  if(process.env.VERCEL&&process.env.LINE_AGENT_ENABLED==='true')waitUntil(Promise.allSettled(body.events.map(event=>processLineEvent(event.webhookEventId))));
+  if(newEvents.length&&process.env.VERCEL&&process.env.LINE_AGENT_ENABLED==='true')waitUntil(Promise.allSettled(newEvents.map(event=>processLineEvent(event.webhookEventId))));
   return ok(c,{accepted:true});
 });
 export async function processLineEvent(eventId:string){

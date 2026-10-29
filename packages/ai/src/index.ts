@@ -7,7 +7,7 @@ import { HttpError } from '@chordjai/service-kit';
 
 export const GENERATIVE_MODEL = 'gpt-6.1-sol';
 export const EMBEDDING_MODEL = 'text-embedding-3-small';
-export const PROMPT_VERSION = '2026-10-29.2';
+export const PROMPT_VERSION = '2026-10-29.3';
 export type AiFeature = 'agent.normalize' | 'agent.plan' | 'agent.answer' | 'passport.question' | 'notification.followup' | 'assistant.chat' | 'journal.decorate' | 'triage.assess' | 'vision.photo_check' | 'ocr.vaccine_book' | 'ocr.microchip' | 'petid.signature' | 'petid.verify_pair' | 'petid.capture_review' | 'embed.petid';
 const limits: Record<AiFeature, number> = { 'agent.answer': 80, 'agent.normalize': 80, 'agent.plan': 120, 'passport.question': 40, 'notification.followup': 2, 'assistant.chat': 50, 'journal.decorate': 10, 'triage.assess': 10, 'vision.photo_check': 10, 'ocr.vaccine_book': 5, 'ocr.microchip': 10, 'petid.signature': 10, 'petid.verify_pair': 10, 'petid.capture_review': 10, 'embed.petid': 20 };
 const deadlines:Record<AiFeature,number>={'agent.answer':15000,'agent.normalize':15000,'agent.plan':25000,'passport.question':15000,'notification.followup':20000,'assistant.chat':45000,'journal.decorate':45000,'triage.assess':15000,'vision.photo_check':30000,'ocr.vaccine_book':45000,'ocr.microchip':20000,'petid.signature':30000,'petid.verify_pair':20000,'petid.capture_review':30000,'embed.petid':10000};
@@ -102,5 +102,17 @@ export async function embedTexts(userId: string, texts: string[]): Promise<numbe
 }
 
 export function hasUnsafeMedicalAdvice(text: string): boolean {
-  return /\d+(?:[.,]\d+)?\s*(?:mg\b|ml\b|cc\b|มก\.?|มล\.?|เม็ด|หยด)|(?:หนึ่ง|สอง|สาม|สี่|ห้า|หก|เจ็ด|แปด|เก้า|สิบ|ครึ่ง)\s*(?:มิลลิกรัม|มิลลิลิตร|เม็ด|หยด|ซีซี)|\b(?:one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|quarter|half)\s+(?:(?:of\s+)?(?:a|an)\s+)?(?:tablets?|pills?|drops?|mg|ml)\b|(?:ให้|กิน|ป้อน|ฉีด|ใช้).{0,25}(?:ยา|พาราเซตามอล|ไอบูโพรเฟน|แอสไพริน|amoxicillin|ibuprofen|paracetamol|aspirin)|(?:give|administer|prescribe).{0,25}(?:medication|medicine|amoxicillin|ibuprofen|paracetamol|aspirin)|(?:เป็นโรค|วินิจฉัยว่า).{0,30}(?:แน่นอน|ชัวร์)/iu.test(text);
+  // Doses and definitive diagnoses remain blocked even inside quotations or a
+  // claimed vet attribution. A name-dropping preface must not bypass the guard.
+  if(/\d+(?:[.,]\d+)?\s*(?:mg\b|ml\b|cc\b|มก\.?|มล\.?|เม็ด|หยด)|(?:หนึ่ง|สอง|สาม|สี่|ห้า|หก|เจ็ด|แปด|เก้า|สิบ|ครึ่ง)\s*(?:มิลลิกรัม|มิลลิลิตร|เม็ด|หยด|ซีซี)|\b(?:one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|quarter|half)\s+(?:(?:of\s+)?(?:a|an)\s+)?(?:tablets?|pills?|drops?|mg|ml)\b|(?:เป็นโรค|วินิจฉัยว่า).{0,30}(?:แน่นอน|ชัวร์)/iu.test(text))return true;
+  // The old broad ให้…ยา match also rejected “ให้คุณหมอประเมินเรื่องยา”.
+  // Remove only closed, non-dosage referral/report/avoidance phrases, then
+  // inspect the remaining prose so an appended instruction is still caught.
+  const prose=text
+    .replace(/(?:ขอให้|ให้)\s*(?:สัตวแพทย์|คุณหมอ)\s*(?:เป็นผู้|เป็นคน)?\s*(?:ประเมิน|เลือก|ตรวจ|พิจารณา|ดูแล|แนะนำ|กำหนด)(?:เรื่อง|การ|ชนิด|ขนาด|ความเหมาะสม|ของ|ก่อน|\s)*(?:การ)?(?:ใช้|ให้|กิน|ฉีด)?ยา/giu,'')
+    .replace(/(?:สัตวแพทย์|คุณหมอ)\s*(?:เป็นผู้|เป็นคน)?\s*(?:ให้|ฉีด|เลือก|สั่ง)ยา/giu,'')
+    .replace(/(?:ไม่ควร|ห้าม|อย่า|ไม่แนะนำให้)\s*(?:ให้|ใช้|กิน|ฉีด|ป้อน)ยา/giu,'')
+    .replace(/(?:ใช้|ให้)ยาตาม(?:คำแนะนำ|คำสั่ง)ของ(?:สัตวแพทย์|คุณหมอ)/giu,'')
+    .replace(/\b(?:do not|don't|never)\s+(?:give|administer|prescribe)\s+(?:medication|medicine)\b/giu,'');
+  return /(?:ให้|กิน|ป้อน|ฉีด|ใช้).{0,25}(?:ยา|พาราเซตามอล|ไอบูโพรเฟน|แอสไพริน|amoxicillin|ibuprofen|paracetamol|aspirin)|(?:give|administer|prescribe).{0,25}(?:medication|medicine|amoxicillin|ibuprofen|paracetamol|aspirin)/iu.test(prose);
 }

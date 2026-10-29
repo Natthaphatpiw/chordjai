@@ -97,17 +97,32 @@ export async function getMessagingAccessToken():Promise<string>{
   pendingToken={key,promise};
   try{return await promise;}finally{if(pendingToken?.key===key)pendingToken=undefined;}
 }
-async function callLine(path: string, body: unknown, retryKey?: string) {
+async function callLine(path: string, body: unknown, retryKey?: string, timeoutMs = 10_000) {
   const token = await getMessagingAccessToken();
   let response:Response;
   try{response = await fetch(`https://api.line.me/v2/bot/${path}`, {
     method: 'POST', headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json', ...(retryKey ? { 'X-Line-Retry-Key': retryKey } : {}) },
-    body: JSON.stringify(body), signal: AbortSignal.timeout(10_000),
+    body: JSON.stringify(body), signal: AbortSignal.timeout(timeoutMs),
   });}catch{throw new LineConfigurationError('LINE_API_UNAVAILABLE','ยังเชื่อมต่อ LINE ไม่ได้ ระบบจะลองใหม่ภายหลัง');}
   if (!response.ok && !(retryKey && response.status === 409)) throw new LineApiError(response.status);
 }
-export async function replyLine(replyToken: string, messages: LineMessage[]) { await callLine('message/reply', { replyToken, messages }); }
+export async function replyLine(replyToken: string, messages: LineMessage[], timeoutMs = 10_000) { await callLine('message/reply', { replyToken, messages },undefined,timeoutMs); }
 export async function pushLine(to: string, messages: LineMessage[], retryKey: string) { await callLine('message/push', { to, messages }, retryKey); }
+/** Ephemeral feedback only: visible while the user has the one-to-one chat
+ * open, ending on the next OA message or after the requested duration. LINE
+ * supports multiples of five seconds from 5 through 60, and no retry key. */
+export async function startLineLoading(chatId:string,loadingSeconds=30){
+  if(!/^U[0-9a-f]{32}$/.test(chatId))throw new HttpError(400,'INVALID_LINE_CHAT_ID','Loading requires a one-to-one LINE user chat');
+  if(!Number.isInteger(loadingSeconds)||loadingSeconds<5||loadingSeconds>60||loadingSeconds%5!==0)throw new HttpError(400,'INVALID_LINE_LOADING_SECONDS','Loading duration must be a multiple of 5 from 5 to 60 seconds');
+  await callLine('chat/loading/start',{chatId,loadingSeconds},undefined,3000);
+}
+/** Use only a read token from an authenticated webhook's message object. This
+ * marks that message and earlier ones as read; it never sends a chat message.
+ * With OA Chat disabled LINE marks messages read automatically instead. */
+export async function markLineMessagesRead(markAsReadToken:string){
+  if(typeof markAsReadToken!=='string'||!markAsReadToken.trim()||markAsReadToken.length>4096)throw new HttpError(400,'INVALID_LINE_READ_TOKEN','A valid LINE message read token is required');
+  await callLine('chat/markAsRead',{markAsReadToken},undefined,3000);
+}
 export function appLink(path = '/') {
   const origin=process.env.APP_ORIGIN??process.env.APP_BASE_URL??'https://www.chordjai.life';
   const mapped:Record<string,string>={'/':'/app','/health':'/app?tab=health','/chat':'/app?tab=chat','/triage':'/app?tab=health','/petid':'/app?tab=lostfound'};

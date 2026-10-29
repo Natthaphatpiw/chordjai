@@ -1,14 +1,14 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { buildClinicalCareContext } from './care-context';
 const ownerId='00000000-0000-4000-8000-000000000001',petId='00000000-0000-4000-8000-000000000002',conversationId='00000000-0000-4000-8000-000000000003';
-const mocks=vi.hoisted(()=>({query:vi.fn(),summary:vi.fn(),ai:vi.fn(),petVisible:true}));
+const mocks=vi.hoisted(()=>({query:vi.fn(),summary:vi.fn(),ai:vi.fn(),unsafe:vi.fn(),petVisible:true}));
 vi.mock('@chordjai/auth',()=>({verifySession:vi.fn(async()=>({id:'00000000-0000-4000-8000-000000000001',role:'owner'}))}));
 vi.mock('@chordjai/db',()=>({withUser:vi.fn(async(_id,fn)=>fn({query:mocks.query})),careSummary:mocks.summary}));
-vi.mock('@chordjai/ai',()=>({runText:mocks.ai,hasUnsafeMedicalAdvice:vi.fn(()=>false)}));
+vi.mock('@chordjai/ai',()=>({runText:mocks.ai,hasUnsafeMedicalAdvice:mocks.unsafe}));
 import app from './app';
 const clinicalEntry=()=>({kind:'visit',title:'Follow-up at the vet',observed_at:'2026-10-12T09:00:00+07:00',clinical_note:'Vomited twice, then kept water down.',provenance:'clinician_confirmed',narrative:'PRIVATE_NARRATIVE',reflection:'PRIVATE_REFLECTION',media:[{id:'PRIVATE_PHOTO'}],costs:[{amountMinor:123456,label:'PRIVATE_BILL'}],observations:{symptoms:['vomiting'],severity:'mild',appetite:'reduced',energy:'normal',trend:'better',water:'normal',toilet:'normal',onsetAt:'2026-10-11T20:00:00+07:00',frequency:'twice',secret:'PRIVATE_OBSERVATION_EXTRA'},visit:{clinicName:'PRIVATE_CLINIC',reason:'Vomiting',vetReportedFindings:'Owner reports the vet advised monitoring.',treatment:'Owner reports fluids were given.',nextFollowupAt:'2026-10-14T09:00:00+07:00',invoice:'PRIVATE_INVOICE'},episode:{id:'PRIVATE_EPISODE_ID',title:'Vomiting this week',status:'improving',startedAt:'2026-10-11T20:00:00+07:00',resolvedAt:null,reflection:'PRIVATE_EPISODE_REFLECTION'}});
 beforeEach(()=>{
-  vi.clearAllMocks();mocks.petVisible=true;
+  vi.clearAllMocks();mocks.petVisible=true;mocks.unsafe.mockReturnValue(false);
   vi.stubGlobal('fetch',vi.fn(()=>{throw new Error('Live provider requests are forbidden in assistant care tests');}));
   mocks.summary.mockResolvedValue({entries:[clinicalEntry()],generatedAt:new Date().toISOString()});mocks.ai.mockResolvedValue('The saved updates report some improvement. Ask your vet about any continuing concerns.');
   mocks.query.mockImplementation(async(sql:string)=>{
@@ -59,5 +59,23 @@ describe('assistant diary context with isolated provider',()=>{
     mocks.petVisible=false;
     const response=await app.request('/api/v1/assistant/chat',{method:'POST',headers:{Authorization:'Bearer test-session','Content-Type':'application/json'},body:JSON.stringify({petId,message:'Read the history'})});
     expect(response.status).toBe(404);expect(mocks.summary).not.toHaveBeenCalled();expect(mocks.ai).not.toHaveBeenCalled();
+  });
+  it('replaces an unsafe draft with a relevant planned-visit acknowledgement and never writes a diary',async()=>{
+    mocks.unsafe.mockReturnValue(true);mocks.ai.mockResolvedValue('Synthetic unsafe draft');
+    const message='วันนี้จะพาน้องพีโอนีไปหยอดหลังคอเพื่อจัดการไรหู';
+    const response=await app.request('/api/v1/assistant/chat',{method:'POST',headers:{Authorization:'Bearer test-session','Content-Type':'application/json','Accept-Language':'th'},body:JSON.stringify({petId,message})});
+    expect(response.status).toBe(200);const result=await response.json();
+    expect(result.data.reply).toContain('เป็นแผน');expect(result.data.reply).toContain('บันทึกไดอารี่ให้หน่อย');expect(result.data.reply).not.toContain('Synthetic unsafe draft');expect(result.data.reply).not.toContain('โรงพยาบาลสัตว์ทันที');
+    expect(mocks.ai.mock.calls[0][0].messages.at(-1)).toEqual({role:'user',content:message});
+    expect(mocks.ai.mock.calls[0][0].instructions).toContain('not completed treatment');
+    expect(JSON.stringify(mocks.query.mock.calls)).not.toMatch(/insert into health\.(?:care_entries|records)/i);
+  });
+  it('keeps an English blocked-draft response entirely English and escalates genuinely urgent input',async()=>{
+    mocks.unsafe.mockReturnValue(true);
+    const headers={Authorization:'Bearer test-session','Content-Type':'application/json','Accept-Language':'en'};
+    const response=await app.request('/api/v1/assistant/chat',{method:'POST',headers,body:JSON.stringify({petId,message:'I am going to take Peony to the vet today.'})});
+    expect(response.status).toBe(200);const result=await response.json();expect(result.data.reply).toContain('planned visit');expect(result.data.reply).not.toMatch(/[ก-๙]/);
+    const urgent=await app.request('/api/v1/assistant/chat',{method:'POST',headers,body:JSON.stringify({petId,message:'Peony cannot breathe.'})});
+    expect(urgent.status).toBe(200);expect((await urgent.json()).data.reply).toContain('immediate veterinary attention');
   });
 });

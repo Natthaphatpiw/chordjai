@@ -1,5 +1,16 @@
 # ผลตรวจระบบ — อัปเดต 29 ตุลาคม 2026
 
+## ข้อความจริงจาก LINE: Chat guard / รับแล้ว / loading / อ่านแล้ว — 29 ตุลาคม 2026
+
+- Read-only trace ของข้อความที่ผู้ใช้รายงานยืนยัน `agent.normalize=ok, route=chat` → `assistant.chat=ok` → delivery `sent` ที่ตรงกับ fallback เรื่องยา ไม่มี Agent task หรือไดอารี่ใหม่จากข้อความนั้น การเล่าแผนโดยไม่ขอบันทึกเป็น Chat ถูกต้อง แต่ fallback กว้างเกินบริบท รายละเอียดใน [LINE_AGENT_FEEDBACK.md](LINE_AGENT_FEEDBACK.md)
+- แก้ guard ที่จับการส่งต่อให้สัตวแพทย์เป็นคำสั่งใช้ยา และใช้ fallback ตามบริบทแผนดูแล/อาการจริง ยังปฏิเสธขนาดยา คำสั่งยาเอง และคำวินิจฉัยฟันธง; prompt รุ่น `2026-10-29.3`
+- เพิ่ม read receipt หลัง signed webhook commit, ACK ผ่าน reply token ก่อน fast path และ native loading 60 วินาที เฉพาะแชทส่วนตัวที่รับเข้าคิวจริง ข้าม duplicate/เก่า/ไม่มีสิทธิ์ ไม่ส่ง paid Push ทดแทน reply ที่หมดอายุ และ feedback ล้มเหลวไม่ยกเลิกงาน
+- **314 unit tests + 212 isolated PostgreSQL/API tests ผ่าน รวม 526 ข้อ** รวม Chat → explicit save → ถามเพิ่ม → ยืนยันชื่อน้องด้วยข้อความ → บันทึกแผนครั้งเดียว → ส่ง LIFF → ขอผลผ่าน API; provider ใช้ fixtures ไม่ส่งข้อความหรือสร้างประวัติทดสอบใน production
+- Workspace TypeScript, runtime dependency checker **166 sources** และ isolated startup/healthz ทั้ง **14 services** ผ่าน ไม่มี frontend source หรือ SQL/env ใหม่ รอบ deploy ให้ใช้ Vercel builds ของ projects ที่เชื่อม Git เดิม
+- เพิ่ม `line_feedback_stage` และ `line_agent_stage` ที่ log หลัง provider ยอมรับ/สถานะ commit แล้ว ใช้ reference ที่ hash ไม่เก็บข้อความ ชื่อ user/pet, LINE ID, รูป, URL, token หรือ tool arguments; `result_requested` ยืนยันการขอ API ที่ตรวจสิทธิ์แล้ว ไม่ใช่การรับรองหน้าจอแสดงผล
+
+หลักฐานใน ignored `.verification/line-feedback/` รวม trace ข้อความเดิม ผลทดสอบ และสถานะ release หลัง push การทดสอบจริงรอบใหม่ต้องให้ผู้ใช้ส่งข้อความ/ตอบการ์ด/เปิด LIFF เอง จึงยังไม่อ้างว่าโฟลว์นั้นผ่านในบัญชีจริงจากผล fixtures
+
 ## แก้ไข/ลบบันทึก และ LINE Agent 55 tools — 29 ตุลาคม 2026
 
 - **286 unit tests + 211 isolated PostgreSQL/API tests ผ่าน รวม 497 ข้อ** รวม Agent 44 ข้อและ health mutation 15 ข้อ ตรวจสิทธิ์ผู้เขียน/เจ้าของ/ครอบครัว, revision/version conflict, retry หลัง response หายไม่ทำงานซ้ำ และการยืนยันรายการปัจจุบันก่อนลบ

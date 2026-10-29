@@ -10,6 +10,7 @@ import {pushLine,type LineMessage} from '@chordjai/line';
 import {getActor,jsonBody,ok,uuid,HttpError,type createService} from '@chordjai/service-kit';
 import {AGENT_TOOLS,getAgentTool,toolCatalog,validateAgentArguments,assertAgentToolAccess,resolveAgentActionPetId,agentActionReview,isAgentDeletionTool,assertAgentDeletionReplay} from './agent-tools';
 import {agentCard,type AgentCardChoice} from './agent-cards';
+import {agentStage} from './agent-telemetry';
 import {normalizeAgentInputSchema,agentPlanSchema,NORMALIZE_INSTRUCTIONS,PLAN_INSTRUCTIONS,parseActionArgs,bangkokAgentNow,explicitConfirmation,explicitCancellation,agentResultPath,agentLiffLink,type PlannedAction,explicitWriteRequest,boundedAgentObservation} from './agent-model';
 
 type Task={id:string;user_id:string;thread_id:string;language:'th'|'en';version:number;status:string;title:string;request_text:string;plan:PlannedAction[];question:unknown;result:Record<string,unknown>|null;error_code?:string|null;confirmed_version:number|null;execution_id:string;reference_at:Date;created_at:Date;updated_at:Date;expires_at:Date};
@@ -63,8 +64,17 @@ export async function deliverAgentMessage(deliveryId:string){
  return withAgentPermit(()=>deliverAgentMessageCore(deliveryId));
 }
 async function deliverAgentMessageCore(deliveryId:string){
- return withSystem(async db=>{const row=(await db.query<Delivery>('select * from assistant.agent_deliveries where id=$1',[deliveryId])).rows[0];if(!row)return;await lockUser(db,row.user_id);await sendDelivery(db,row);});
+ try{
+ const sent=await withSystem(async db=>{
+  const row=(await db.query<Delivery>('select * from assistant.agent_deliveries where id=$1',[deliveryId])).rows[0];if(!row||row.status!=='pending')return;
+  await lockUser(db,row.user_id);await sendDelivery(db,row);
+  const current=(await db.query<{status:string;error_code:string|null}>('select status,error_code from assistant.agent_deliveries where id=$1',[deliveryId])).rows[0];
+  return current?{turnId:row.turn_id,taskId:row.task_id,deliveryId:row.id,kind:row.kind,status:current.status,errorCode:current.error_code,hasLiff:JSON.stringify(row.messages).includes('https://liff.line.me/')}:undefined;
+ });
+ if(sent)agentStage(sent.status==='sent'?'delivery_sent':'delivery_failed',sent,{status:sent.status,kind:sent.kind,errorCode:sent.errorCode,hasLiff:sent.hasLiff});
+ }catch(error){agentStage('delivery_failed',{deliveryId},{status:'failed',errorCode:error instanceof HttpError?error.code:'AGENT_DELIVERY_UNAVAILABLE'});throw error;}
 }
+
 async function captureReply(userId:string,eventId:string,text:string){
  // Reuse the authenticated notification handler in-process, like other agent
  // tools. A reverse service binding would cycle notification -> assistant.
@@ -216,8 +226,24 @@ async function planTask(db:PoolClient,actor:Actor,task:Task,text:string,petMenti
  throw new HttpError(422,'AGENT_PLANNING_LIMIT','ยังจัดข้อมูลไม่ครบ กรุณาระบุงานให้สั้นและชัดขึ้น');
 }
 export async function ingestAgentTurn(eventId:string,userId:string){
- return withAgentPermit(()=>ingestAgentTurnCore(eventId,userId));
+ return withAgentPermit(async()=>{
+  const result=await ingestAgentTurnCore(eventId,userId);
+  // Read only committed state; a failed log probe cannot fail an accepted turn.
+  try{
+   const trace=await withSystem(async db=>(await db.query<{id:string;route:string|null;state:string;task_id:string|null;task_status:string|null;has_question:boolean;error_code:string|null}>(`select t.id,t.route,t.state,k.id task_id,k.status task_status,k.question is not null has_question,t.normalized->>'errorCode' error_code from assistant.agent_turns t join assistant.agent_threads th on th.id=t.thread_id left join assistant.agent_tasks k on k.id=th.current_task_id where t.event_id=$1 and t.user_id=$2`,[eventId,userId])).rows[0]);
+   if(trace){
+    const refs={turnId:trace.id,taskId:trace.route==='agent'?trace.task_id:null};
+    agentStage(trace.error_code?'turn_failed':'normalized',refs,{route:trace.route,status:trace.state,errorCode:trace.error_code});
+    if(trace.route==='agent'&&trace.task_id){
+     const stage=trace.task_status==='collecting'&&trace.has_question?'question_queued':trace.task_status==='awaiting_confirmation'?'confirmation_queued':trace.task_status==='queued'?'task_queued':null;
+     if(stage)agentStage(stage,refs,{status:trace.task_status});
+    }
+   }
+  }catch{/* Durable state remains authoritative when telemetry is unavailable. */}
+  return result;
+ });
 }
+
 async function ingestAgentTurnCore(eventId:string,userId:string){
  if(!enabled())throw new HttpError(503,'AGENT_DISABLED','LINE Agent is disabled');
  const actor=await actorFor(userId);
@@ -337,8 +363,8 @@ async function executeAgentTaskCore(taskId:string){
    if(tool.risk==='read')readData.push({tool:call.tool_name,data:boundedAgentObservation(output.data)});
    const deletedPath=new URLSearchParams({tab:tool.tab});if(actualPetId)deletedPath.set('petId',actualPetId);
    const receipt={tool:call.tool_name,path:deletion?`/app?${deletedPath}`:output.path,resourceId:output.resourceId,petId:actualPetId,petIds:referencedPetIds(output.data,call.tool_name),...(deletion?{deleted:true,preparedDeletion:true}:{}),...(tool.risk==='read'?{readDigest:readDigest(output.data)}:{})};
-   results.push(receipt);await withSystem(db=>db.query("update assistant.agent_tool_calls set status='succeeded',result=$2::jsonb where id=$1",[call.id,JSON.stringify(receipt)]));
-  }catch(error){failure=error instanceof HttpError?error.code:'AGENT_TOOL_UNAVAILABLE';await withSystem(db=>db.query("update assistant.agent_tool_calls set status='failed',error_code=$2 where id=$1",[call.id,failure]));break;}
+   results.push(receipt);await withSystem(db=>db.query("update assistant.agent_tool_calls set status='succeeded',result=$2::jsonb where id=$1",[call.id,JSON.stringify(receipt)]));agentStage('tool_succeeded',{taskId:task.id},{tool:call.tool_name,status:'succeeded'});
+  }catch(error){failure=error instanceof HttpError?error.code:'AGENT_TOOL_UNAVAILABLE';await withSystem(db=>db.query("update assistant.agent_tool_calls set status='failed',error_code=$2 where id=$1",[call.id,failure]));agentStage('tool_failed',{taskId:task.id},{tool:call.tool_name,status:'failed',errorCode:failure});break;}
  }
  let answer:string|null=null;
  if(!failure&&readData.length&&calls.every(call=>getAgentTool(call.tool_name)?.risk==='read')){
@@ -354,11 +380,13 @@ async function executeAgentTaskCore(taskId:string){
    failure?t(language,`ยืนยันผลสำเร็จได้ ${results.length} จาก ${calls.length} ขั้นตอน ส่วนที่ยังยืนยันไม่ได้อาจมีการบันทึกหรือลบไปแล้ว โปรดตรวจในแอปก่อนลองใหม่`,`Confirmed ${results.length} of ${calls.length} steps. Unconfirmed steps may already have changed data; review the app before retrying.`):
    results.some(result=>result.deleted)?t(language,'ทำงานเสร็จแล้วครับ ลบรายการที่ยืนยันแล้ว เปิด LIFF เพื่อดูประวัติที่เหลือได้เลย','Your confirmed items were deleted. Open LIFF to view the remaining history.'):
    t(language,'ทำงานเสร็จแล้วครับ เปิด LIFF เพื่อดูรายการและรายละเอียดได้เลย','Your task is complete. Open LIFF to review the result.');
-  await db.query('update assistant.agent_tasks set status=$2,result=$3::jsonb,error_code=$4 where id=$1',[task.id,cancelled?'cancelled':failure?'failed':'succeeded',JSON.stringify({message,path,petId:first?.petId,resourceId:first?.resourceId,results}),failure]);
-  if(cancelled)return;
+  const finalStatus=cancelled?'cancelled':failure?'failed':'succeeded';
+  await db.query('update assistant.agent_tasks set status=$2,result=$3::jsonb,error_code=$4 where id=$1',[task.id,finalStatus,JSON.stringify({message,path,petId:first?.petId,resourceId:first?.resourceId,results}),failure]);
+  if(cancelled)return finalStatus;
   const buttons=failure&&failure!=='VERSION_CONFLICT'?await choices(db,current,[{label:t(language,'ลองขั้นตอนที่ค้างอีกครั้ง','Retry unfinished steps'),action:'retry',value:''}]):[];
   await outbox(db,task.user_id,task.id,null,`${failure?'failed':'succeeded'}:${task.version}`,`task:${task.id}:result:${task.version}:${failure??'ok'}`,[agentCard(task.title,answer?`${answer}\n\n${message}`:message,buttons,agentLiffLink(path,language),language)]);
- });
+  return finalStatus;
+ }).then(status=>{if(status)agentStage('task_finished',{taskId:task.id},{status,errorCode:failure});});
 }
 /** Optional fast path. Durable jobs/outbox remain authoritative if a runtime
  * is interrupted; this path must never be the only place work is scheduled. */
@@ -374,7 +402,7 @@ function kickAgentWork(userId:string){
 export function registerAgentRoutes(app:ReturnType<typeof createService>){
  app.get('/api/v1/assistant/agent/tools',c=>{getActor(c);return ok(c,{enabled:enabled(),tools:AGENT_TOOLS.map(({name,description,risk,tab})=>({name,description,risk,tab}))});});
  app.get('/api/v1/assistant/agent/tasks',async c=>{const actor=getActor(c);await actorFor(actor.id);return ok(c,await withUser(actor.id,async db=>(await db.query<Task>('select * from assistant.agent_tasks where user_id=$1 order by created_at desc limit 50',[actor.id])).rows.map(task=>({...taskDto(task),title:t(task.language,'งานของ Agent','Agent task'),question:null,result:null,results:[]}))));});
- app.get('/api/v1/assistant/agent/tasks/:id',async c=>{const actor=getActor(c);await actorFor(actor.id);const task=await withUser(actor.id,async db=>(await db.query<Task>('select * from assistant.agent_tasks where id=$1 and user_id=$2',[uuid(c.req.param('id')),actor.id])).rows[0]);if(!task)throw new HttpError(404,'AGENT_TASK_NOT_FOUND','ไม่พบงานนี้');return ok(c,await safeTaskDto(actor,task));});
+ app.get('/api/v1/assistant/agent/tasks/:id',async c=>{const actor=getActor(c);await actorFor(actor.id);const task=await withUser(actor.id,async db=>(await db.query<Task>('select * from assistant.agent_tasks where id=$1 and user_id=$2',[uuid(c.req.param('id')),actor.id])).rows[0]);if(!task)throw new HttpError(404,'AGENT_TASK_NOT_FOUND','ไม่พบงานนี้');const dto=await safeTaskDto(actor,task);agentStage('result_requested',{taskId:task.id},{status:dto.status,errorCode:dto.errorCode});return ok(c,dto);});
  app.post('/internal/agent/ingest',async c=>{machine(c.req.header('Authorization'));const b=await jsonBody(c,z.object({eventId:z.string().min(1).max(100),userId:z.uuid()}));const result=await ingestAgentTurn(b.eventId,b.userId);kickAgentWork(b.userId);return ok(c,result);});
  app.post('/internal/agent/execute',async c=>{machine(c.req.header('Authorization'));const b=await jsonBody(c,z.object({taskId:z.uuid()}));await executeAgentTask(b.taskId);const task=await withSystem(db=>freshTask(db,b.taskId));if(task)kickAgentWork(task.user_id);return ok(c,{processed:true});});
  app.post('/internal/agent/deliver',async c=>{machine(c.req.header('Authorization'));const b=await jsonBody(c,z.object({deliveryId:z.uuid()}));await deliverAgentMessage(b.deliveryId);return ok(c,{processed:true});});
