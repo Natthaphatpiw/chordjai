@@ -167,7 +167,7 @@ export function LandingNav({
             href={localizedHref("/product", locale)}
             aria-current={page === "product" ? "page" : undefined}
           >
-            {t("รู้จักชิดใจ", "Our product")}
+            {t("ผลิตภัณฑ์", "Product")}
           </Link>
           <a href={page === "home" ? "#everyday" : "#care-diary"}>
             {t("ดูแลกันทุกวัน", "Everyday care")}
