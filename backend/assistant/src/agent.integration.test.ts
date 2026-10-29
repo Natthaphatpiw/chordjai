@@ -4,7 +4,7 @@ import {withSystem,withUser,closeDatabase} from '@chordjai/db';
 import {signSession} from '@chordjai/auth';
 import app from './app';
 import {deliverAgentMessage,executeAgentTask,ingestAgentTurn} from './agent';
-import {agentRequestId,getAgentTool} from './agent-tools';
+import {agentRequestId,getAgentTool,validateAgentArguments} from './agent-tools';
 import {bangkokAgentNow} from './agent-model';
 
 const provider=vi.hoisted(()=>({structured:vi.fn(),text:vi.fn(),push:vi.fn(),background:vi.fn()}));
@@ -256,6 +256,22 @@ describe.skipIf(!isolated)('durable LINE Agent with isolated PostgreSQL and mock
  it('releases the process permit after an unexpected provider failure so later queued work can continue',async()=>{
   provider.structured.mockRejectedValueOnce(new Error('Synthetic provider connection loss'));const failed=await storeEvent(example);await expect(ingestAgentTurn(failed,owner)).rejects.toThrow('Synthetic provider connection loss');
   normalizations.push(normalized({route:'help',normalizedText:'ช่วยอะไรได้บ้าง',petMentions:[]}));await input('ช่วยอะไรได้บ้าง');await deliverPending();expect(provider.push).toHaveBeenCalledTimes(1);expect(await task()).toBeUndefined();expect(await entries()).toHaveLength(0);
+ });
+ it('replays an undated create primed by the pre-expense-date Agent body without changing the HTTP idempotency hash',async()=>{
+  const raw=diary({costs:[{label:'Consultation',amountMinor:55000,currency:'THB',kind:'paid'}]}),key=randomUUID();
+  const parsed=validateAgentArguments('care.entries.create',raw),legacyBody={...parsed,costs:(parsed.costs as Record<string,unknown>[]).map(({expenseDate,...cost})=>cost),clientEntryId:agentRequestId(key)};
+  const health=(await import('../../health/src/app')).default;
+  const first=await health.request('/api/v1/health/care/entries',{method:'POST',headers:{Authorization:`Bearer ${tokens.get(owner)}`,'Content-Type':'application/json','Idempotency-Key':agentRequestId(key)},body:JSON.stringify(legacyBody)});
+  const saved=await first.json();expect(first.status,JSON.stringify(saved)).toBe(201);
+  const retry=await getAgentTool('care.entries.create')!.execute({id:owner,role:'owner'},raw,key);
+  expect(retry.resourceId).toBe(saved.data.id);expect(await entries()).toHaveLength(1);
+ });
+ it('preserves an explicit Agent expense date and permits an owner-requested date clear',async()=>{
+  const raw=diary({costs:[{label:'Consultation',amountMinor:55000,currency:'THB',kind:'paid',expenseDate:'2026-01-05'}]}),actor={id:owner,role:'owner' as const};
+  const created=await getAgentTool('care.entries.create')!.execute(actor,raw,randomUUID());expect((created.data as any).costs[0].expenseDate).toBe('2026-01-05');
+  const {petId,...fields}=validateAgentArguments('care.entries.create',raw);
+  const changed=await getAgentTool('care.entries.update')!.execute(actor,{...fields,id:created.resourceId,version:1,costs:[{label:'Consultation',amountMinor:55000,currency:'THB',kind:'paid',expenseDate:null}]},randomUUID());
+  expect((changed.data as any).costs[0].expenseDate).toBeNull();expect(await entries()).toHaveLength(1);
  });
  it('reuses the domain idempotency key after a tool commits but its response is lost',async()=>{
   const tool=getAgentTool('care.entries.create')!,original=tool.execute;

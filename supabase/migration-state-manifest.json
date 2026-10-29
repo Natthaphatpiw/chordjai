@@ -136,5 +136,11 @@
     "file": "202610290023_record_mutations.sql",
     "checksum": "0dbceb21851b06c67cff519d44df52319b6c475968eaff53128b2cece3830c32",
     "fingerprint": "171c466a888ddd5fd7df4ab1f5055527"
+  },
+  {
+    "version": "202610290024",
+    "file": "202610290024_expense_dates.sql",
+    "checksum": "f471a0d7d7c466909fc2bea881acdb509006a5f45aa2d395b45d964bcdd63dca",
+    "fingerprint": "920e7c3673511ed3914d17fc6f094a71"
   }
 ]

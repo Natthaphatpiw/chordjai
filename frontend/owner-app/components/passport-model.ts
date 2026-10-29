@@ -2,7 +2,7 @@ import { PASSPORT_PROTOCOL, passportQuestion, type PassportAnswerStatus, type Pa
 import { relevantQuestions, passportEmergency, pendingQuestions, normalizePassportAnswerStatus, type AnswerMap } from '../../../packages/contracts/src/passport-plan';
 import type { CareEntry, CareEpisode } from '../lib/care-types';
 import type { Pet } from '../lib/types';
-import { DEFAULT_OBSERVATIONS, careLocalToIso, moneyToMinor, type CareCostDraft } from './care-diary-model';
+import { DEFAULT_OBSERVATIONS, careLocalToIso, moneyToMinor, validExpenseDate, type CareCostDraft } from './care-diary-model';
 export interface PassportPhoto { mediaId: string; url: string; }
 
 export interface PassportLink { id: string; sessionId: string; url: string | null; expiresAt: string; revokedAt?: string | null; revoked?: boolean; demo?: boolean; }
@@ -55,12 +55,12 @@ export function validateAfterVisit(draft: AfterVisitDraft): 'date' | 'followup' 
   if (draft.followupLocal && (!careLocalToIso(draft.followupLocal) || draft.followupLocal < draft.observedLocal)) return 'followup';
   if (!draft.title.trim()) return 'title';
   if (![draft.narrative, draft.findings, draft.treatment].some(value => value.trim())) return 'details';
-  if (draft.costs.some(cost => !cost.label.trim() || moneyToMinor(cost.amount) === null)) return 'costs';
+  if (draft.costs.some(cost => !cost.label.trim() || moneyToMinor(cost.amount) === null || !validExpenseDate(cost.expenseDate))) return 'costs';
   if (!draft.confirmed) return 'confirm'; return null;
 }
 export function afterVisitPayload(draft: AfterVisitDraft, version: number) {
   const invalid = validateAfterVisit(draft); if (invalid) throw new Error(invalid);
-  return { version, ownerConfirmed: true as const, clientEntryId: draft.clientEntryId, clinicNoteId: draft.clinicNoteId, observedAt: careLocalToIso(draft.observedLocal)!, title: draft.title.trim(), narrative: draft.narrative.trim(), clinicName: draft.clinicName.trim(), vetReportedFindings: draft.findings.trim(), treatment: draft.treatment.trim(), nextFollowupAt: draft.followupLocal ? careLocalToIso(draft.followupLocal) : null, costs: draft.costs.map(cost => ({ label: cost.label.trim(), amountMinor: moneyToMinor(cost.amount)!, currency: cost.currency, kind: cost.kind })), mediaIds: draft.photos.map(photo => photo.mediaId), reflection: draft.reflection, shareWithClinic: draft.shareWithClinic, shareCosts: draft.shareWithClinic && draft.shareCosts };
+  return { version, ownerConfirmed: true as const, clientEntryId: draft.clientEntryId, clinicNoteId: draft.clinicNoteId, observedAt: careLocalToIso(draft.observedLocal)!, title: draft.title.trim(), narrative: draft.narrative.trim(), clinicName: draft.clinicName.trim(), vetReportedFindings: draft.findings.trim(), treatment: draft.treatment.trim(), nextFollowupAt: draft.followupLocal ? careLocalToIso(draft.followupLocal) : null, costs: draft.costs.map(cost => ({ label: cost.label.trim(), amountMinor: moneyToMinor(cost.amount)!, currency: cost.currency, kind: cost.kind, expenseDate: cost.expenseDate || null })), mediaIds: draft.photos.map(photo => photo.mediaId), reflection: draft.reflection, shareWithClinic: draft.shareWithClinic, shareCosts: draft.shareWithClinic && draft.shareCosts };
 }
 export function afterVisitFromNote(note: PassportClinicNote, draft: AfterVisitDraft): AfterVisitDraft {
   return { ...draft, clinicNoteId: note.id, clinicName: note.clinicName, findings: note.findings, treatment: [note.treatment, note.careInstructions].filter(Boolean).join('\n'), followupLocal: note.nextFollowupAt ? new Intl.DateTimeFormat('sv-SE', { timeZone: 'Asia/Bangkok', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).format(new Date(note.nextFollowupAt)).replace(' ', 'T') : '', confirmed: false };

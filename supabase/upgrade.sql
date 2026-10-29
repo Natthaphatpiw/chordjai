@@ -58,7 +58,8 @@ select jsonb_build_object('fingerprint',md5(details::text),'details',details) as
  (20,'202610120020','202610120020_petid_dataset_exports.sql','0c2dfee5c0d1fcd947fea70cbeca3968'),
  (21,'202610130021','202610130021_pet_passport.sql','5ff3a6478e28e83e84c4ffb6d5f74478'),
  (22,'202610290022','202610290022_line_agent.sql','1fa6dec40eefeeea2f053758c500131c'),
- (23,'202610290023','202610290023_record_mutations.sql','171c466a888ddd5fd7df4ab1f5055527')
+ (23,'202610290023','202610290023_record_mutations.sql','171c466a888ddd5fd7df4ab1f5055527'),
+ (24,'202610290024','202610290024_expense_dates.sql','920e7c3673511ed3914d17fc6f094a71')
   ) k(ordinal,version,file,fingerprint) where k.fingerprint=current_state->>'fingerprint';
   if known_count is null then
     raise exception 'Unrecognized or partial ChordJai schema (%). No changes applied. Run supabase/diagnostic.sql and review the full JSON; use bootstrap only on a fresh project.',current_state->>'fingerprint';
@@ -2191,7 +2192,49 @@ $migration_202610290023$;
 
   insert into ops.schema_migrations(version,checksum) values('202610290023','0dbceb21851b06c67cff519d44df52319b6c475968eaff53128b2cece3830c32') on conflict(version) do nothing;
 
-  if exists(select 1 from ops.schema_migrations m where m.version not in ('202610100001','202610100002','202610100003','202610100004','202610100005','202610100006','202610100007','202610100008','202610100009','202610100010','202610100011','202610100012','202610100013','202610100014','202610110015','202610120016','202610120017','202610120018','202610120019','202610120020','202610130021','202610290022','202610290023')) then
+  select m.checksum into checksum from ops.schema_migrations m where m.version='202610290024';
+  if checksum is not null and checksum<>'f471a0d7d7c466909fc2bea881acdb509006a5f45aa2d395b45d964bcdd63dca' then
+    raise exception 'Checksum mismatch for migration 202610290024. No changes applied.';
+  end if;
+
+  if known_count<24 then
+    if checksum is not null then raise exception 'Tracker claims unapplied migration 202610290024. No changes applied.'; end if;
+    execute $migration_202610290024$
+-- A cost's optional calendar date is independent of the diary event timestamp.
+-- Existing expenses deliberately remain undated: there is no inferred backfill.
+alter table health.care_costs add column expense_date date;
+alter table health.care_costs add constraint care_costs_expense_date_check
+ check(expense_date is null or (isfinite(expense_date) and expense_date between date '0001-01-01' and date '9999-12-31'));
+
+-- Preserve the existing care.read grant and per-entry cost opt-in. Dates are
+-- part of the selected expense, never an additional unconsented projection.
+create or replace function health.clinic_care_summary(p_pet_id uuid,p_include_costs boolean default false) returns jsonb
+language plpgsql security definer set search_path='' as $$
+declare result jsonb;
+begin
+ if public.current_user_id() is null or not public.has_clinic_grant(p_pet_id,'care.read') then raise exception 'A current explicit care.read grant is required' using errcode='42501';end if;
+ select coalesce(jsonb_agg(to_jsonb(projected) order by projected.observed_at desc,projected.id desc),'[]'::jsonb) into result from (
+ select e.id,e.kind,e.title,e.observed_at,e.clinical_note,e.observations,e.visit,e.provenance,e.passport_source,e.updated_at,
+ case when ep.id is null then null else jsonb_build_object('id',ep.id,'title',ep.title,'status',ep.status,'startedAt',ep.started_at,'resolvedAt',ep.resolved_at) end as episode,
+ case when p_include_costs and e.share_costs then coalesce((select jsonb_agg(jsonb_build_object('label',c.label,'amountMinor',c.amount_minor,'currency',c.currency,'kind',c.kind,'expenseDate',c.expense_date) order by c.position) from health.care_costs c where c.entry_id=e.id),'[]'::jsonb) else '[]'::jsonb end as costs
+ from health.care_entries e left join health.care_episodes ep on ep.id=e.episode_id where e.pet_id=p_pet_id and e.share_with_clinic order by e.observed_at desc,e.id desc limit 100
+ ) projected;
+ return jsonb_build_object('entries',result,'truncated',(select count(*)>100 from health.care_entries where pet_id=p_pet_id and share_with_clinic),'generatedAt',now(),'provenance','owner_reported');
+end $$;
+revoke all on function health.clinic_care_summary(uuid,boolean) from public,chordjai_worker;
+grant execute on function health.clinic_care_summary(uuid,boolean) to chordjai_app;
+
+-- Migration 23's all-column cost mutation trigger already invalidates selected
+-- Passport/share snapshots on date edits, without changing any sharing scope.
+$migration_202610290024$;
+    raise notice 'Applied 202610290024_expense_dates.sql';
+  else
+    raise notice 'Verified existing 202610290024_expense_dates.sql';
+  end if;
+
+  insert into ops.schema_migrations(version,checksum) values('202610290024','f471a0d7d7c466909fc2bea881acdb509006a5f45aa2d395b45d964bcdd63dca') on conflict(version) do nothing;
+
+  if exists(select 1 from ops.schema_migrations m where m.version not in ('202610100001','202610100002','202610100003','202610100004','202610100005','202610100006','202610100007','202610100008','202610100009','202610100010','202610100011','202610100012','202610100013','202610100014','202610110015','202610120016','202610120017','202610120018','202610120019','202610120020','202610130021','202610290022','202610290023','202610290024')) then
     raise exception 'Migration tracker contains a version unknown to this checkout. No changes applied.';
   end if;
   select s.state->>'fingerprint' into actual_state from (
@@ -2223,7 +2266,7 @@ with service_schemas(name) as (
 )
 select jsonb_build_object('fingerprint',md5(details::text),'details',details) as state from catalog
   ) s;
-  if actual_state<> '171c466a888ddd5fd7df4ab1f5055527' then
+  if actual_state<> '920e7c3673511ed3914d17fc6f094a71' then
     raise exception 'Final schema verification failed (%). No changes applied.',actual_state;
   end if;
 end $upgrade$;

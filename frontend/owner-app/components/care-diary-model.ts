@@ -3,7 +3,7 @@ import type { CareCost, CareEntry, CareEntryInput, CareEpisode, CareKind, CareOb
 export const CARE_PHOTO_LIMIT = 5;
 export const CARE_PAGE_SIZE = 50;
 export const DEFAULT_OBSERVATIONS: CareObservations = { symptoms: [], severity: 'unknown', appetite: 'unknown', energy: 'unknown', trend: 'unknown', water: 'unknown', toilet: 'unknown', onsetAt: null, frequency: '' };
-export interface CareCostDraft { id: string; label: string; amount: string; currency: CareCost['currency']; kind: CareCost['kind']; }
+export interface CareCostDraft { id: string; label: string; amount: string; currency: CareCost['currency']; kind: CareCost['kind']; expenseDate?: string; }
 export interface CareEntryDraft extends Omit<CareEntryInput, 'observedAt' | 'costs' | 'mediaIds' | 'visit' | 'observations'> {
   observedLocal: string;
   onsetLocal: string;
@@ -38,6 +38,13 @@ export function moneyToMinor(value: string): number | null {
   return Number.isSafeInteger(amount) && amount <= 100_000_000 ? amount : null;
 }
 export function minorToMoney(value: number): string { return (value / 100).toFixed(2); }
+/** An optional calendar date stays separate from the diary event timestamp. */
+export function validExpenseDate(value: string | null | undefined): boolean {
+  if (!value) return true;
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value) || value.startsWith('0000-')) return false;
+  const date = new Date(`${value}T12:00:00Z`);
+  return Number.isFinite(date.getTime()) && date.toISOString().slice(0,10) === value;
+}
 export function moneyTotals(entries: Pick<CareEntry, 'costs'>[]): { currency: CareCost['currency']; paid: number | null; estimate: number | null; count: number }[] {
   const groups = new Map<CareCost['currency'], { paid: number | null; estimate: number | null; count: number }>();
   for (const entry of entries) for (const cost of entry.costs) {
@@ -52,7 +59,7 @@ export function freshCareDraft(kind: CareKind = 'daily', episodeId: string | nul
   return { kind, episodeId, title: '', observedLocal: bangkokLocalDateTime(), narrative: '', clinicalNote: '', reflection: '', observations: { ...DEFAULT_OBSERVATIONS, symptoms: [] }, symptomsText: '', onsetLocal: '', followupLocal: '', visit: { clinicName: '', reason: '', vetReportedFindings: '', treatment: '' }, costs: [], photos: [], newEpisodeTitle: '', shareWithClinic: false, shareCosts: false };
 }
 export function draftFromEntry(entry: CareEntry): CareEntryDraft {
-  return { ...freshCareDraft(entry.kind, entry.episodeId), title: entry.title, observedLocal: bangkokLocalDateTime(entry.observedAt), narrative: entry.narrative, clinicalNote: entry.clinicalNote, reflection: entry.canEditReflection ? entry.reflection : '', observations: { ...DEFAULT_OBSERVATIONS, ...entry.observations }, symptomsText: entry.observations.symptoms.join(', '), onsetLocal: entry.observations.onsetAt ? bangkokLocalDateTime(entry.observations.onsetAt) : '', followupLocal: entry.visit?.nextFollowupAt ? bangkokLocalDateTime(entry.visit.nextFollowupAt) : '', visit: entry.visit ? { clinicName: entry.visit.clinicName, reason: entry.visit.reason, vetReportedFindings: entry.visit.vetReportedFindings, treatment: entry.visit.treatment } : freshCareDraft().visit, costs: entry.costs.map((cost,index) => ({ ...cost, id: `cost-${index}`, amount: minorToMoney(cost.amountMinor) })), photos: entry.photos.map(photo=>({...photo})), shareWithClinic: entry.shareWithClinic, shareCosts: entry.shareCosts };
+  return { ...freshCareDraft(entry.kind, entry.episodeId), title: entry.title, observedLocal: bangkokLocalDateTime(entry.observedAt), narrative: entry.narrative, clinicalNote: entry.clinicalNote, reflection: entry.canEditReflection ? entry.reflection : '', observations: { ...DEFAULT_OBSERVATIONS, ...entry.observations }, symptomsText: entry.observations.symptoms.join(', '), onsetLocal: entry.observations.onsetAt ? bangkokLocalDateTime(entry.observations.onsetAt) : '', followupLocal: entry.visit?.nextFollowupAt ? bangkokLocalDateTime(entry.visit.nextFollowupAt) : '', visit: entry.visit ? { clinicName: entry.visit.clinicName, reason: entry.visit.reason, vetReportedFindings: entry.visit.vetReportedFindings, treatment: entry.visit.treatment } : freshCareDraft().visit, costs: entry.costs.map((cost,index) => ({ ...cost, id: `cost-${index}`, amount: minorToMoney(cost.amountMinor), expenseDate: cost.expenseDate ?? '' })), photos: entry.photos.map(photo=>({...photo})), shareWithClinic: entry.shareWithClinic, shareCosts: entry.shareCosts };
 }
 export type CareValidation = 'narrative' | 'date' | 'onset' | 'followup' | 'symptoms' | 'cost' | 'sharing' | 'photos' | null;
 export function validateCareDraft(draft: CareEntryDraft): CareValidation {
@@ -62,7 +69,7 @@ export function validateCareDraft(draft: CareEntryDraft): CareValidation {
   if (draft.followupLocal && (!careLocalToIso(draft.followupLocal) || draft.followupLocal < draft.observedLocal)) return 'followup';
   const symptoms = draft.symptomsText.split(/[,\n]/).map(item=>item.trim()).filter(Boolean);
   if (symptoms.length > 12 || symptoms.some(item=>item.length>80)) return 'symptoms';
-  if (draft.costs.length > 30 || draft.costs.some(cost=>!cost.label.trim() || moneyToMinor(cost.amount) === null)) return 'cost';
+  if (draft.costs.length > 30 || draft.costs.some(cost=>!cost.label.trim() || moneyToMinor(cost.amount) === null || !validExpenseDate(cost.expenseDate))) return 'cost';
   if (draft.shareWithClinic && !draft.clinicalNote.trim()) return 'sharing';
   if (draft.photos.length > CARE_PHOTO_LIMIT || new Set(draft.photos.map(item=>item.mediaId)).size !== draft.photos.length) return 'photos';
   return null;
@@ -71,7 +78,7 @@ export function payloadFromDraft(draft: CareEntryDraft, fallbackTitle: string): 
   const validation = validateCareDraft(draft);
   if (validation) throw new Error(validation);
   const hasVisit = draft.kind === 'visit' || draft.followupLocal || Object.values(draft.visit).some(Boolean);
-  return { kind: draft.kind, episodeId: draft.episodeId, title: draft.title.trim() || fallbackTitle, observedAt: careLocalToIso(draft.observedLocal)!, narrative: draft.narrative.trim(), clinicalNote: draft.clinicalNote.trim(), reflection: draft.reflection, observations: { ...draft.observations, symptoms: [...new Set(draft.symptomsText.split(/[,\n]/).map(item=>item.trim()).filter(Boolean))], onsetAt: draft.onsetLocal ? careLocalToIso(draft.onsetLocal) : null }, visit: hasVisit ? { ...draft.visit, nextFollowupAt: draft.followupLocal ? careLocalToIso(draft.followupLocal) : null } : null, costs: draft.costs.map(cost=>({ label:cost.label.trim(), amountMinor:moneyToMinor(cost.amount)!, currency:cost.currency, kind:cost.kind })), mediaIds:draft.photos.map(photo=>photo.mediaId), shareWithClinic:draft.shareWithClinic, shareCosts:draft.shareWithClinic && draft.shareCosts };
+  return { kind: draft.kind, episodeId: draft.episodeId, title: draft.title.trim() || fallbackTitle, observedAt: careLocalToIso(draft.observedLocal)!, narrative: draft.narrative.trim(), clinicalNote: draft.clinicalNote.trim(), reflection: draft.reflection, observations: { ...draft.observations, symptoms: [...new Set(draft.symptomsText.split(/[,\n]/).map(item=>item.trim()).filter(Boolean))], onsetAt: draft.onsetLocal ? careLocalToIso(draft.onsetLocal) : null }, visit: hasVisit ? { ...draft.visit, nextFollowupAt: draft.followupLocal ? careLocalToIso(draft.followupLocal) : null } : null, costs: draft.costs.map(cost=>({ label:cost.label.trim(), amountMinor:moneyToMinor(cost.amount)!, currency:cost.currency, kind:cost.kind, expenseDate:cost.expenseDate || null })), mediaIds:draft.photos.map(photo=>photo.mediaId), shareWithClinic:draft.shareWithClinic, shareCosts:draft.shareWithClinic && draft.shareCosts };
 }
 /** Compare UTC instants without losing PostgreSQL microseconds or changing a cursor. */
 export function careInstantKey(value:string):string {

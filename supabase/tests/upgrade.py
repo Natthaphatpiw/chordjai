@@ -31,9 +31,13 @@ def fresh(prefix: int) -> str:
     return name
 
 try:
-    for prefix in (1, 4, 9, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, len(sources)):
+    for prefix in (1, 4, 9, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, len(sources)):
         db = fresh(prefix)
         sql(db, "insert into identity.users(id,line_user_id,display_name) values('e0000000-0000-0000-0000-000000000001','upgrade-preservation-fixture','SYNTHETIC SENTINEL');")
+        if prefix >= 16:
+            sql(db, """insert into pet.pets(id,owner_id,name,species) values('e0000000-0000-0000-0000-000000000011','e0000000-0000-0000-0000-000000000001','SYNTHETIC EXPENSE PET','cat');
+              insert into health.care_entries(id,pet_id,created_by,client_entry_id,create_hash,kind,title,observed_at) values('e0000000-0000-0000-0000-000000000021','e0000000-0000-0000-0000-000000000011','e0000000-0000-0000-0000-000000000001','e0000000-0000-0000-0000-000000000031',repeat('a',64),'visit','SYNTHETIC VISIT','2026-01-02T08:00:00Z');
+              insert into health.care_costs(entry_id,position,label,amount_minor,currency,kind) values('e0000000-0000-0000-0000-000000000021',0,'SYNTHETIC EXPENSE',125050,'THB','paid');""")
         before = json.loads(sql(db, diagnostic).stdout.strip())
         assert before["verified_migration_count"] == prefix, before["status"]
         sql(db, upgrade)
@@ -41,6 +45,8 @@ try:
         assert after["verified_migration_count"] == len(sources), after["status"]
         assert sql(db, "select count(*) from identity.users where line_user_id='upgrade-preservation-fixture';").stdout.strip() == "1"
         assert sql(db, "select count(*) from ops.schema_migrations;").stdout.strip() == str(len(sources))
+        if prefix >= 16:
+            assert sql(db, "select count(*) from health.care_costs where entry_id='e0000000-0000-0000-0000-000000000021' and expense_date is null and amount_minor=125050 and currency='THB' and kind='paid';").stdout.strip() == "1"
         sql(db, upgrade)  # a second run verifies and adopts, never recreates tables
         print(f"PASS: known state {prefix} -> {len(sources)} -> {len(sources)} preserves sentinel user and tracks {len(sources)} migrations")
 

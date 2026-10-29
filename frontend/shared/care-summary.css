@@ -8,3 +8,5 @@
 .portal-care-cost-choice{display:flex;align-items:flex-start;gap:10px;font-size:13px;line-height:1.8;margin:16px 0;color:#715b4d}.portal-care-cost-choice input{width:18px;height:18px;flex-shrink:0;accent-color:#b74b00;margin-top:3px}@media print{.portal-care-cost-choice{display:none!important}}
 
 .share-legacy-preview{border:1px solid #ead8c7;border-radius:12px;padding:12px 16px;margin:18px 0;font-size:13px}.share-legacy-preview summary{cursor:pointer;color:#81400e}.share-legacy-preview article{padding:14px 0;border-bottom:1px solid #eee0d3}.share-legacy-preview article:last-child{border:0}.share-legacy-preview h3{font-size:15px;margin:0 0 8px}.share-legacy-preview p{font-size:13px;white-space:pre-wrap;overflow-wrap:anywhere;line-height:1.8;margin:6px 0}
+
+.clinical-care-costs li small{display:block;font-size:11px;line-height:1.7;color:#715b4d;margin-top:3px}

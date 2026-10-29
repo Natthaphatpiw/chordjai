@@ -7,8 +7,9 @@ import {passportCreateSchema,passportUpdateSchema,passportAnswerSchema,passportC
 import {nextPassportQuestion,passportEmergency,pendingQuestions,type AnswerMap} from './passport-engine';
 import {validateCareDates} from './care';
 import {optionalDeleteGuard} from './mutations';
+import {replaceCareCosts,expenseDateHashInput} from './expense-dates';
 const base='/api/v1/health/passport';
-const hash=(body:unknown)=>createHash('sha256').update(JSON.stringify(body)).digest('hex');
+const hash=(body:unknown)=>createHash('sha256').update(JSON.stringify(expenseDateHashInput(body))).digest('hex');
 async function access(db:PoolClient,petId:string,actorId:string){if(!(await db.query('SELECT id FROM pet.pets WHERE id=$1 AND health.passport_owner_access(id,$2) FOR SHARE',[petId,actorId])).rowCount)throw new HttpError(403,'PASSPORT_OWNER_REQUIRED','เฉพาะเจ้าของที่ยินยอมใช้บริการเท่านั้นที่จัดการ Passport ได้');}
 async function row(db:PoolClient,id:string,actorId:string,lock=false){const found=(await db.query(`SELECT * FROM health.passport_sessions WHERE id=$1 AND created_by=$2 ${lock?'FOR UPDATE':''}`,[id,actorId])).rows[0];if(!found)throw new HttpError(404,'PASSPORT_NOT_FOUND','ไม่พบ Passport หรือไม่มีสิทธิ์เข้าถึง');return found;}
 function version(current:{version:number},expected:number){if(current.version!==expected)throw new HttpError(409,'VERSION_CONFLICT','Passport มีการแก้ไขจากที่อื่น กรุณาโหลดฉบับล่าสุด');}
@@ -80,7 +81,7 @@ export function registerPassportRoutes(app:Hono<ServiceEnv>){
    const source={kind:note?'owner_confirmed_clinic_note':'owner_reported_visit',sessionId:id,snapshotId:old.current_snapshot_id,...(note?{clinicNoteId:note.id,clinicId:note.clinic_id,clinicName:note.clinic_name,clinicianAuthoredAt:note.created_at.toISOString()}:{}),confirmedBy:actor.id,confirmedAt:new Date().toISOString()};
    const entry=(await db.query(`INSERT INTO health.care_entries(pet_id,created_by,client_entry_id,create_hash,episode_id,kind,title,observed_at,narrative,clinical_note,visit,share_with_clinic,share_costs,passport_session_id,passport_clinic_note_id,passport_source) VALUES($1,$2,$3,$4,$5,'visit',$6,$7,$8,$9,$10::jsonb,$11,$12,$13,$14,$15::jsonb) RETURNING id`,[old.pet_id,actor.id,body.clientEntryId,hash(body),visitEpisodeId,body.title,body.observedAt,body.narrative,body.vetReportedFindings,JSON.stringify({...visit,reason:old.reason}),body.shareWithClinic,body.shareCosts,id,note?.id??null,JSON.stringify(source)])).rows[0];
    if(body.reflection)await db.query('INSERT INTO health.care_reflections(entry_id,author_id,content) VALUES($1,$2,$3)',[entry.id,actor.id,body.reflection]);
-   for(const[position,cost]of body.costs.entries())await db.query('INSERT INTO health.care_costs(entry_id,position,label,amount_minor,currency,kind) VALUES($1,$2,$3,$4,$5,$6)',[entry.id,position,cost.label,cost.amountMinor,cost.currency,cost.kind]);
+   await replaceCareCosts(db,entry.id,body.costs);
    for(const[position,mediaId]of body.mediaIds.entries())await db.query('INSERT INTO health.care_media(entry_id,media_id,position) VALUES($1,$2,$3)',[entry.id,mediaId,position]);
    const changed=(await db.query('UPDATE health.passport_sessions SET after_visit_entry_id=$2,after_visit_hash=$3,after_visit_episode_id=$4,version=version+1 WHERE id=$1 RETURNING *',[id,entry.id,afterHash,visitEpisodeId])).rows[0];
    await db.query("INSERT INTO analytics.events(user_id,pet_id,name,properties) VALUES($1,$2,'passport.after_visit.saved',$3::jsonb)",[actor.id,old.pet_id,JSON.stringify({hasClinicNote:!!note,hasFollowup:!!body.nextFollowupAt})]);return{session:await session(db,changed),entryId:entry.id,episodeId:visitEpisodeId,reminderScheduled:!!body.nextFollowupAt};

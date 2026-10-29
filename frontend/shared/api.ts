@@ -2,6 +2,7 @@ import { browserLocale, translate, type Locale } from './locale-core';
 import { automaticLiff, initializedLiff } from './liff-session';
 
 const englishErrors: Record<string, string> = {
+  EXPENSE_DATES_UPGRADE_REQUIRED: 'Expense dates are not available yet. Your draft has been kept. Please try again later.',
   PASSPORT_OWNER_REQUIRED: 'Only the pet owner with active service consent can manage this Passport.',
   PASSPORT_NOT_FOUND: 'This Pet Passport is unavailable or you cannot access it.',
   PASSPORT_CONFIRM_REQUIRED: 'Review and confirm the current Passport before sharing or recording the visit.',

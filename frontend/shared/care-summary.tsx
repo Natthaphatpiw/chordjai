@@ -10,7 +10,7 @@ export type ClinicalCareEntry={
   observations?:{symptoms?:string[];severity?:string;appetite?:string;energy?:string;trend?:string;water?:string;toilet?:string;onsetAt?:string|null;frequency?:string};
   visit?:{clinicName?:string;reason?:string;vetReportedFindings?:string;treatment?:string;nextFollowupAt?:string|null}|null;
   episode?:{id:string;title:string;status:string;startedAt?:string;resolvedAt?:string|null}|null;
-  costs?:{label:string;amountMinor:number;currency:'THB'|'USD';kind:'paid'|'estimate'}[];
+  costs?:{label:string;amountMinor:number;currency:'THB'|'USD';kind:'paid'|'estimate';expenseDate?:string|null}[];
   passportSource?:{kind:string;clinicName?:string;confirmedAt?:string;clinicianAuthoredAt?:string}|null;
 };
 
@@ -37,7 +37,7 @@ export function CareSummary({entries,showPrint=false}:{entries:ClinicalCareEntry
         {entry.clinicalNote?<p className="clinical-care-note">{entry.clinicalNote}</p>:null}
         {entry.passportSource?<p className="clinical-care-source">{entry.passportSource.kind==='owner_confirmed_clinic_note'?t('เจ้าของตรวจและบันทึกผลโดยอ้างอิงบันทึกคลินิก','Owner-reviewed update linked to a clinic note'):t('เจ้าของบันทึกหลังพบหมอจาก Pet Passport','Owner-recorded post-visit update from Pet Passport')}{entry.passportSource.clinicName?` · ${entry.passportSource.clinicName}`:''}{entry.passportSource.confirmedAt?` · ${dateForLocale(entry.passportSource.confirmedAt,locale)}`:''}</p>:null}
         {entry.visit?<div className="clinical-care-visit"><h4><Stethoscope size={17}/>{t('การพบหมอที่เจ้าของบันทึก','Owner-reported vet visit')}</h4>{entry.visit.clinicName?<p>{entry.visit.clinicName}</p>:null}{entry.visit.reason?<p><b>{t('เหตุผลที่ไป','Reason for visit')}:</b> {entry.visit.reason}</p>:null}{entry.visit.vetReportedFindings?<p><b>{t('เจ้าของเล่าว่าคุณหมอบอก','What the owner reports the vet said')}:</b> {entry.visit.vetReportedFindings}</p>:null}{entry.visit.treatment?<p><b>{t('การรักษา / คำแนะนำที่ได้รับ','Treatment / instructions received')}:</b> {entry.visit.treatment}</p>:null}{entry.visit.nextFollowupAt?<p><b>{t('ติดตามครั้งถัดไป','Next follow-up')}:</b> {eventDate(entry.visit.nextFollowupAt)}</p>:null}</div>:null}
-        {entry.costs?.length?<details className="clinical-care-costs"><summary>{t('ค่าใช้จ่ายที่เจ้าของอนุญาตแยกไว้','Costs separately selected by the owner')}</summary><ul>{entry.costs.map((cost,index)=><li key={index}><span>{cost.label} · {cost.kind==='estimate'?t('ประมาณการ','Estimate'):t('จ่ายแล้ว','Paid')}</span><b>{new Intl.NumberFormat(locale==='th'?'th-TH':'en-US',{style:'currency',currency:cost.currency}).format(cost.amountMinor/100)}</b></li>)}</ul></details>:null}
+        {entry.costs?.length?<details className="clinical-care-costs"><summary>{t('ค่าใช้จ่ายที่เจ้าของอนุญาตแยกไว้','Costs separately selected by the owner')}</summary><ul>{entry.costs.map((cost,index)=><li key={index}><span>{cost.label} · {cost.kind==='estimate'?t('ประมาณการ','Estimate'):t('จ่ายแล้ว','Paid')}{cost.expenseDate?<small>{t('วันที่รายการ','Expense date')}: <time dateTime={cost.expenseDate}>{dateForLocale(cost.expenseDate,locale)}</time></small>:null}</span><b>{new Intl.NumberFormat(locale==='th'?'th-TH':'en-US',{style:'currency',currency:cost.currency}).format(cost.amountMinor/100)}</b></li>)}</ul></details>:null}
         <small className="clinical-care-source">{t('แหล่งข้อมูล: เจ้าของรายงาน','Source: owner reported')}{entry.updatedAt?` · ${t('แก้ไขล่าสุด','Last amended')} ${dateForLocale(entry.updatedAt,locale)}`:''}</small>
       </li>;
     })}</ol>}

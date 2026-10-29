@@ -24,7 +24,7 @@ const clinicalEntry = {
   observations:{symptoms:['กินน้อย'],trend:'same',severity:'mild',appetite:'reduced',energy:'low',water:'normal',toilet:'normal',onsetAt:'2026-10-11T10:00:00Z',frequency:'วันละสองครั้ง'},
   episode:{id:'episode-test',title:'ดูแลเรื่องการกิน',status:'ongoing'},
   visit:{clinicName:'คลินิกสำหรับทดสอบ UI',reason:'ตรวจเรื่องการกิน',vetReportedFindings:'เจ้าของรายงานคำแนะนำ',treatment:'ติดตามการกิน',nextFollowupAt:'2026-10-15T03:00:00Z'},
-  costs:[{label:'ค่าตรวจ',amountMinor:125050,currency:'THB',kind:'paid'},{label:'ครั้งถัดไป',amountMinor:50000,currency:'THB',kind:'estimate'}],
+  costs:[{label:'ค่าตรวจ',amountMinor:125050,currency:'THB',kind:'paid',expenseDate:'2026-10-11'},{label:'ครั้งถัดไป',amountMinor:50000,currency:'THB',kind:'estimate',expenseDate:null}],
   narrative:'PRIVATE_DIARY_CANARY',reflection:'PRIVATE_REFLECTION_CANARY',photos:[{url:'PRIVATE_PHOTO_CANARY'}],
 };
 const careMetrics = {diaryAuthors:2,diaryEntries:6,diaryPets:2,entriesLast7Days:6,activePetsLast30Days:2,recordedPetWeeksLast30Days:3,repeatWeekPetsLast30Days:1,activeEpisodes:1,episodesWithFollowup:1,visits:2,visitsWithRecordedCosts:1,visitsWithAttachments:1,entriesEnabledForClinicalSharing:1};
@@ -133,6 +133,8 @@ try {
   await clinic.page.getByRole('button',{name:'เปิดสมุดสุขภาพ',exact:true}).click();
   await clinic.page.locator('.clinical-care-costs summary').click();
   await expect(clinic.page.locator('.clinical-care-costs')).toContainText('1,250.50');
+  await expect(clinic.page.locator('.clinical-care-costs time[datetime="2026-10-11"]')).toHaveText(new Intl.DateTimeFormat('th-TH',{day:'numeric',month:'short',year:'numeric',timeZone:'Asia/Bangkok'}).format(new Date('2026-10-11')));
+  await expect(clinic.page.locator('.clinical-care-costs time')).toHaveCount(1);
   await clinic.page.setViewportSize({ width: 390, height: 844 }); await checkLayout(clinic.page);
   await clinic.page.screenshot({ path: '.verification/clinic-health-mobile.png', fullPage: true });
   await clinic.page.getByRole('navigation').getByRole('button', { name: 'คลินิกของฉัน' }).click();
@@ -210,6 +212,15 @@ try {
   await expect(englishClinic.page.getByText('Appetite follow-up',{exact:true})).toBeVisible();
   expect(await englishClinic.page.locator('body').innerText()).not.toMatch(/PRIVATE_.*_CANARY/);
   await expect(englishClinic.page.getByRole('button',{name:'Print brief'})).toBeVisible();
+  await englishClinic.page.getByLabel('Include owner-permitted costs, then open the journal again').check();
+  await englishClinic.page.getByRole('button',{name:'Open health journal',exact:true}).click();
+  await englishClinic.page.locator('.clinical-care-costs summary').click();
+  await expect(englishClinic.page.locator('.clinical-care-costs time')).toHaveCount(1);
+  await expect(englishClinic.page.locator('.clinical-care-costs')).toContainText('Expense date: 11 Oct 2026');
+  await englishClinic.page.emulateMedia({media:'print'});
+  await expect(englishClinic.page.locator('.clinical-care-costs time')).toBeVisible();
+  await englishClinic.page.pdf({path:'.verification/expense-dates/clinic-expense-brief.pdf',format:'A4',printBackground:true});
+  await englishClinic.page.emulateMedia({media:'screen'});
   await assertEnglish(englishClinic.page);
   await expect(englishClinic.page.locator('.portal-table-wrap')).toContainText('2026');
   await switchToThai(englishClinic.page);

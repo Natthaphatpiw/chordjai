@@ -2,6 +2,16 @@
 
 ใช้ Supabase project เดียวกับ PostgreSQL + pgvector รหัสผู้ใช้และน้องเป็น UUID เวลาเก็บ UTC และแสดงผล Asia/Bangkok ใช้ region/connection hostname ที่ project ของคุณแสดงจริง
 
+## รุ่น 24: วันที่รายการค่าใช้จ่าย — เตรียม 29 ตุลาคม 2026
+
+Migration [`202610290024_expense_dates.sql`](migrations/202610290024_expense_dates.sql) เพิ่ม `health.care_costs.expense_date` ชนิด `DATE` ที่เว้นว่างได้ แยกจากวัน/เวลาของไดอารี่และเวลาอัปโหลด ไม่คัดลอกวันที่เก่ามาเติมให้อัตโนมัติ รายการเดิมจึงยังไม่มีวันที่จนกว่าเจ้าของจะระบุเอง ใช้ได้ทั้งยอดจ่ายจริงและประมาณการ และล้างวันที่กลับเป็นว่างได้
+
+ค่า API ใช้ `expenseDate` รูปแบบ `YYYY-MM-DD` หรือ `null` ไม่มีเวลา/timezone วันที่จึงไม่เลื่อนตามการแสดงผลในประเทศอื่น ค่าที่ไม่ใช่วันจริง ปีศูนย์ และวันที่ไม่สิ้นสุดถูกปฏิเสธ วันที่ในสรุปคลินิกออกไปเฉพาะเมื่อ request เลือกรวมค่าใช้จ่ายและรายการนั้นเปิดแชร์ค่าใช้จ่ายไว้แล้ว การแก้วันที่ใช้ trigger รุ่น 23 เพิกถอนสรุป/Passport ฉบับเก่าที่อ้างรายการนั้น
+
+**ยังไม่ได้รัน SQL รุ่น 24 ใน Supabase จริงโดย agent:** ฐานจริงที่ยืนยันล่าสุดคือรุ่น 23 ผู้ดูแลใช้ `diagnostic.sql` → `upgrade.sql` ฉบับปัจจุบัน → `diagnostic.sql` เพื่อตรวจถึงรุ่น 24 ไม่ใช้ bootstrap ซ้ำ ไม่มี `.env` ใหม่ ระหว่างยังเป็นรุ่น 23 โค้ดยังอ่าน/บันทึกค่าใช้จ่ายแบบไม่ระบุวันที่ได้ แต่ไม่รับวันที่ใหม่ไปทิ้งเงียบ ๆ
+
+ชุดทดสอบแยกตรวจ 23→24→24 โดยเก็บค่าใช้จ่ายเดิมและ `expense_date=NULL` ไว้ และตรวจ date-only correction, per-entry cost opt-out, RLS, timezone และการล้างวันที่ ไฟล์ `bootstrap.sql` ปัจจุบันรวมถึงรุ่น 24 สำหรับฐานข้อมูลว่างเท่านั้น ไม่เปลี่ยน checksum ของ migration 1–23
+
 ## รุ่น 23: แก้ไขและลบบันทึก — 29 ตุลาคม 2026
 
 ผู้ดูแลรัน `upgrade.sql` เองแล้ว และการตรวจ production แบบ read-only ยืนยัน migration **23** กับ fingerprint `171c466a888ddd5fd7df4ab1f5055527` การส่งมอบรอบนี้ไม่รัน SQL หรือแก้ env จริงแทนผู้ดูแล ไม่ต้องเพิ่ม `.env` สำหรับฟีเจอร์นี้
@@ -10,9 +20,9 @@ Migration [`202610290023_record_mutations.sql`](migrations/202610290023_record_m
 
 API ยังตรวจสิทธิ์และ revision/version ก่อนแก้หรือลบ และปิดการแก้ไขที่ต้องพึ่ง trigger นี้เมื่อฐานยังไม่ถึงรุ่น 23 การลบกลุ่มดูแลเก็บไดอารี่ไว้เป็นรายการไม่จัดกลุ่ม การลบ Passport ไม่ลบไดอารี่หลังพบหมอที่บันทึกแยกแล้ว อ่านขอบเขตและวิธีทดสอบใน [RECORD_MUTATIONS.md](../docs/RECORD_MUTATIONS.md)
 
-รอบนี้ผ่าน **285 unit + 209 isolated PostgreSQL/API = 497 tests** รวม ACL, concurrent revision conflict, reminder/weight/share invalidation และ guarded upgrade 22→23→23 ผู้ใช้เลือกทดสอบ LINE จริงกับพีโอนีเอง การทดสอบอัตโนมัติไม่สร้างหรือลบบันทึกสุขภาพจริง ดูสถานะ deploy ใน [VERIFICATION.md](../docs/VERIFICATION.md)
+รอบนี้ผ่าน **286 unit + 211 isolated PostgreSQL/API = 497 tests** รวม ACL, concurrent revision conflict, reminder/weight/share invalidation และ guarded upgrade 22→23→23 ผู้ใช้เลือกทดสอบ LINE จริงกับพีโอนีเอง การทดสอบอัตโนมัติไม่สร้างหรือลบบันทึกสุขภาพจริง ดูสถานะ deploy ใน [VERIFICATION.md](../docs/VERIFICATION.md)
 
-`bootstrap.sql` ฉบับนี้รวมถึงรุ่น 23 สำหรับฐานข้อมูลว่างเท่านั้น ฐานข้อมูล ChordJai เดิมใช้ `diagnostic.sql` → `upgrade.sql` → `diagnostic.sql` ซึ่งตรวจ fingerprint/checksum ก่อนเพิ่มเฉพาะ migration ที่ขาด ไม่รัน bootstrap ซ้ำหรือแก้ migration เก่าที่ส่งแล้ว
+รุ่น 23 เป็นประวัติการอัปเกรดก่อนเพิ่มวันที่ค่าใช้จ่าย ฐานข้อมูล ChordJai เดิมใช้ `diagnostic.sql` → `upgrade.sql` → `diagnostic.sql` ซึ่งตรวจ fingerprint/checksum ก่อนเพิ่มเฉพาะ migration ที่ขาด ไม่รัน bootstrap ซ้ำหรือแก้ migration เก่าที่ส่งแล้ว
 
 ## รุ่น 22: LINE Agent — 29 ตุลาคม 2026
 

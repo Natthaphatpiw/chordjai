@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { bangkokLocalDateTime, careInstantKey, careLocalToIso, clinicalProjection, draftFromEntry, freshCareDraft, mergeCareEntries, moneyToMinor, moneyTotals, orderCareEntries, orderCareEpisodes, payloadFromDraft, safeCarePhoto, validateCareDraft } from '../../frontend/owner-app/components/care-diary-model';
+import { bangkokLocalDateTime, careInstantKey, careLocalToIso, clinicalProjection, draftFromEntry, freshCareDraft, mergeCareEntries, moneyToMinor, moneyTotals, orderCareEntries, orderCareEpisodes, payloadFromDraft, safeCarePhoto, validExpenseDate, validateCareDraft } from '../../frontend/owner-app/components/care-diary-model';
 import type { CareEntry, CareEpisode } from '../../frontend/owner-app/lib/care-types';
 function entry(patch:Partial<CareEntry>={}):CareEntry {
   const draft=freshCareDraft('daily');draft.narrative='A quiet afternoon';
@@ -17,6 +17,21 @@ describe('Care diary clinical boundaries and low-burden input',()=>{
   it('keeps paid and estimated expenses separate for each currency with no misleading zero',()=>{
     const totals=moneyTotals([entry({costs:[{label:'Visit',amountMinor:125010,currency:'THB',kind:'paid'},{label:'Follow-up estimate',amountMinor:200000,currency:'THB',kind:'estimate'},{label:'Prescription estimate',amountMinor:1020,currency:'USD',kind:'estimate'}]})]);
     expect(totals).toEqual([{currency:'THB',paid:125010,estimate:200000,count:2},{currency:'USD',paid:null,estimate:1020,count:1}]);expect(moneyTotals([entry()])).toEqual([]);
+  });
+  it('leaves legacy expense dates unknown instead of copying the diary date or today',()=>{
+    const draft=draftFromEntry(entry({observedAt:'2026-10-12T01:00:00Z',costs:[{label:'Visit',amountMinor:125010,currency:'THB',kind:'paid'}]}));
+    expect(draft.costs[0].expenseDate).toBe('');expect(payloadFromDraft(draft,'Visit').costs[0]).toMatchObject({amountMinor:125010,expenseDate:null});
+  });
+  it('preserves an explicit calendar expense date separately from the event and allows clearing it',()=>{
+    const draft=draftFromEntry(entry({observedAt:'2026-10-12T01:00:00Z',costs:[{label:'Visit',amountMinor:125010,currency:'THB',kind:'paid',expenseDate:'2026-10-10'}]}));
+    expect(draft.costs[0].expenseDate).toBe('2026-10-10');expect(payloadFromDraft(draft,'Visit').costs[0].expenseDate).toBe('2026-10-10');
+    draft.costs[0].expenseDate='';expect(payloadFromDraft(draft,'Visit').costs[0]).toMatchObject({amountMinor:125010,expenseDate:null});expect(draft.observedLocal).toBe('2026-10-12T08:00');
+  });
+  it('validates optional expense calendar dates without imposing the diary event date',()=>{
+    for(const value of ['',null,undefined,'2024-02-29','2026-01-01','2026-12-31','0001-01-01','9999-12-31'])expect(validExpenseDate(value)).toBe(true);
+    for(const value of ['2025-02-29','2026-02-30','2026-13-01','2026-01-01T00:00:00Z','not a date','0000-01-01'])expect(validExpenseDate(value)).toBe(false);
+    const draft=freshCareDraft();draft.narrative='A visit';draft.costs=[{id:'expense',label:'Consultation',amount:'10.25',currency:'THB',kind:'paid',expenseDate:'2025-02-29'}];expect(validateCareDraft(draft)).toBe('cost');
+    draft.costs[0].expenseDate='2026-12-31';expect(validateCareDraft(draft)).toBeNull();
   });
   it('preserves Bangkok Gregorian calendar time regardless of browser timezone',()=>{
     expect(bangkokLocalDateTime('2026-10-11T18:30:00Z')).toBe('2026-10-12T01:30');expect(careLocalToIso('2026-10-12T01:30')).toBe('2026-10-11T18:30:00.000Z');expect(careLocalToIso('2025-02-29T12:00')).toBeNull();expect(careLocalToIso('2026-10-12T25:00')).toBeNull();expect(careLocalToIso('2569-10-12T12:00')).toBeNull();

@@ -18,7 +18,7 @@ export interface CareVisit {
   treatment: string;
   nextFollowupAt: string | null;
 }
-export interface CareCost { label: string; amountMinor: number; currency: 'THB' | 'USD'; kind: 'paid' | 'estimate'; }
+export interface CareCost { label: string; amountMinor: number; currency: 'THB' | 'USD'; kind: 'paid' | 'estimate'; expenseDate?: string | null; }
 export interface CarePhoto { mediaId: string; url: string; }
 export interface PassportCareSource {kind:'owner_confirmed_clinic_note'|'owner_reported_visit';sessionId:string;snapshotId:string;clinicNoteId?:string;clinicId?:string;clinicName?:string;clinicianAuthoredAt?:string;confirmedBy:string;confirmedAt:string;}
 export interface CareEntryInput {

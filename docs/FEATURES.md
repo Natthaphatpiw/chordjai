@@ -194,3 +194,7 @@ PetID เป็นฟีเจอร์ดึงดูดที่ต้อง�
 Git repository, Vercel project และ service เป็นคนละสิ่ง ไม่ต้องสร้าง repoต่อmicroservice ภายใน pilot แต่ละserviceมีschemaของตัวเองแต่ใช้ roleแอปร่วมกัน การdeployร่วมและFKข้ามschemaช่วยให้คนเดียวดูแลง่ายและลบบัญชีครบ หากต้องการบริการdeployอิสระหรือแยกฐานข้อมูลจริง ต้องทำrole/service contract และevent cleanupเพิ่มตามสถาปัตยกรรมตั้งต้น
 
 เอกสารเดิมมี162API/43topicและแผน16สัปดาห์ โค้ดนี้เป็นpilotที่มีflowหลักใช้งานได้ ไม่ได้อ้างว่างานครบทุกacceptanceในแผนดังกล่าว Testที่ผ่านด้านRLS/queueไม่แทนclinical eval100เคส, reviewจากสัตวแพทย์, load/security test, การซ้อมrestore หรือ legal reviewของPDPA
+
+## วันที่ค่าใช้จ่าย
+
+ค่าใช้จ่ายในไดอารี่และผลหลังพบหมอเพิ่มวันที่รายการแยกจากวันบันทึกแบบไม่บังคับ แก้หรือล้างได้ ไม่เติมวันให้ข้อมูลเก่าเอง ใช้ SQL รุ่น 24 และ env เดิม ดู [EXPENSE_DATES.md](EXPENSE_DATES.md) และผลตรวจใน VERIFICATION ก่อนเปิดใช้จริง

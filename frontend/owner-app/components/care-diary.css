@@ -13,3 +13,7 @@
 .care-passport-source{display:flex;align-items:flex-start;gap:6px;font-size:11px;line-height:1.7;color:var(--primary);margin:8px 0 12px}.care-passport-source svg{flex-shrink:0;margin-top:3px}
 
 .care-entry.care-agent-linked{outline:2px solid var(--orange);outline-offset:4px;scroll-margin-top:110px}
+
+/* Keep optional expense dates readable on narrow care and Passport forms. */
+@media(min-width:901px){.care-cost-row{grid-template-columns:minmax(0,1.6fr) minmax(0,.9fr) 78px 108px minmax(130px,1fr) 36px}}
+@media(max-width:900px){.care-cost-row>.care-cost-date{grid-column:1/-1;grid-row:3}.care-cost-row>.care-cost-date input{width:100%;min-height:42px}}

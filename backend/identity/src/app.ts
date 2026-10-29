@@ -77,7 +77,7 @@ app.get('/api/v1/identity/export', async c => {
     const careEntries=(await tx.query('select e.* from health.care_entries e where e.created_by=$1 or e.pet_id in(select id from pet.pets where owner_id=$1)',[actor.id])).rows;
     const careEpisodes=(await tx.query('select e.* from health.care_episodes e where e.created_by=$1 or e.pet_id in(select id from pet.pets where owner_id=$1)',[actor.id])).rows;
     const careReflections=(await tx.query('select * from health.care_reflections where author_id=$1',[actor.id])).rows;
-    const careCosts=(await tx.query('select c.* from health.care_costs c join health.care_entries e on e.id=c.entry_id where e.created_by=$1 or e.pet_id in(select id from pet.pets where owner_id=$1)',[actor.id])).rows;
+    const careCosts=(await tx.query("select c.*,to_jsonb(c)->>'expense_date' AS expense_date from health.care_costs c join health.care_entries e on e.id=c.entry_id where e.created_by=$1 or e.pet_id in(select id from pet.pets where owner_id=$1)",[actor.id])).rows;
     const careMedia=(await tx.query('select m.* from health.care_media m join health.care_entries e on e.id=m.entry_id where e.created_by=$1 or e.pet_id in(select id from pet.pets where owner_id=$1)',[actor.id])).rows;
     const petidCaptureSessions=(await tx.query('select * from biometric.capture_sessions where owner_id=$1',[actor.id])).rows;
     const petidCaptureSamples=(await tx.query('select p.* from biometric.capture_samples p join biometric.capture_sessions s on s.id=p.session_id where s.owner_id=$1',[actor.id])).rows;

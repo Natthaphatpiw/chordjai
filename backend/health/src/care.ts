@@ -6,9 +6,10 @@ import {careEntryCreateSchema,careEntryUpdateSchema,careEpisodeCreateSchema,care
 import {mediaUrl} from '@chordjai/media';
 import {getActor,ok,jsonBody,uuid,HttpError,type ServiceEnv} from '@chordjai/service-kit';
 import {requireRecordMutations,optionalDeleteGuard} from './mutations';
+import {replaceCareCosts,expenseDateHashInput} from './expense-dates';
 
 const base='/api/v1/health/care';
-const digest=(body:unknown)=>createHash('sha256').update(JSON.stringify(body)).digest('hex');
+const digest=(body:unknown)=>createHash('sha256').update(JSON.stringify(expenseDateHashInput(body))).digest('hex');
 function pageQuery(query:Record<string,string>){
   const limit=query.limit===undefined?50:Number(query.limit);
   if(!Number.isInteger(limit)||limit<1||limit>200||query.limit!==undefined&&!/^\d+$/.test(query.limit))throw new HttpError(400,'VALIDATION_ERROR','จำนวนรายการต้องอยู่ระหว่าง 1 ถึง 200');
@@ -27,7 +28,7 @@ const entryColumns=`e.id,e.pet_id,e.created_by,e.client_entry_id,e.episode_id,e.
   (public.can_write_pet(e.pet_id) AND (e.created_by=public.current_user_id() OR public.is_pet_owner(e.pet_id))) AS can_delete,
   e.created_by=public.current_user_id() AS can_edit_reflection,
   coalesce((SELECT r.content FROM health.care_reflections r WHERE r.entry_id=e.id),'') AS reflection,
-  coalesce((SELECT jsonb_agg(jsonb_build_object('label',c.label,'amountMinor',c.amount_minor,'currency',c.currency,'kind',c.kind) ORDER BY c.position) FROM health.care_costs c WHERE c.entry_id=e.id),'[]'::jsonb) AS costs,
+  coalesce((SELECT jsonb_agg(jsonb_build_object('label',c.label,'amountMinor',c.amount_minor,'currency',c.currency,'kind',c.kind,'expenseDate',to_jsonb(c)->>'expense_date') ORDER BY c.position) FROM health.care_costs c WHERE c.entry_id=e.id),'[]'::jsonb) AS costs,
   coalesce((SELECT jsonb_agg(jsonb_build_object('mediaId',m.id,'userId',m.user_id) ORDER BY cm.position) FROM health.care_media cm JOIN media.objects m ON m.id=cm.media_id AND m.status='ready' WHERE cm.entry_id=e.id),'[]'::jsonb) AS assets`;
 async function hydrate(entry:Record<string,unknown>){
   const {assets,...rest}=entry;
@@ -58,8 +59,7 @@ async function saveAttachments(db:PoolClient,id:string,actorId:string,entryAutho
     if(body.reflection)await db.query('INSERT INTO health.care_reflections(entry_id,author_id,content) VALUES($1,$2,$3) ON CONFLICT(entry_id) DO UPDATE SET content=excluded.content,updated_at=now()',[id,actorId,body.reflection]);
     else await db.query('DELETE FROM health.care_reflections WHERE entry_id=$1',[id]);
   }
-  await db.query('DELETE FROM health.care_costs WHERE entry_id=$1',[id]);
-  for(const[position,cost]of body.costs.entries())await db.query('INSERT INTO health.care_costs(entry_id,position,label,amount_minor,currency,kind) VALUES($1,$2,$3,$4,$5,$6)',[id,position,cost.label,cost.amountMinor,cost.currency,cost.kind]);
+  await replaceCareCosts(db,id,body.costs);
   await db.query('DELETE FROM health.care_media WHERE entry_id=$1',[id]);
   for(const[position,mediaId]of body.mediaIds.entries())await db.query('INSERT INTO health.care_media(entry_id,media_id,position) VALUES($1,$2,$3)',[id,mediaId,position]);
 }

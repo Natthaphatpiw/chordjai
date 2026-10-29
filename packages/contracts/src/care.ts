@@ -11,7 +11,7 @@ export const careObservationsSchema=z.object({
   toilet:z.enum(['unknown','normal','changed']).default('unknown'),
   onsetAt:instant.nullable().default(null),frequency:z.string().trim().max(200).default(''),
 });
-export const careCostSchema=z.object({label:z.string().trim().min(1).max(120),amountMinor:z.number().int().min(0).max(100_000_000),currency:z.enum(['THB','USD']),kind:z.enum(['paid','estimate']).default('paid')});
+export const careCostSchema=z.object({label:z.string().trim().min(1).max(120),amountMinor:z.number().int().min(0).max(100_000_000),currency:z.enum(['THB','USD']),kind:z.enum(['paid','estimate']).default('paid'),expenseDate:z.iso.date().refine(value=>!value.startsWith('0000-'),{message:'Expense date must use a year from 0001 through 9999'}).nullable().default(null)});
 export const careVisitSchema=z.object({clinicName:z.string().trim().max(200).default(''),reason:z.string().trim().max(2000).default(''),vetReportedFindings:z.string().trim().max(4000).default(''),treatment:z.string().trim().max(4000).default(''),nextFollowupAt:instant.nullable().default(null)});
 export const careEntryFieldsSchema=z.object({
   episodeId:z.uuid().nullable().default(null),kind:z.enum(['daily','symptom','visit','followup']),title:z.string().trim().min(1).max(160),observedAt:instant,

@@ -1,5 +1,17 @@
 # ผลตรวจระบบ — อัปเดต 29 ตุลาคม 2026
 
+## วันที่ค่าใช้จ่ายแบบไม่บังคับ — 29 ตุลาคม 2026
+
+- เพิ่ม `expenseDate` ต่อค่าใช้จ่าย แยกจากวันไดอารี่ ทั้ง Care Diary, Passport หลังพบหมอ, ประวัติ สรุป/พิมพ์ที่อนุญาต และ personal export วันที่ว่างเป็น `null` ไม่เดาวันให้ข้อมูลเก่า แก้/ล้างได้โดยรักษายอดและสกุลเงิน
+- **329 unit + 222 isolated PostgreSQL/API บน schema 24 + 4 API compatibility บน schema 23 = 555 ข้อผ่าน** รวมวันที่ปฏิทินจริง/ปีศูนย์ถูกปฏิเสธ, วันค่าใช้จ่ายต่างจากวันไดอารี่, retry เดิมไม่ซ้ำ, legacy canonical hashes, แก้/ล้างวัน, export วันที่ล้วน, cost-sharing opt-in และเพิกถอน snapshot ที่อ้างวันที่เก่า
+- SQL และ known-prefix upgrades ผ่าน รวม **23→24→24** และ 24 รันซ้ำ รักษาข้อมูลผู้ใช้/ยอดค่าใช้จ่ายเดิมและวันที่ `NULL` manifest และ migration 1–23 ไม่เปลี่ยน Fingerprint รุ่น 24 คือ `920e7c3673511ed3914d17fc6f094a71`
+- จำลอง Agent retry ที่ข้าม release แล้วพบ raw HTTP idempotency hash เปลี่ยนเพราะ default date เป็น null แก้เฉพาะสาม tools ที่เขียนค่าใช้จ่ายให้ละวันที่ว่างออกจาก HTTP body โดย backend ยังแปลเป็น null ได้ ตรวจ retry คำขอเก่าได้รายการเดิม และวันที่จริง/การล้างวันที่ยังทำงาน
+- บนฐาน 23 โค้ดใหม่ยังอ่าน/บันทึกค่าใช้จ่ายที่ไม่ใส่วันที่และ export ได้ ส่วน dated create/PATCH ตอบ 503 และ rollback โดยรายการ/version/ข้อความ/ยอดเดิมไม่เปลี่ยน ไม่ทิ้งวันที่เงียบ ๆ
+- Browser fixtures Owner/Care/Passport ผ่านเพิ่มวัน แก้/ล้างวันหลัง conflict/reload ไทย/อังกฤษ และ native date ว่างไม่ถูกเติมเอง; Clinic/Admin ผ่านการแสดงวันที่ที่ opt-in และสรุปพิมพ์ภาษาอังกฤษ ไม่มี overflow หรือ browser errors ตรวจภาพฟอร์มมือถือแล้ว
+- Workspace TypeScript, production builds Owner/Clinic/Admin, runtime declarations **167 source files** และ isolated startup/healthz ทั้ง **14 services** ผ่าน แก้ test clock ของ follow-up ให้เวลา reminder digest ในฐานทดสอบตรงกับ simulated JS clock เมื่อรันทดสอบนอกเวลาส่ง ไม่มีการเปลี่ยนพฤติกรรม follow-up ใน production
+
+SQL/env จริงยังเป็นงานของผู้ดูแลตามที่ตกลงไว้ ไม่รัน migration จริงหรือเขียนข้อมูลสุขภาพทดสอบใน production รายละเอียดไฟล์และขั้นตอนอยู่ใน [EXPENSE_DATES.md](EXPENSE_DATES.md) หลักฐาน ignored `.verification/expense-dates/`, `.verification/expense-*-ui.log` และภาพ `.verification/expense-date-form-mobile-*.png` การเปิดใช้ต้องตรวจ schema 24 ก่อน deploy UI วันที่
+
 ## ตรวจจริงรอบ 12:49 และแก้การ์ดที่มีแต่ยกเลิก — 29 ตุลาคม 2026
 
 - Runtime log ของ event เดียวกับข้อความทดสอบยืนยัน LINE `read`, `ack`, `loading` สถานะ `accepted`; LLM0/Agent planner สำเร็จ การ์ดคำถามส่งสำเร็จ ฐานข้อมูลมีหนึ่ง task สถานะ `collecting` และยังไม่มี tool call จึงยังไม่อ้างว่าทดสอบการบันทึก/ไม่ซ้ำ/เปิด LIFF ในบัญชีจริงครบแล้ว
