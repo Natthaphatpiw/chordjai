@@ -1,66 +1,38 @@
-# ChordJai bright orange + Mitr + bilingual QA
+# ChordJai landing design QA
 
-## Multi-page books and photo flows — 12 October 2026
+Date: 2026-10-29
 
-Source of the refinement is the user's seven LIFF mobile screenshots: the long single-image scan dialog, repeated explanation boxes, single-page memory editor and numeric-size problem. This round intentionally changes those flows while preserving the bright orange/Mitr identity. Native LINE/browser chrome is outside the local390×844viewport capture; no pixel-identical native-shell claim is made.
+final result: passed
 
-Evidence: `.verification/booklet-pages-10-mobile.png`, `booklet-review-mobile.png`, `booklet-review-desktop.png`, `health-booklet-mobile.png`, `memory-story-editor-en-mobile.png`, `memory-story-reader-en-mobile.png`, `memory-book-cover-en-desktop.png`, and `petid-multi-photo-mobile-en.png` / `desktop-en.png`. These are actual local frontend screenshots using explicit fixtures/demo assets, not fabricated product records. The final mobile Story reader shows the complete new9:16canvas and all navigation/date/place controls inside390×844.
+Scope: the requested media-ready landing redesign. Original pet films/photos are intentionally not supplied yet; reserved spaces are a user requirement, not missing implementation. This is an adaptation of visual principles, not a pixel clone of Petnow.
 
-Findings resolved during this round:
+## Reference and intended outcome
 
-- Repeated scan explanations were combined; a second inspection found duplicated generic expiry notes and excessive box height, now three short primary bullets with expandable specific warnings inside the same box.
-- Reader initially retained ordinary app scrolling. It now opens a native modal in the top layer, with underlying navigation inert, viewport-fitting portrait canvas, tap/swipe/progress and keyboardEscape/focusreturn.
-- Legacy pages keep800×1000coordinates; new pages/cover use800×1422. Thumbnail text scales proportionally rather than inheriting the full editor's minimum font size. Selected background images preserve actual layer order instead of obscuring foreground stickers/text.
-- PostgreSQL DATE conversion originally shifted Story dates under Asia/Bangkok; API/export now return calendar-date strings. Source-photo access is checked before AI and writes. PetID registration rechecks/locks every photo after AI so a concurrent erasure cannot publish a stale vector.
-- LIFF and ordinary browser entry, expired-session retries, logout races and consent are tested separately. Dirty memory drafts are protected when changing top-level tabs/pets or logging out.
+Inspected https://www.petnow.io/en with computer use: hero motion, scroll-driven story transitions, product presentation, colour changes, closing and footer. The user also supplied desktop screenshots and two original ChordJai logos. Keep ChordJai’s bright orange/white palette, Mitr, Thai/English, and actual product capabilities. Lead with care diary, LINE Agent and Pet Passport; introduce PetID without accuracy/certification claims.
 
-Verification:133 unit/SDK/provider tests +45 real isolated PostgreSQL HTTP tests, full DBsecurity/HNSW/upgrade/concurrency suite, all workspace TypeScript checks and three production builds pass. Owner/PetID/OCR/Story/clinic/admin browser runners pass at390pxanddesktop without document overflow or page exceptions. Real AI output quality and physical LINE client sign-in remain separate live acceptance checks. Supabase production migration15 was explicitly authorized and applied; its fingerprint was read back successfully.
+## Visual comparison
 
-Final result of this refinement: passed.
+Reference and implementation hero captures were opened together at the same 805 × 827 CSS viewport, both at scroll position 0. Evidence is kept locally under the ignored `.verification/landing/` directory: `reference-805.png`, `implementation-805.png`. Additional checks used 1280 × 900, 390 × 844 and 320 × 812. No device frame or browser chrome is part of the comparison.
 
-**Source visual truth**
-- Existing source UI capture: `/Users/natthaphat/Downloads/pettech/.verification/bright-before-owner.png`.
-- Latest user direction overrides the earlier muted Kindness & Kinship colors and Sarabun: cheerful vivid orange, playful loopless Mitr, Thai/English choice throughout. Existing layout and real licensed pet imagery remain the source composition. This is a scoped refinement, not a literal color/font match to the old screen.
+- Typography: Mitr confirmed by computed styles; Thai and English headings wrap clearly. Mitr instead of Petnow’s font is an intentional brand choice.
+- Layout: spacious hero with primary action and one large visual, clear section transitions, user-controlled stories, distinct LINE conversation and product preview. Mobile stacks content without horizontal overflow.
+- Colour: orange `#ff6b24`, white and pale peach are scoped to landing; the application and portals retain existing tokens. Dark text remains readable on orange actions.
+- Assets: original logo PNGs copied unchanged; Next Image serves appropriately sized versions. Actual application screenshot remains explicitly labelled sample data. Reserved media frames keep stable aspect ratios and make no failed image requests.
+- Copy: owner-facing diary and continuity lead the narrative. Passport review/sharing and separate PetID research consent are explicit. No borrowed statistics, partnerships, success rates or clinical outcomes.
 
-**Implementation evidence**
-- Same-frame comparison: `.verification/bright-final-owner-th.png`; source and implementation are both 1280×720 CSSpx/PNGpx, density 1, owner demo Home/Tofu, no crop/normalization. Source and implementation were emitted together in one computer-use comparison input.
-- Product captures: `.verification/bright-product-th.png` and `bright-product-en.png`,1440×1100 CSSpx/PNGpx, density 1, same demo Home state. These are saved as separate local marketing WebPs.
-- Mobile English: `.verification/bright-owner-en-mobile.png`,390×844 CSS viewport, density 1, full-page screenshot. Portal/public/UI runner screenshots in `.verification/` cover every existing route/tab in bothlanguages.
-- The1280px comparison is legible at native resolution for logo, headings, controls and body text; fonts/spacing/photo crop were inspected at 1:1. A separate magnified source region is unnecessary because these important details are already readable.
+## Interaction checks and repairs
 
-**Findings and comparison history**
-- Initial P2: the earlier darkbrown-orange palette felt muted. Replaced action/selected-state fills with vivid`#ff8a24`, lighter white/peach surfaces and dark labels. Final1280px comparison shows the intended brightselection/brand treatment while retaining readable content. Accepted intentional color change.
-- Initial P2: Sarabun did not express the requested playful character. Mitr is now loaded on all3frontends via next/font/google, Thai and Latin,400/500/600. Computed browser family isMitr, body 400; display weight varies500/600. Accepted intentional typography change.
-- P2 during verification: newly captured marketing assets returned404 because the local production server started before those files existed. Restarted owner after saving both assets; reran owner and public runners, both pass with loaded local images. This was local inventory timing; bothfiles are included before deployment build.
-- P2 independent review: English PetID still had a Thai server notice and Thai insufficient-photo UI could get Englishquality explanations. Localized notice/quality feedback while keeping all embedding facets English. Unit provider request assertions pass.
-- Review finding: existing English medication backstop missed spelled six/seven doses. Extended matcher and regression cases; unit checks pass. No clinical quality claim is inferred from the safety filter.
-- Test-only failures: portal alert matchedNext's route announcer, and rerendered form implicit label included textarea content. Scoped test selectors; actual forms, notices, permissions and state preservation pass.
+1. Story tabs, previous/next, ArrowLeft/ArrowRight keyboard controls and selection state work. Cards do not auto-advance.
+2. Mobile navigation opens/closes, Escape works, and anchor navigation reaches the intended section.
+3. Found the same-route Next Link brand did not reliably return to the top. Replaced landing brand links with `#top` anchors and rechecked `scrollY = 0`.
+4. Thai/English selection updates the whole landing, HTML language and internal app URLs. English body text contains no Thai characters. Choice survives reload and is retained on the app destination.
+5. Primary CTA reaches the existing English LINE sign-in/demo screen after its loading state. No account was signed in, no real user data changed, and no LINE message sent.
+6. FAQ answers expand, including separate training consent. Motion pause leaves all reveal content visible (`hiddenReveals = 0`); preference persists after reload. System reduced-motion CSS and the matchMedia listener were reviewed. No browser preference was changed.
+7. Images finish loading with non-zero natural widths. Production app destination has no console errors. Initial development-only image loading advice was addressed by explicit eager loading for the supplied logo.
+8. Production Next build and TypeScript pass. `git diff --check` passes. No SQL, environment or dependency change.
 
-**Required fidelity surfaces**
-1. Fonts/typography: actualMitr family confirmed on desktop/mobile, Thai/Latin, readable body 400, clear display hierarchy 500/600; no Sarabun runtimefont. All UI uses the sharedfamily. User-selected journal serif/handwritten styles remain editable contentchoices.
-2. Spacing/layout rhythm: same1280px composition preserves photo/sidebar/content relationships; language picker fits headers. At 390px all 6 owner areas, 7 portal tabs and 7 public routes are reachable without horizontal document overflow. Selected mobile navigation remains visible.
-3. Colors/tokens: shared white/peach backgrounds, vivid orange buttons/logo/selections, semanticmint/blue/error remain meaningful. Dark`#3a210d` on orange`#ff8a24` computes 6.35:1; secondary body text 7.15:1 on paper. White on orange was rejected at 2.36:1. This verifies these named pairs, not every possible custom journal color or an entire WCAG audit.
-4. Imagequality/assets: original licensed cat/dog WebPs preserved with intentional crops. Actual new Thai/English app captures load locally; English marketing image contains English system text. No new emoji, CSS illustration or handmade SVG assetsubstitutions. Existing icon library graphics remain functional.
-5. Copy/content: all system/sample UI, ARIA/placeholders/statuses/date formatting/legal pages/metadata translate to a single selectedlanguage. Static English demo has zero Thai text. Authored names, clinical record titles/notes and previously saved content remain original. New AI responses receive the selected language; no live AI quality test without the key.
+## Intentional delivery boundaries
 
-**Interactions and verification**
-- Owner: all 6 tabs, health entry, emergency triage fallback, drag/keyboard/edit/save/reload journal, memory opt-in/settings, PetID owner/finder, invite, public routes and language-switch preservation of unsaved text/title/positions.
-- Clinic/admin: all 7 tabs, grants/roles, accepted appointment, completed jobs filter/replay, clinical summary, clinic creation, native validation, notices/errors/forms/checkbox/tab preservation and localized errors. All mutations used local fixtures only.
-- Public: marketing +privacy/terms/AI/emergency/invite/share/lost, success/unavailable states, translated tip confirmation, unsent draft preservation, SSR html/lang/title/description, localized links, and both-language offline emergency reloads.
-- 84 unit + 19 isolated HTTP tests passed; DB security/HNSW/upgrade/concurrency suite passed; workspace TypeScript and3 production builds passed. Browser exception lists empty. No production data or LINE/OpenAI calls were used for functionalfixtures.
+Seven slots are configured with null paths and no requests to absent media. See `docs/LANDING_MEDIA_GUIDE.md` for measured dimensions, crop-safe areas, production prompts and exact registry fields. Hero uses the supplied brand artwork until a finished poster/film is provided. Video playback, loop quality and crop must receive a final visual pass with the actual supplied files; no current claim is made that those future films have been tested. Offscreen/hidden-tab/pause handling and static poster behaviour are implemented.
 
-**Open questions / residual test gaps**
-- No actionable P0/P1/P2 remain. Live LINE sign-in and generated AI quality require the user's configured credentials and are outside this visual/language verification; provider prompts are tested with mocks.
-- Choosing another language does not rewrite historical authored or saved AI content. New UI/system responses follow the selection.
-
-**Implementation checklist**
-- Shared tokens/Mitr/locale provider and 3 SSR proxies implemented.
-- Every existing frontend/public/LIFF surface localized.
-- Actual bilingual product screenshots saved.
-- Local visual/interaction/SSR/offline verification passed.
-- Commit/push followed by Vercel production check is the final delivery step.
-
-**Follow-up polish**
-- Optional usability testing withThai/English pet owners can assess preference for this brighter brand. No unsupported behavioral claim is made about the pets themselves.
-
-**Final result:** passed
+No remaining P0/P1/P2 issue in the requested delivery state. Optional future polish: refresh the sample product screenshot when a new demo recording is produced.
