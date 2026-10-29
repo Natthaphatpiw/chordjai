@@ -2,7 +2,7 @@
 
 เอกสารนี้อธิบายพฤติกรรมที่พัฒนาในโค้ด วิธีเปิดใช้งาน และขอบเขตของ Agent ใน LINE OA ของชิดใจ สำหรับผู้ดูแลระบบ นักพัฒนา และทีม Product อ่านคู่กับ [FEATURES.md](FEATURES.md), [PERSONALIZED_FOLLOWUPS.md](PERSONALIZED_FOLLOWUPS.md), [PET_PASSPORT.md](PET_PASSPORT.md) และ [VERIFICATION.md](VERIFICATION.md)
 
-**สถานะการส่งมอบรอบนี้:** เตรียมโค้ดและ SQL รุ่น 22 พร้อมการทดสอบแยกไว้แล้ว ยังไม่ได้รัน migration รุ่น 22 ใน Supabase จริง ไม่ได้แก้ไฟล์ `.env` จริงหรือ environment บน Vercel และไม่ได้ทดสอบส่งข้อความหาผู้ใช้จริง การเปิดใช้ต้องทำตามขั้นตอนท้ายเอกสาร โดยค่าเริ่มต้นของ `LINE_AGENT_ENABLED` ปิดอยู่
+**สถานะล่าสุด:** ผู้ดูแลรัน SQL และตั้ง env จริงเองแล้ว ฐานข้อมูลจริงที่ตรวจแบบ read-only เป็นรุ่น 23 ฟีเจอร์แก้/ลบบันทึกใช้รุ่น 23 เพิ่มจาก LINE Agent รุ่น 22 ไม่มี env ใหม่ ผู้ใช้เลือกทดสอบข้อความจริงกับพีโอนีเอง ผล deploy/fixtures และสิ่งที่ยังไม่ยืนยันในบัญชีจริงอ่านใน [VERIFICATION.md](VERIFICATION.md) และ [RECORD_MUTATIONS.md](RECORD_MUTATIONS.md) ค่าเริ่มต้นใน env example ยังปิด `LINE_AGENT_ENABLED` เพื่อไม่เปิดบริการอัตโนมัติใน environment ใหม่
 
 ## 1. เป้าหมายของประสบการณ์ใช้งาน
 
@@ -84,19 +84,19 @@ Tools แบ่งเป็น 3 ระดับ
 
 ## 4. Tools ที่เปิดให้ Agent ใช้
 
-รุ่นนี้มี **48 tools: อ่าน 22, สร้าง 10, ต้องยืนยัน 16** ใช้ API และตัวตรวจสิทธิ์จริงของบริการเดิมผ่านรายการที่กำหนดไว้ล่วงหน้า โมเดลเลือก host, SQL, โค้ด, HTTP method หรือผู้รับ LINE เองไม่ได้ จำนวนและรายละเอียดล่าสุดตรวจได้จาก `GET /api/v1/assistant/agent/tools` เมื่อเข้าสู่ระบบ
+รุ่นนี้มี **55 tools: อ่าน 23, สร้าง 10, ต้องยืนยัน 22** ใช้ API และตัวตรวจสิทธิ์จริงของบริการเดิมผ่านรายการที่กำหนดไว้ล่วงหน้า โมเดลเลือก host, SQL, โค้ด, HTTP method หรือผู้รับ LINE เองไม่ได้ จำนวนและรายละเอียดล่าสุดตรวจได้จาก `GET /api/v1/assistant/agent/tools` เมื่อเข้าสู่ระบบ
 
 ตารางใช้ `R` = อ่าน, `W` = สร้างจากคำสั่งชัดเจน, `C` = ต้องตรวจยืนยัน
 
 | ส่วนของ Product | Tools | ขอบเขตสำคัญ |
 | --- | --- | --- |
 | โปรไฟล์น้อง (4) | `pets.list` R, `pets.get` R, `pets.create` W, `pets.update` C | ใช้ข้อมูลที่เจ้าของระบุ ไม่เดาสายพันธุ์ ไมโครชิป หรือข้อเท็จจริงทางการแพทย์ |
-| สมุดสุขภาพ (2) | `health.records.list` R, `health.records.create` W | ลงน้ำหนัก วัคซีน ประวัติยา/ป้องกันปรสิต และโน้ตจากข้อมูลจริง ไม่สั่งยา |
-| ไดอารี่และเรื่องการดูแล (7) | `care.entries.list` R, `care.entries.get` R, `care.entries.create` W, `care.entries.update` C, `care.episodes.list` R, `care.episodes.create` W, `care.episodes.update` C | ผูกอาการ/พบหมอ/ติดตามกับน้องและเรื่องการดูแล บันทึกใหม่เป็นส่วนตัว ไม่แปลว่าเจ้าของเงียบแล้วน้องหาย |
+| สมุดสุขภาพ (5) | `health.records.list` R, `health.records.get` R, `health.records.create` W, `health.records.update` C, `health.records.delete` C | ลงน้ำหนัก วัคซีน ประวัติยา/ป้องกันปรสิต และโน้ตจากข้อมูลจริง แก้/ลบตาม revision และสิทธิ์ ไม่สั่งยา |
+| ไดอารี่และเรื่องการดูแล (9) | `care.entries.list` R, `care.entries.get` R, `care.entries.create` W, `care.entries.update` C, `care.entries.delete` C, `care.episodes.list` R, `care.episodes.create` W, `care.episodes.update` C, `care.episodes.delete` C | ผูกอาการ/พบหมอ/ติดตามกับน้องและเรื่องการดูแล ลบกลุ่มแล้วเก็บไดอารี่ไว้ บันทึกใหม่เป็นส่วนตัว ไม่แปลว่าเจ้าของเงียบแล้วน้องหาย |
 | การเตือน (4) | `reminders.list` R, `reminders.create` W, `reminders.complete` C, `reminders.snooze` C | วันเวลามาจากคำสั่งเจ้าของ ไม่สร้างตารางยาเอง |
-| สมุดความทรงจำ (7) | `journal.books.get` R, `journal.books.create` W, `journal.books.update` C, `journal.pages.list` R, `journal.pages.get` R, `journal.pages.create` W, `journal.pages.update` C | สร้าง/แก้หน้าปกและหน้า Story จากข้อมูลที่พร้อมแล้ว การจัดหน้า AI บน canvas ที่ยังไม่บันทึกต้องเปิด LIFF |
+| สมุดความทรงจำ (8) | `journal.books.get` R, `journal.books.create` W, `journal.books.update` C, `journal.pages.list` R, `journal.pages.get` R, `journal.pages.create` W, `journal.pages.update` C, `journal.pages.delete` C | สร้าง/แก้หน้าปก แก้/ลบหน้า Story จากข้อมูลที่พร้อมแล้ว การจัดหน้า AI บน canvas ที่ยังไม่บันทึกต้องเปิด LIFF |
 | คลินิกและนัดหมาย (4) | `clinics.list` R, `appointments.list` R, `appointments.create` C, `appointments.cancel` C | สิ่งที่ส่งเป็น “คำขอนัดหมาย” ต้องรอคลินิกตอบรับ ไม่รับรองว่าจองเวลาสำเร็จแล้ว |
-| Pet Passport Q&A (6) | `passport.sessions.list` R, `passport.sessions.get` R, `passport.sessions.create` W, `passport.sessions.update` C, `passport.answers.save` W, `passport.after_visit.save` C | ใช้คำถามที่ระบบ Passport ควบคุม บันทึกคำตอบตามจริง และเชื่อมผลหลังพบหมอ; การยืนยันฉบับสุดท้าย/สร้างลิงก์แชร์ทำใน LIFF |
+| Pet Passport Q&A (7) | `passport.sessions.list` R, `passport.sessions.get` R, `passport.sessions.create` W, `passport.sessions.update` C, `passport.sessions.delete` C, `passport.answers.save` W, `passport.after_visit.save` C | ใช้คำถามที่ระบบ Passport ควบคุม บันทึกคำตอบตามจริง และเชื่อมผลหลังพบหมอ; ลบ Passport แล้วไม่ลบไดอารี่ที่บันทึกแยก การยืนยันฉบับสุดท้าย/สร้างลิงก์แชร์ทำใน LIFF |
 | PetID (3) | `petid.enrollments.list` R, `petid.captures.list` R, `petid.matches.list` R | อ่านสถานะและคู่ที่อาจตรงกัน ไม่ลงคะแนนยืนยันตัวตน ไม่สร้างความยินยอมฝึกโมเดล |
 | ตามหาน้อง (4) | `lost.cases.list` R, `lost.cases.publish` C, `lost.cases.close` C, `lost.tips.list` R | แจ้งก่อนเผยแพร่รายละเอียด/เขตเป็นสาธารณะ ไม่เติมข้อมูลติดต่อหรือที่อยู่ละเอียด; เบาะแสเป็นข้อมูลที่ยังไม่ยืนยัน |
 | ลิงก์สรุปสุขภาพ (2) | `share.links.list` R, `share.links.revoke` C | อ่าน metadata/เพิกถอนลิงก์เฉพาะรายการ การสร้างลิงก์ใหม่ต้องเลือกขอบเขตในแอป |
@@ -128,6 +128,8 @@ Planner จำกัดไม่เกิน 3 รอบต่อการวา
 ## 6. งานถาวร การทำซ้ำ และผลสำเร็จบางส่วน
 
 Agent ใช้คิวในฐานข้อมูลเดิมและแยกสถานะ `collecting → awaiting_confirmation → queued → running → succeeded/failed/cancelled` งานที่ไม่ต้องยืนยันข้าม `awaiting_confirmation` ได้ งานหนึ่งมีอายุเริ่มต้น 24 ชั่วโมง และหนึ่ง thread มีงานปัจจุบันทีละงาน
+
+ก่อนแก้/ลบ server อ่านชื่อน้อง ชื่อรายการ และวันที่จากข้อมูลปัจจุบันมาประกอบการยืนยัน พร้อมระบุว่าลบถาวรไม่มีถังขยะ เก็บ prepared deletion receipt ที่เป็น reference ก่อนเรียก domain API เพื่อกู้ผลหลัง response หายโดยยังตรวจสิทธิ์และใช้ idempotency เดิม เมื่อข้อมูลเปลี่ยนจน version conflict ต้องส่งคำขอใหม่เพื่อตรวจฉบับล่าสุด ผลลบสำเร็จเปิดประวัติที่เหลือใน LIFF ไม่เปิดรายการที่ถูกลบแล้ว
 
 ในหนึ่ง runtime instance มี process permit ให้ Agent ทำงานพร้อมกันหนึ่งงาน เพื่อเหลือ connection สำหรับการตรวจสิทธิ์และ domain API ที่เปิด transaction ซ้อน งานที่ชนกันคืน `409 AGENT_BUSY` ทันทีและคิวที่บันทึกไว้จะลองใหม่ จึงอาจรอรอบถัดไปได้ permit ถูกคืนแม้งานผิดพลาด ส่วนการป้องกันข้าม instance ยังคงใช้ lock, execution lease และ idempotency ในฐานข้อมูล ไม่พึ่งตัวแปรใน process เพียงอย่างเดียว
 
@@ -238,7 +240,7 @@ Owner app เปิดหน้าสถานะงาน จากนั้น
 
 LLM0, planner, สรุปคำตอบอ่านข้อมูล และ Chat ใช้ `gpt-6.1-sol` ผ่าน `packages/ai` ตัวเดียวกับระบบเดิม ไม่มีโมเดล Agent แยก การฝังเวกเตอร์ PetID ยังเป็นงาน embedding ของระบบเดิม ไม่ได้เปลี่ยนมาใช้ generative model สำหรับ embedding
 
-Agent ใช้ Structured Outputs ผ่าน Responses API เพื่อคืนแผนที่ตรวจ schema แล้ว ให้ executor ฝั่งระบบเรียก tools ที่อนุญาต ไม่เปิดให้โมเดลรันโค้ดหรือเรียก HTTP/SQL เอง รุ่น prompt รอบนี้คือ `2026-10-29.1` และใช้ budget/usage log กลางของระบบเดิม
+Agent ใช้ Structured Outputs ผ่าน Responses API เพื่อคืนแผนที่ตรวจ schema แล้ว ให้ executor ฝั่งระบบเรียก tools ที่อนุญาต ไม่เปิดให้โมเดลรันโค้ดหรือเรียก HTTP/SQL เอง รุ่น prompt รอบนี้คือ `2026-10-29.2` และใช้ budget/usage log กลางของระบบเดิม แยกแผนอ่านออกจากแผนแก้ข้อมูล และแยกการวางแผนไปพบหมอจากการรักษาที่เกิดขึ้นแล้ว
 
 เพดานที่ตั้งในโค้ดขณะส่งมอบ
 
@@ -259,12 +261,12 @@ Agent ใช้ Structured Outputs ผ่าน Responses API เพื่อค
 
 1. ใช้ SQL Editor ของ project จริงรัน [`supabase/diagnostic.sql`](../supabase/diagnostic.sql) เพื่ออ่านสถานะ ไม่มีการแก้ข้อมูล
 2. หากเป็น ChordJai schema ที่สคริปต์รู้จัก ใช้ [`supabase/upgrade.sql`](../supabase/upgrade.sql) ฉบับที่มากับโค้ดรุ่นนี้ สคริปต์ตรวจ fingerprint/checksum ก่อนเพิ่ม migration ที่ขาด และทำใน transaction
-3. รัน diagnostic อีกครั้ง ตรวจว่าถึง **รุ่น 22** และไม่มี partial/unknown schema แล้วจึงเปิด flag
+3. รัน diagnostic อีกครั้ง ตรวจว่าถึง **รุ่น 23** และไม่มี partial/unknown schema แล้วจึงเปิด flag (โครงการนี้ผู้ดูแลรันและตรวจยืนยันแล้ว)
 4. หากสคริปต์หยุดเพราะ schema ไม่ตรง ให้ตรวจผล diagnostic และความต่างก่อน ไม่ใช้การลบตารางหรือข้ามการตรวจเพื่อให้รันผ่าน
 
 **ฐานข้อมูลนี้มีข้อมูลอยู่แล้ว ให้ใช้ `upgrade.sql` ไม่รัน `bootstrap.sql` ซ้ำ** การมี error ว่า relation `users` มีแล้วไม่ได้แก้ด้วยการลบตาราง เอกสาร [DEPLOYMENT.md](DEPLOYMENT.md) อธิบายขั้นตอนติดตั้งและ connection string เดิม
 
-Migration ใหม่คือ [`202610290022_line_agent.sql`](../supabase/migrations/202610290022_line_agent.sql) ไม่ต้องเปิด schema `assistant` เป็น public Supabase REST schema เพื่อให้แอปใช้ Agent บริการ backend ใช้ `DATABASE_URL` และ API เดิม
+Agent ใช้ [`202610290022_line_agent.sql`](../supabase/migrations/202610290022_line_agent.sql) และการแก้/ลบที่ดูแลข้อมูลอ้างอิงใช้ [`202610290023_record_mutations.sql`](../supabase/migrations/202610290023_record_mutations.sql) ไม่ต้องเปิด schema `assistant` เป็น public Supabase REST schema บริการ backend ใช้ `DATABASE_URL` และ API เดิม ไม่มี env ใหม่สำหรับส่วนแก้/ลบ ดู [RECORD_MUTATIONS.md](RECORD_MUTATIONS.md)
 
 ### Environment ของ backend project
 
@@ -291,7 +293,7 @@ LINE_AGENT_LIFF_ID=2010549060-FRfLt9mJ
 
 ### Checklist ก่อนเปิดให้ผู้ใช้จริง
 
-- [ ] สำรอง/ตรวจสถานะฐานข้อมูล แล้วอัปเกรดถึงรุ่น 22 ด้วย `upgrade.sql`; diagnostic ตรงกับรุ่นที่ส่งมอบ
+- [ ] สำรอง/ตรวจสถานะฐานข้อมูล แล้วอัปเกรดถึงรุ่น 23 ด้วย `upgrade.sql`; diagnostic ตรงกับรุ่นที่ส่งมอบ
 - [ ] Backend และ owner app ใช้โค้ดรุ่นเดียวกันตามที่ทดสอบ; bindings assistant/notification และ Cron ทำงาน
 - [ ] Provider key ใช้ `gpt-6.1-sol` ได้จริง งบ AI และ LINE Push quota เพียงพอ
 - [ ] เปิด `LINE_AGENT_ENABLED=true` เฉพาะ environment ที่เตรียมแล้ว

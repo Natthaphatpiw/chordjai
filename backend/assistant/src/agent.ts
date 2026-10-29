@@ -8,11 +8,11 @@ import {passportEmergency} from '@chordjai/contracts';
 import {enqueue} from '@chordjai/queue';
 import {pushLine,type LineMessage} from '@chordjai/line';
 import {getActor,jsonBody,ok,uuid,HttpError,type createService} from '@chordjai/service-kit';
-import {AGENT_TOOLS,getAgentTool,toolCatalog,validateAgentArguments,assertAgentToolAccess,resolveAgentActionPetId} from './agent-tools';
+import {AGENT_TOOLS,getAgentTool,toolCatalog,validateAgentArguments,assertAgentToolAccess,resolveAgentActionPetId,agentActionReview,isAgentDeletionTool,assertAgentDeletionReplay} from './agent-tools';
 import {agentCard,type AgentCardChoice} from './agent-cards';
 import {normalizeAgentInputSchema,agentPlanSchema,NORMALIZE_INSTRUCTIONS,PLAN_INSTRUCTIONS,parseActionArgs,bangkokAgentNow,explicitConfirmation,explicitCancellation,agentResultPath,agentLiffLink,type PlannedAction,explicitWriteRequest,boundedAgentObservation} from './agent-model';
 
-type Task={id:string;user_id:string;thread_id:string;language:'th'|'en';version:number;status:string;title:string;request_text:string;plan:PlannedAction[];question:unknown;result:Record<string,unknown>|null;confirmed_version:number|null;execution_id:string;reference_at:Date;created_at:Date;updated_at:Date;expires_at:Date};
+type Task={id:string;user_id:string;thread_id:string;language:'th'|'en';version:number;status:string;title:string;request_text:string;plan:PlannedAction[];question:unknown;result:Record<string,unknown>|null;error_code?:string|null;confirmed_version:number|null;execution_id:string;reference_at:Date;created_at:Date;updated_at:Date;expires_at:Date};
 type Turn={id:string;user_id:string;thread_id:string;event_id:string;request_id:string;input_text:string|null;postback_data:string|null;state:string};
 type Delivery={id:string;user_id:string;task_id:string|null;turn_id:string|null;kind:string;messages:LineMessage[];status:string;retry_key:string;expires_at:Date;first_attempt_at:Date|null};
 const t=(language:'th'|'en',thai:string,english:string)=>language==='en'?english:thai;
@@ -82,8 +82,19 @@ async function assertTaskAccess(actor:Actor,task:Task){
   for(const action of task.plan)if(getAgentTool(action.tool)?.risk==='read')await assertAgentToolAccess(action.tool,actor,action.args);
   return;
  }
+ const calls=await withSystem(async db=>(await db.query<{step:number;status:string;result:Record<string,unknown>|null}>('select step,status,result from assistant.agent_tool_calls where task_id=$1 and user_id=$2',[task.id,actor.id])).rows);
+ for(const [step,action]of task.plan.entries()){
+  const call=calls.find(item=>item.step===step),reference=deletionReplayReference(action.tool,action.args,call?.result);
+  if(reference)await assertAgentDeletionReplay(actor,action.tool,action.args,reference);
+  else if(call?.status==='succeeded'&&call.result){const petId=call.result.petId;if(typeof petId==='string')await withUser(actor.id,async db=>{if(!(await db.query('select id from pet.pets where id=$1',[petId])).rowCount)throw new HttpError(403,'AGENT_RESOURCE_ACCESS_CHANGED','Pet access changed');});}
+  else await assertAgentToolAccess(action.tool,actor,action.args);
+ }
  const prior=task.question&&typeof task.question==='object'&&'accessChecks' in task.question?(task.question as {accessChecks:PlannedAction[]}).accessChecks:[];
- for(const action of [...task.plan,...prior].slice(0,16))await assertAgentToolAccess(action.tool,actor,action.args);
+ for(const action of prior.slice(0,12))await assertAgentToolAccess(action.tool,actor,action.args);
+}
+function deletionReplayReference(tool:string,args:Record<string,unknown>,receipt:Record<string,unknown>|null|undefined){
+ if(!isAgentDeletionTool(tool)||!receipt||receipt.preparedDeletion!==true||receipt.tool!==tool||typeof receipt.resourceId!=='string'||receipt.resourceId!==args.id)return undefined;
+ return {resourceId:receipt.resourceId,...(typeof receipt.petId==='string'?{petId:receipt.petId}:{})};
 }
 const readDigest=(data:unknown)=>createHash('sha256').update(JSON.stringify(data)??'null').digest('hex');
 /** An answer queued earlier must not disclose a deleted/changed record or a
@@ -104,19 +115,26 @@ function referencedPetIds(value:unknown,tool:string):string[]{
   for(const [key,val]of Object.entries(item)){if((key==='petId'||key==='pet_id'||tool==='pets.list'&&key==='id')&&typeof val==='string'&&z.uuid().safeParse(val).success)ids.add(val);else if(typeof val==='object')walk(val,depth+1);}
  }walk(value,0);return [...ids];
 }
-function confirmationPreview(actions:PlannedAction[],language:'th'|'en'){
- const details=actions.map(action=>`${action.tool}\n${JSON.stringify(action.args,null,2)}`).join('\n\n');
+async function confirmationPreview(actor:Actor,actions:PlannedAction[],language:'th'|'en'){
+ const reviews=[];for(const action of actions)reviews.push([await agentActionReview(actor,action.tool,action.args,language),`${action.tool}\n${JSON.stringify(action.args,null,2)}`,isAgentDeletionTool(action.tool)?t(language,'ลบถาวรเฉพาะรายการนี้ กู้คืนจากแอปไม่ได้','Permanently delete this item. It cannot be restored in the app.'):''].filter(Boolean).join('\n'));
+ const details=reviews.join('\n\n');
  if(details.length>1650)throw new HttpError(400,'AGENT_REVIEW_IN_APP',t(language,'รายละเอียดงานนี้ยาวเกินการ์ด กรุณาตรวจและทำรายการในแอป','This action needs a full review in the app.'));
  return t(language,'โปรดตรวจข้อมูลทั้งหมดก่อนยืนยัน งานนี้จะแก้ข้อมูลหรือมีผลต่อผู้อื่น:\n','Review all details before confirming. This changes data or affects others:\n')+details;
 }
 async function queueTask(db:PoolClient,task:Task,turn:Turn|null,confirmed=false){
+ if(task.status==='failed'&&task.error_code==='VERSION_CONFLICT')throw new HttpError(409,'AGENT_REVIEW_CHANGED','ข้อมูลเปลี่ยนแล้ว กรุณาสั่งใหม่เพื่อตรวจฉบับล่าสุด');
  if(task.status==='failed'){await db.query('update assistant.agent_tasks set version=version+1 where id=$1',[task.id]);task={...task,version:task.version+1};}
  const actions=task.plan;
  if(!actions.length||actions.length>4)throw new HttpError(502,'AGENT_INVALID_PLAN','Invalid task plan');
  const requires=actions.some(action=>getAgentTool(action.tool)?.risk==='confirm'||getAgentTool(action.tool)?.risk==='write'&&!explicitWriteRequest(task.request_text));
  if(requires&&!confirmed)throw new HttpError(409,'AGENT_CONFIRMATION_REQUIRED','กรุณายืนยันแผนงานก่อน');
  await actorFor(task.user_id);
-  for(const action of actions)await assertAgentToolAccess(action.tool,await actorFor(task.user_id),action.args);
+ const priorCalls=(await db.query<{step:number;status:string;result:Record<string,unknown>|null}>('select step,status,result from assistant.agent_tool_calls where task_id=$1',[task.id])).rows;
+ for(const [step,action]of actions.entries()){
+  const prior=priorCalls.find(call=>call.step===step),reference=deletionReplayReference(action.tool,action.args,prior?.result),actor=await actorFor(task.user_id);
+  if(reference)await assertAgentDeletionReplay(actor,action.tool,action.args,reference);
+  else if(prior?.status!=='succeeded')await assertAgentToolAccess(action.tool,actor,action.args);
+ }
  await db.query("update assistant.agent_tasks set status='queued',confirmed_version=$2,question=null,error_code=null where id=$1",[task.id,requires?task.version:null]);
  for(const [step,action] of actions.entries())await db.query(`insert into assistant.agent_tool_calls(user_id,task_id,step,tool_name,args) values($1,$2,$3,$4,$5::jsonb) on conflict(task_id,step) do nothing`,[task.user_id,task.id,step,action.tool,JSON.stringify(action.args)]);
  await outbox(db,task.user_id,task.id,turn?.id??null,`working:${task.version}`,`task:${task.id}:working:${task.version}`,[agentCard(t(task.language,'รับทราบครับ','Got it'),t(task.language,'ข้อมูลครบแล้ว กำลังทำงานให้คุณครับ เมื่อเสร็จจะส่งผลและลิงก์ให้เปิดดู','I have the details and am working on this. I will send the result and a link when it is ready.'))]);
@@ -158,6 +176,7 @@ async function planTask(db:PoolClient,actor:Actor,task:Task,text:string,petMenti
   }
   if(plan.mode!=='ready'&&actions.length)throw new HttpError(502,'AGENT_INVALID_PLAN','Non-ready plans cannot execute');
   if(plan.mode==='ready'&&!actions.length)throw new HttpError(502,'AGENT_INVALID_PLAN','No actions in ready plan');
+  if(plan.mode==='ready'&&actions.some(action=>getAgentTool(action.tool)?.risk==='read')&&actions.some(action=>getAgentTool(action.tool)?.risk!=='read'))throw new HttpError(502,'AGENT_INVALID_PLAN','Inspect reads before a mutation plan');
   if(plan.mode==='ready'){
    const scopeIds=new Set<string>();for(const action of actions){const id=await resolveAgentActionPetId(actor,action.tool,action.args);if(id)scopeIds.add(id);}
    if(scopeIds.size){
@@ -187,7 +206,7 @@ async function planTask(db:PoolClient,actor:Actor,task:Task,text:string,petMenti
    await outbox(db,actor.id,task.id,null,`question:${task.version}`,`task:${task.id}:question:${task.version}`,[agentCard(task.title,plan.question,buttons,undefined,task.language)]);return;
   }
   if(actions.some(action=>getAgentTool(action.tool)!.risk==='confirm'||getAgentTool(action.tool)!.risk==='write'&&!explicitWriteRequest(task.request_text))){
-   const preview=confirmationPreview(actions,task.language);
+   const preview=await confirmationPreview(actor,actions,task.language);
    await db.query("update assistant.agent_tasks set status='awaiting_confirmation',question=$2::jsonb where id=$1",[task.id,JSON.stringify({text:preview,accessChecks,issuedAt:new Date().toISOString()})]);
    const buttons=await choices(db,task,[{label:t(task.language,'ยืนยันทำรายการ','Confirm action'),action:'confirm',value:''},{label:t(task.language,'แก้รายละเอียด','Change details'),action:'edit',value:''},{label:t(task.language,'ยกเลิก','Cancel'),action:'cancel',value:''}]);
    await outbox(db,actor.id,task.id,null,`confirm:${task.version}`,`task:${task.id}:confirm:${task.version}`,[agentCard(task.title,preview,buttons,undefined,task.language)]);return;
@@ -306,14 +325,18 @@ async function executeAgentTaskCore(taskId:string){
   if(!current||current.status!=='running'||current.version!==task.version){failure='AGENT_CANCELLED';break;}
   try{
    await actorFor(task.user_id);const tool=getAgentTool(call.tool_name);if(!tool)throw new HttpError(400,'AGENT_TOOL_UNKNOWN','Unknown tool');
-   await assertAgentToolAccess(call.tool_name,actor,call.args);
+   const deletion=isAgentDeletionTool(call.tool_name),replay=deletionReplayReference(call.tool_name,call.args,call.result);
+   if(replay)await assertAgentDeletionReplay(actor,call.tool_name,call.args,replay);else await assertAgentToolAccess(call.tool_name,actor,call.args);
+   const petBefore=replay?.petId??await resolveAgentActionPetId(actor,call.tool_name,call.args);
+   if(deletion&&!replay){const prepared={preparedDeletion:true,tool:call.tool_name,resourceId:call.args.id,petId:petBefore};await withSystem(db=>db.query('update assistant.agent_tool_calls set result=$2::jsonb where id=$1',[call.id,JSON.stringify(prepared)]));}
    await withSystem(async db=>{await db.query("update assistant.agent_tool_calls set status='running',error_code=null where id=$1",[call.id]);await db.query('update assistant.agent_tasks set execution_started_at=now() where id=$1',[task.id]);});
-   const output=await tool.execute(actor,call.args,call.key_uuid,{language:task.language});
+   const output=await tool.execute(actor,call.args,call.key_uuid,{language:task.language,...(replay?{deletionReplay:replay}:{})});
    // Durable receipts are references, never snapshots of private domain data.
    // The LIFF viewer re-fetches the exact resource with current permissions.
-   const actualPetId=output.petId??await resolveAgentActionPetId(actor,call.tool_name,call.args);
+   const actualPetId=output.petId??petBefore;
    if(tool.risk==='read')readData.push({tool:call.tool_name,data:boundedAgentObservation(output.data)});
-   const receipt={tool:call.tool_name,path:output.path,resourceId:output.resourceId,petId:actualPetId,petIds:referencedPetIds(output.data,call.tool_name),...(tool.risk==='read'?{readDigest:readDigest(output.data)}:{})};
+   const deletedPath=new URLSearchParams({tab:tool.tab});if(actualPetId)deletedPath.set('petId',actualPetId);
+   const receipt={tool:call.tool_name,path:deletion?`/app?${deletedPath}`:output.path,resourceId:output.resourceId,petId:actualPetId,petIds:referencedPetIds(output.data,call.tool_name),...(deletion?{deleted:true,preparedDeletion:true}:{}),...(tool.risk==='read'?{readDigest:readDigest(output.data)}:{})};
    results.push(receipt);await withSystem(db=>db.query("update assistant.agent_tool_calls set status='succeeded',result=$2::jsonb where id=$1",[call.id,JSON.stringify(receipt)]));
   }catch(error){failure=error instanceof HttpError?error.code:'AGENT_TOOL_UNAVAILABLE';await withSystem(db=>db.query("update assistant.agent_tool_calls set status='failed',error_code=$2 where id=$1",[call.id,failure]));break;}
  }
@@ -327,11 +350,13 @@ async function executeAgentTaskCore(taskId:string){
   const path=agentResultPath(tab,task.id,typeof first?.petId==='string'?first.petId:undefined);
   const cancelled=current.status==='cancelled'||failure==='AGENT_CANCELLED';
   const message=cancelled?t(language,'หยุดงานที่ยังไม่เริ่มแล้ว รายการที่ทำไปแล้วอาจยังอยู่ กรุณาตรวจในแอป','Unstarted work stopped. Completed actions may remain; review them in the app.'):
-   failure?t(language,`ทำสำเร็จ ${results.length} จาก ${calls.length} ขั้นตอน ยังมีส่วนที่ทำไม่สำเร็จ กดดูรายละเอียดหรือลองใหม่ได้ครับ`,`Completed ${results.length} of ${calls.length} steps. Some work remains; review the result or retry.`):
+   failure==='VERSION_CONFLICT'?t(language,'รายการถูกแก้ไขจากที่อื่นแล้ว จึงหยุดไว้ครับ กรุณาส่งคำขอใหม่เพื่ออ่านและตรวจข้อมูลล่าสุดก่อนทำรายการ','The item changed elsewhere. Please send a new request to read and review the latest version before continuing.'):
+   failure?t(language,`ยืนยันผลสำเร็จได้ ${results.length} จาก ${calls.length} ขั้นตอน ส่วนที่ยังยืนยันไม่ได้อาจมีการบันทึกหรือลบไปแล้ว โปรดตรวจในแอปก่อนลองใหม่`,`Confirmed ${results.length} of ${calls.length} steps. Unconfirmed steps may already have changed data; review the app before retrying.`):
+   results.some(result=>result.deleted)?t(language,'ทำงานเสร็จแล้วครับ ลบรายการที่ยืนยันแล้ว เปิด LIFF เพื่อดูประวัติที่เหลือได้เลย','Your confirmed items were deleted. Open LIFF to view the remaining history.'):
    t(language,'ทำงานเสร็จแล้วครับ เปิด LIFF เพื่อดูรายการและรายละเอียดได้เลย','Your task is complete. Open LIFF to review the result.');
   await db.query('update assistant.agent_tasks set status=$2,result=$3::jsonb,error_code=$4 where id=$1',[task.id,cancelled?'cancelled':failure?'failed':'succeeded',JSON.stringify({message,path,petId:first?.petId,resourceId:first?.resourceId,results}),failure]);
   if(cancelled)return;
-  const buttons=failure?await choices(db,current,[{label:t(language,'ลองขั้นตอนที่ค้างอีกครั้ง','Retry unfinished steps'),action:'retry',value:''}]):[];
+  const buttons=failure&&failure!=='VERSION_CONFLICT'?await choices(db,current,[{label:t(language,'ลองขั้นตอนที่ค้างอีกครั้ง','Retry unfinished steps'),action:'retry',value:''}]):[];
   await outbox(db,task.user_id,task.id,null,`${failure?'failed':'succeeded'}:${task.version}`,`task:${task.id}:result:${task.version}:${failure??'ok'}`,[agentCard(task.title,answer?`${answer}\n\n${message}`:message,buttons,agentLiffLink(path,language),language)]);
  });
 }

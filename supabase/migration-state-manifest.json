@@ -130,5 +130,11 @@
     "file": "202610290022_line_agent.sql",
     "checksum": "7ee400c841a933f496d47fce111f89fa99a3803d40ec7807d1f4ae7fb96b5efb",
     "fingerprint": "1fa6dec40eefeeea2f053758c500131c"
+  },
+  {
+    "version": "202610290023",
+    "file": "202610290023_record_mutations.sql",
+    "checksum": "0dbceb21851b06c67cff519d44df52319b6c475968eaff53128b2cece3830c32",
+    "fingerprint": "171c466a888ddd5fd7df4ab1f5055527"
   }
 ]

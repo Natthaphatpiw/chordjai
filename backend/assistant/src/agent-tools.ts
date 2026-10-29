@@ -10,7 +10,7 @@ import {
 } from '@chordjai/contracts';
 
 export type AgentToolResult = { data: unknown; resourceId?: string; petId?: string; path: string };
-export type AgentExecutionContext = { language: 'th' | 'en' };
+export type AgentExecutionContext = { language: 'th' | 'en'; deletionReplay?: {resourceId:string;petId?:string} };
 export type AgentTool = {
   name: string; description: string; inputSchema: unknown;
   risk: 'read' | 'write' | 'confirm'; tab: 'home' | 'health' | 'journal' | 'chat' | 'care' | 'settings';
@@ -96,7 +96,8 @@ function define(d: Definition): AgentTool {
       const parsed = d.schema.safeParse(raw);
       if (!parsed.success) throw new HttpError(400, 'AGENT_TOOL_ARGUMENTS_INVALID', parsed.error.issues.map(issue => `${issue.path.join('.')}: ${issue.message}`).join('; ').slice(0, 800));
       const a = parsed.data as Args;
-      if (d.preflight) await d.preflight(actor, a);
+      if(d.method==='DELETE'&&context?.deletionReplay)await assertAgentDeletionReplay(actor,d.name,a,context.deletionReplay);
+      else if (d.preflight) await d.preflight(actor, a);
       const data = await invoke(d.service, actor, d.endpoint(a), d.method, await d.body?.(a, key, actor), key, context);
       return { data: agentVisibleData(data), ...targetPath(d.name, d.tab, a, data) };
     } };
@@ -127,13 +128,18 @@ const storyCreate = z.object({ ...journalPageSchema.shape, petId: id, theme: jou
 const storyUpdate = z.object({ ...journalPageSchema.shape, id, version: z.number().int().positive() }).strict();
 const bookFields = { title: z.string().trim().min(1).max(120), coverTheme: journalThemeSchema.default(pageTheme), coverElements: z.array(journalElementSchema).max(100).default([]) };
 const withResource = (schema: z.ZodObject) => z.object({ ...schema.shape, id }).strict();
+const versionedResource=z.object({id,version:z.number().int().positive()}).strict();
+const recordRevision=z.string().regex(/^[a-f0-9]{32}$/);
 const definitions: Definition[] = [
   { name: 'pets.list', description: 'Read pets currently visible to this owner. Resolve the exact pet from this list; never guess an ID.', schema: empty, risk: 'read', tab: 'home', service: 'pet', endpoint: () => '/api/v1/pets' },
   { name: 'pets.get', description: 'Read one pet profile by an ID already returned by pets.list.', schema: resourceArg, risk: 'read', tab: 'home', service: 'pet', endpoint: a => `/api/v1/pets/${a.id}` },
   { name: 'pets.create', description: 'Create a pet from owner-supplied name/species and known optional facts. Do not infer breed, microchip or medical facts.', schema: petSchema.strict(), risk: 'write', tab: 'home', service: 'pet', endpoint: () => '/api/v1/pets', method: 'POST', body: a => a },
   { name: 'pets.update', description: 'Update owner-supplied profile fields after explicit review. Do not guess missing values.', schema: z.object({ id, changes: petSchema.partial().strict().refine(a => Object.keys(a).length > 0) }).strict(), risk: 'confirm', tab: 'home', service: 'pet', endpoint: a => `/api/v1/pets/${a.id}`, method: 'PATCH', body: a => a.changes, preflight: petAccess },
   { name: 'health.records.list', description: 'Read the selected pet health booklet and recorded vaccines, medicines and weights.', schema: petArg, risk: 'read', tab: 'health', service: 'health', endpoint: a => queryPet('/api/v1/health/records', a), preflight: petAccess },
+  { name: 'health.records.get', description: 'Read one health record and its current revision and edit/delete permissions before changing it.', schema: resourceArg, risk: 'read', tab: 'health', service: 'health', endpoint:a=>`/api/v1/health/records/${a.id}` },
   { name: 'health.records.create', description: 'Record a factual weight, vaccine, parasite treatment, medication history or note. Dates and treatments must come from the owner; never prescribe.', schema: z.object({ ...recordSchema.shape, data: z.object({}).strict().optional() }).strict(), risk: 'write', tab: 'health', service: 'health', endpoint: () => '/api/v1/health/records', method: 'POST', body: a => a, preflight: petAccess },
+  { name:'health.records.update',description:'Correct a selected health record after reading its revision and owner confirmation. Preserve existing fields not explicitly changed; never change pet, creator or OCR evidence. Clinic originals may be read-only.',schema:z.object({id,revision:recordRevision,...recordSchema.omit({petId:true,data:true}).shape}).strict(),risk:'confirm',tab:'health',service:'health',endpoint:a=>`/api/v1/health/records/${a.id}`,method:'PATCH',body:a=>without(a,'id'),preflight:readTarget('health',a=>`/api/v1/health/records/${a.id}`) },
+  { name:'health.records.delete',description:'Permanently delete exactly one selected health record after a current read and separate owner confirmation. Related health reminders are removed; latest weight is recalculated. Never delete a list of records or guess which one.',schema:z.object({id,revision:recordRevision}).strict(),risk:'confirm',tab:'health',service:'health',endpoint:a=>`/api/v1/health/records/${a.id}`,method:'DELETE',body:a=>({revision:a.revision}),preflight:readTarget('health',a=>`/api/v1/health/records/${a.id}`) },
   { name: 'care.entries.list', description: 'Read up to 50 recent care diary entries for a pet; private reflections and temporary photo URLs are excluded.', schema: petArg, risk: 'read', tab: 'health', service: 'health', endpoint: a => queryPet('/api/v1/health/care/entries', a), preflight: petAccess },
   { name: 'care.entries.get', description: 'Read an existing care entry before changing it. Preserve fields and version from this result.', schema: resourceArg, risk: 'read', tab: 'health', service: 'health', endpoint: a => `/api/v1/health/care/entries/${a.id}` },
   { name: 'care.entries.create', description: 'Save the owner’s daily/symptom/vet-visit/follow-up diary. Keep owner wording, use unknown defaults, include costs only as reported. costs.amountMinor is integer minor units: 100 = 1 THB or 1 USD, so 550 baht = 55000. The example “พาน้องไปหยอดหลังคอ บันทึกให้หน่อย” belongs here. New entries stay private.', schema: careCreate, risk: 'write', tab: 'health', service: 'health', endpoint: () => '/api/v1/health/care/entries', method: 'POST', body: (a, key) => ({ ...a, clientEntryId: agentRequestId(key) }), preflight: petAccess },
@@ -141,9 +147,11 @@ const definitions: Definition[] = [
     const current = await invoke('health', actor, `/api/v1/health/care/entries/${a.id}`) as Args;
     return { ...without(a, 'id'), reflection: typeof current.reflection === 'string' ? current.reflection : '' };
   }, preflight: readTarget('health', a => `/api/v1/health/care/entries/${a.id}`) },
+  { name:'care.entries.delete',description:'Permanently delete one current-version diary entry after reading it and separate owner confirmation. This removes the entry and its private reflection/cost attachments; uploaded original media remains in the library. Never bulk delete.',schema:versionedResource,risk:'confirm',tab:'health',service:'health',endpoint:a=>`/api/v1/health/care/entries/${a.id}`,method:'DELETE',body:a=>({version:a.version}),preflight:readTarget('health',a=>`/api/v1/health/care/entries/${a.id}`) },
   { name: 'care.episodes.list', description: 'Read ongoing/improving/resolved care episodes for a pet to continue the same story.', schema: petArg, risk: 'read', tab: 'health', service: 'health', endpoint: a => queryPet('/api/v1/health/care/episodes', a), preflight: petAccess },
   { name: 'care.episodes.create', description: 'Create a named care episode from an owner-reported concern and start date.', schema: z.object({ petId: id, title: careEpisodeCreateSchema.shape.title, startedAt: instant }).strict(), risk: 'write', tab: 'health', service: 'health', endpoint: () => '/api/v1/health/care/episodes', method: 'POST', body: (a, key) => ({ ...a, clientEpisodeId: agentRequestId(key) }), preflight: petAccess },
   { name: 'care.episodes.update', description: 'Update an episode title/status only when the owner confirms it; never infer recovery from silence.', schema: z.object({ ...careEpisodeUpdateSchema.shape, id, petId: id }).strict(), risk: 'confirm', tab: 'health', service: 'health', endpoint: a => `/api/v1/health/care/episodes/${a.id}`, method: 'PATCH', body: a => without(a, 'id', 'petId'), preflight: petAccess },
+  { name:'care.episodes.delete',description:'Remove one care-episode grouping after reading the current version and owner confirmation. Individual diary entries remain and become ungrouped; this does not delete their history.',schema:z.object({id,petId:id,version:z.number().int().positive()}).strict(),risk:'confirm',tab:'health',service:'health',endpoint:a=>`/api/v1/health/care/episodes/${a.id}`,method:'DELETE',body:a=>({version:a.version}),preflight:petAccess },
   { name: 'reminders.list', description: 'Read this owner’s reminders. Optional petId limits the list to one pet.', schema: z.object({ petId: id.optional() }).strict(), risk: 'read', tab: 'health', service: 'notification', endpoint: a => a.petId ? queryPet('/api/v1/notification/reminders', a) : '/api/v1/notification/reminders' },
   { name: 'reminders.create', description: 'Create an owner-requested reminder. Ask for date/time when missing; never invent a treatment schedule.', schema: z.object({ petId: id, title: z.string().trim().min(1).max(200), dueAt: instant }).strict(), risk: 'write', tab: 'health', service: 'notification', endpoint: () => '/api/v1/notification/reminders', method: 'POST', body: a => a, preflight: petAccess },
   { name: 'reminders.complete', description: 'Mark a specific reminder done after owner review.', schema: resourceArg, risk: 'confirm', tab: 'health', service: 'notification', endpoint: a => `/api/v1/notification/reminders/${a.id}/complete`, method: 'POST', body: () => ({}), preflight: ownedListTarget('notification', '/api/v1/notification/reminders') },
@@ -155,6 +163,7 @@ const definitions: Definition[] = [
   { name: 'journal.pages.get', description: 'Read one memory page before modifying it; preserve its version and existing elements.', schema: resourceArg, risk: 'read', tab: 'journal', service: 'journal', endpoint: a => `/api/v1/journal/pages/${a.id}` },
   { name: 'journal.pages.create', description: 'Create a permanent private memory Story page using the owner’s words, date and place. All photos must already be authorized media references.', schema: storyCreate, risk: 'write', tab: 'journal', service: 'journal', endpoint: () => '/api/v1/journal/pages', method: 'POST', body: a => a, preflight: petAccess },
   { name: 'journal.pages.update', description: 'Save a reviewed replacement Story page with current version and unchanged content preserved.', schema: storyUpdate, risk: 'confirm', tab: 'journal', service: 'journal', endpoint: a => `/api/v1/journal/pages/${a.id}`, method: 'PATCH', body: a => without(a, 'id'), preflight: readTarget('journal', a => `/api/v1/journal/pages/${a.id}`) },
+  { name:'journal.pages.delete',description:'Permanently delete exactly one current-version memory Story page after reading it and separate owner confirmation. Other pages and the book cover remain; uploaded original photos are not deleted.',schema:versionedResource,risk:'confirm',tab:'journal',service:'journal',endpoint:a=>`/api/v1/journal/pages/${a.id}`,method:'DELETE',body:a=>({version:a.version}),preflight:readTarget('journal',a=>`/api/v1/journal/pages/${a.id}`) },
   { name: 'clinics.list', description: 'Read the verified clinic directory. Confirm contact/opening details; this is not a booking.', schema: empty, risk: 'read', tab: 'care', service: 'clinic', endpoint: () => '/api/v1/clinics' },
   { name: 'appointments.list', description: 'Read appointment requests visible under the owner’s current permissions.', schema: empty, risk: 'read', tab: 'care', service: 'clinic', endpoint: () => '/api/v1/clinic/appointments' },
   { name: 'appointments.create', description: 'Send a clinic appointment REQUEST only after explicit owner confirmation of clinic, pet, date/time and reason. This is not a guaranteed time slot.', schema: z.object({ clinicId: id, petId: id, requestedAt: instant, reason: z.string().trim().min(1).max(2000) }).strict(), risk: 'confirm', tab: 'care', service: 'clinic', endpoint: () => '/api/v1/clinic/appointments', method: 'POST', body: a => a, preflight: petAccess },
@@ -163,6 +172,7 @@ const definitions: Definition[] = [
   { name: 'passport.sessions.get', description: 'Read one interview and its next controlled question; ask the owner that question without inventing a clinical question.', schema: resourceArg, risk: 'read', tab: 'health', service: 'health', endpoint: a => `/api/v1/health/passport/sessions/${a.id}` },
   { name: 'passport.sessions.create', description: 'Start a private Passport interview from the owner’s concern. Select only explicitly chosen history/photos. This does not confirm or share.', schema: z.object({ ...passportCreateSchema.shape, clientSessionId: z.never().optional() }).strict(), risk: 'write', tab: 'health', service: 'health', endpoint: () => '/api/v1/health/passport/sessions', method: 'POST', body: (a, key) => ({ ...a, clientSessionId: agentRequestId(key) }), preflight: petAccess },
   { name: 'passport.sessions.update', description: 'Update a private interview concern/selected sources after review. The existing shared version becomes invalid.', schema: withResource(passportUpdateSchema), risk: 'confirm', tab: 'health', service: 'health', endpoint: a => `/api/v1/health/passport/sessions/${a.id}`, method: 'PATCH', body: a => without(a, 'id'), preflight: readTarget('health', a => `/api/v1/health/passport/sessions/${a.id}`) },
+  { name:'passport.sessions.delete',description:'Delete one selected owner Passport interview after current-version review and separate confirmation. Shared Passport links become invalid. An already saved post-visit diary is a separate record and remains; original clinic-authored evidence is not rewritten.',schema:versionedResource,risk:'confirm',tab:'health',service:'health',endpoint:a=>`/api/v1/health/passport/sessions/${a.id}`,method:'DELETE',body:a=>({version:a.version}),preflight:readTarget('health',a=>`/api/v1/health/passport/sessions/${a.id}`) },
   { name: 'passport.answers.save', description: 'Save the owner’s exact answer to the next controlled Passport question at the current version. Unknown remains unknown.', schema: z.object({ id, version: z.number().int().positive(), questionId: z.enum(['danger_signs','onset','frequency','trend','appetite','energy','water_toilet','ear_side','ear_discharge','ear_touch','vomiting','stool','breathing','skin','mobility','medications','previous_care','other_conditions','exposure','owner_goal']), status: z.enum(['answered','unknown','not_applicable']), value: z.string().trim().max(2000).default('') }).strict(), risk: 'write', tab: 'health', service: 'health', endpoint: a => `/api/v1/health/passport/sessions/${a.id}/answers`, method: 'POST', body: a => passportAnswerSchema.parse(without(a, 'id')), preflight: readTarget('health', a => `/api/v1/health/passport/sessions/${a.id}`) },
   { name: 'passport.after_visit.save', description: 'Save an owner-reviewed post-visit account from a Passport, linking diary/episode/reminder. No diagnosis may be invented; clinic-authored and owner-reported sources remain distinct.', schema: z.object({ ...passportAfterVisitSchema.shape, id, clientEntryId: z.never().optional() }).strict(), risk: 'confirm', tab: 'health', service: 'health', endpoint: a => `/api/v1/health/passport/sessions/${a.id}/after-visit`, method: 'POST', body: (a, key) => ({ ...without(a, 'id'), clientEntryId: agentRequestId(key) }), preflight: readTarget('health', a => `/api/v1/health/passport/sessions/${a.id}`) },
   { name: 'petid.enrollments.list', description: 'Read the owner’s PetID registrations. A similarity result is never certified identity.', schema: empty, risk: 'read', tab: 'care', service: 'biometric', endpoint: () => '/api/v1/biometric/enrollments' },
@@ -198,6 +208,35 @@ export async function assertAgentToolAccess(name: string, actor: Actor, raw: Rec
   if (definition.preflight) await definition.preflight(actor, args);
   else if (definition.risk === 'read' && (!definition.method || definition.method === 'GET')) await invoke(definition.service, actor, definition.endpoint(args));
 }
+export function isAgentDeletionTool(name:string){return definitions.some(tool=>tool.name===name&&tool.method==='DELETE'&&name.endsWith('.delete'));}
+/** Replay context comes only from a worker-owned prepared receipt, never the
+ * planner. The ordinary API still validates mutations or returns its cache. */
+export async function assertAgentDeletionReplay(actor:Actor,name:string,raw:Args,reference:{resourceId:string;petId?:string}){
+ const args=validateAgentArguments(name,raw);
+ if(!isAgentDeletionTool(name)||args.id!==reference.resourceId)throw new HttpError(403,'AGENT_REPLAY_INVALID','Invalid deletion receipt');
+ if(name==='assistant.memories.delete')await memoryAccess(actor);
+ else if(reference.petId)await petAccess(actor,{petId:reference.petId});
+ else throw new HttpError(403,'AGENT_REPLAY_INVALID','Missing deletion pet scope');
+}
+/** Human-readable target details come from the current resource, not from a
+ * model-written claim. Reflections and full clinical documents stay excluded. */
+export async function agentActionReview(actor:Actor,name:string,raw:Args,language:'th'|'en'){
+ const a=validateAgentArguments(name,raw);let row:unknown;
+ if(name.startsWith('health.records.')&&a.id)row=await invoke('health',actor,`/api/v1/health/records/${a.id}`);
+ else if(name.startsWith('care.entries.')&&a.id)row=await invoke('health',actor,`/api/v1/health/care/entries/${a.id}`);
+ else if(name.startsWith('care.episodes.')&&a.id)row=await invoke('health',actor,`/api/v1/health/care/episodes/${a.id}`);
+ else if(name.startsWith('journal.pages.')&&a.id)row=await invoke('journal',actor,`/api/v1/journal/pages/${a.id}`);
+ else if(name.startsWith('passport.sessions.')&&a.id)row=await invoke('health',actor,`/api/v1/health/passport/sessions/${a.id}`);
+ else return '';
+ if(!row||typeof row!=='object'||Array.isArray(row))throw new HttpError(404,'AGENT_RESOURCE_NOT_FOUND','Resource unavailable');
+ const source=row as Args,petId=rowPet(source);let petName='';
+ if(petId){const pet=await invoke('pet',actor,`/api/v1/pets/${petId}`) as Args;petName=String(pet.name??'').slice(0,100);}
+ const title=String(source.title??source.reason??'').slice(0,180);
+ const stamp=source.observedAt??source.observed_at??source.recordedAt??source.recorded_at??source.storyDate??source.story_date??source.startedAt??source.started_at;
+ let date='';if(typeof stamp==='string'||stamp instanceof Date){const parsed=new Date(stamp);if(!Number.isNaN(parsed.getTime()))date=new Intl.DateTimeFormat(language==='en'?'en-GB':'th-TH',{timeZone:'Asia/Bangkok',dateStyle:'medium'}).format(parsed);}
+ const label=language==='en'?'Current item':'รายการปัจจุบัน';
+ return `${label}: ${[petName,title,date].filter(Boolean).join(' · ')}`;
+}
 function rowPet(row: unknown): string | undefined {
   if (!row || typeof row !== 'object' || Array.isArray(row)) return undefined;
   const source = row as Args;
@@ -220,10 +259,12 @@ export async function resolveAgentActionPetId(actor: Actor, name: string, raw: R
   if (name === 'pets.get' || name === 'pets.update') {
     const pet = await invoke('pet', actor, `/api/v1/pets/${a.id}`) as Args;
     actual = typeof pet.id === 'string' && id.safeParse(pet.id).success ? pet.id : undefined;
+  } else if(name.startsWith('health.records.')&&a.id){
+    actual=rowPet(await invoke('health',actor,`/api/v1/health/records/${a.id}`));
   } else if (name.startsWith('care.entries.') && a.id) {
     actual = rowPet(await invoke('health', actor, `/api/v1/health/care/entries/${a.id}`));
-  } else if (name === 'care.episodes.update') {
-    actual = rowPet(listResource(await invoke('health', actor, queryPet('/api/v1/health/care/episodes', a)), a.id));
+  } else if (name === 'care.episodes.update'||name==='care.episodes.delete') {
+    actual = rowPet(await invoke('health', actor, `/api/v1/health/care/episodes/${a.id}`));
   } else if (name.startsWith('journal.pages.') && a.id) {
     actual = rowPet(await invoke('journal', actor, `/api/v1/journal/pages/${a.id}`));
   } else if (name === 'journal.books.update') {
@@ -245,7 +286,7 @@ export async function resolveAgentActionPetId(actor: Actor, name: string, raw: R
   } else if (typeof a.petId === 'string') {
     await petAccess(actor, a); actual = a.petId;
   }
-  const resourceNeedsPet = Boolean(a.id) && /^(?:pets\.(?:get|update)|care\.|journal\.|reminders\.|passport\.|appointments\.cancel|lost\.|share\.links\.revoke)/.test(name);
+  const resourceNeedsPet = Boolean(a.id) && /^(?:pets\.(?:get|update)|health\.records\.|care\.|journal\.|reminders\.|passport\.|appointments\.cancel|lost\.|share\.links\.revoke)/.test(name);
   if (resourceNeedsPet && !actual) throw new HttpError(409, 'AGENT_RESOURCE_PET_UNKNOWN', 'ยังระบุน้องของรายการนี้ไม่ได้ กรุณาตรวจในแอป');
   if (actual && typeof a.petId === 'string' && actual !== a.petId) throw new HttpError(400, 'AGENT_PET_MISMATCH', 'รายการนี้เป็นของน้องอีกตัว กรุณาเลือกให้ตรงกัน');
   return actual;

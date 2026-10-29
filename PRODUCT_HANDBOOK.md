@@ -4,11 +4,11 @@
 
 **จัดทำ 15 ตุลาคม 2026 · ประเทศเริ่มต้น: ไทย · ระบบปัจจุบัน: pilot**
 
-**อัปเดต 29 ตุลาคม 2026:** เพิ่ม LINE Agent ที่เตรียมในโค้ด local และ SQL รุ่น 22 โดยปิด `LINE_AGENT_ENABLED=false` ไว้ก่อน ผู้ดูแลจะรัน SQL และตั้ง env จริงเอง รอบนี้ยังไม่ deploy อัปเกรด Supabase จริง หรือทดสอบส่ง LINE จริง รายละเอียดใน [LINE_AGENT.md](docs/LINE_AGENT.md)
+**อัปเดต 29 ตุลาคม 2026:** LINE Agent deploy แล้วใน release `8cc23e7` และผู้ดูแลรัน SQL/ตั้ง env จริงเอง ฐานข้อมูล production ตรวจแบบ read-only เป็นรุ่น **23** เพิ่มการแก้/ลบประวัติสุขภาพ ไดอารี่ กลุ่มดูแล Story, Passport และความจำ AI ตามสิทธิ์ ไม่ต้องเพิ่ม env รอบนี้ ผลตรวจโค้ดและฐานแยกผ่าน 497 ข้อ ส่วนผู้ใช้เลือกทดสอบบทสนทนา LINE จริงกับพีโอนีเอง ดู [LINE_AGENT.md](docs/LINE_AGENT.md), [RECORD_MUTATIONS.md](docs/RECORD_MUTATIONS.md) และสถานะ deploy ล่าสุดใน [VERIFICATION.md](docs/VERIFICATION.md)
 
 เอกสารนี้มีไว้ให้ผู้ก่อตั้ง ทีม Product นักพัฒนา นักออกแบบ สัตวแพทย์ และพาร์ตเนอร์เข้าใจ ChordJai จากภาพเดียวกัน ตั้งแต่เหตุผลที่เจ้าของสัตว์เลี้ยงจะใช้ ไปจนถึงสิ่งที่ต้องพิสูจน์ก่อนเป็นธุรกิจที่ขยายได้ อ่านจบควรอธิบายได้ว่าเราช่วยใคร สร้างคุณค่าอะไร มีระบบใดแล้ว ใช้ข้อมูลอย่างไร และควรทำอะไรต่อ
 
-หลักฐาน production ในเล่มยึด release `a2a3294dc0569193890aab0596b6dd9b6379288d` วันที่ 13 ตุลาคม 2026 และ source code ที่ตรวจวันที่ 15 ตุลาคม 2026 ฐานข้อมูลจริงรุ่นล่าสุดที่มีหลักฐานตรวจยังเป็น migration **21** ส่วน Agent รุ่น **22** เป็นงานเตรียมใน checkout แยกจากหลักฐานนั้น ผลตรวจ local แต่ละรอบให้อ่าน [VERIFICATION.md](docs/VERIFICATION.md) ไม่ถือว่าการมี SQL หรือโค้ดใหม่แปลว่า production เปลี่ยนแล้ว
+เนื้อหาภาพรวมตั้งต้นอ้าง release `a2a3294dc0569193890aab0596b6dd9b6379288d` วันที่ 13 ตุลาคม 2026 และ source ที่ตรวจวันที่ 15 ตุลาคม ส่วนสถานะวันที่ 29 ตุลาคมใช้หลักฐาน Agent release `8cc23e7` ที่ Vercel ทั้งสี่ READY และ production schema 23, fingerprint `171c466a888ddd5fd7df4ab1f5055527` แยกจากผลทดสอบ local ของการแก้/ลบบันทึกรอบใหม่ อ่านผลแต่ละรอบใน [VERIFICATION.md](docs/VERIFICATION.md) ไม่ถือว่าการมี SQL หรือโค้ดใหม่แปลว่า production deploy แล้ว
 
 ## สารบัญ
 
@@ -94,7 +94,7 @@ flowchart LR
   A --> H[เลือกเรื่องไปทำหน้าความทรงจำ]
 ```
 
-คำตอบ check-in จาก LINE จะไม่ลงไดอารี่หรือกลายเป็นเวชระเบียนอัตโนมัติ LINE Agent ที่เตรียมในรุ่น 22 เพิ่มทางบันทึกเมื่อเจ้าของสั่งชัดเจนและผ่านการตรวจข้อมูล/สิทธิ์ตามงาน ส่วนการเพิ่มรูป PetID เพื่อวิจัยเป็นอีกโฟลว์หนึ่งที่ผู้ใช้เลือกเข้าร่วม ไม่ใช่ลูกศรที่ดึงทุกรูปจากไดอารี่ไปฝึก
+คำตอบ check-in จาก LINE จะไม่ลงไดอารี่หรือกลายเป็นเวชระเบียนอัตโนมัติ LINE Agent เพิ่มทางบันทึกเมื่อเจ้าของสั่งชัดเจนและผ่านการตรวจข้อมูล/สิทธิ์ตามงาน ส่วนการเพิ่มรูป PetID เพื่อวิจัยเป็นอีกโฟลว์หนึ่งที่ผู้ใช้เลือกเข้าร่วม ไม่ใช่ลูกศรที่ดึงทุกรูปจากไดอารี่ไปฝึก
 
 <a id="users"></a>
 
@@ -120,7 +120,7 @@ flowchart LR
 | บทบาท | ฟีเจอร์ที่รับหน้าที่ | สิ่งที่ต้องพิสูจน์ |
 | --- | --- | --- |
 | **Core: คุณค่าหลักที่สะสม** | ไดอารี่ดูแล เรื่องการดูแลต่อเนื่อง ประวัติก่อน/หลังพบหมอ และข้อมูลที่มีที่มา/สิทธิ์ชัด | เจ้าของย้อนใช้ประวัติจริง และคลินิกใช้ประกอบงานได้ |
-| **Key / wow: เห็นประโยชน์เร็ว** | ถ่ายสมุด 1–10 หน้าเป็นร่างที่แก้ได้, Passport Q&A, สมุดความทรงจำแต่งเอง/AI และสั่งจดผ่าน LINE Agent ที่เตรียมรุ่น 22 | ผู้ใช้ใหม่ทำสำเร็จ เข้าใจผล และยอมตรวจข้อมูลก่อนบันทึก |
+| **Key / wow: เห็นประโยชน์เร็ว** | ถ่ายสมุด 1–10 หน้าเป็นร่างที่แก้ได้, Passport Q&A, สมุดความทรงจำแต่งเอง/AI และสั่งจดผ่าน LINE Agent | ผู้ใช้ใหม่ทำสำเร็จ เข้าใจผล และยอมตรวจข้อมูลก่อนบันทึก |
 | **Recurring: เหตุผลกลับมา** | อัปเดตอาการเรื่องเดิม วันนัด ผลหลังรักษา ค่าใช้จ่าย เตือนตามกำหนด LINE ที่เปิดรับ ความทรงจำและผู้ช่วยต่อเนื่อง | กลับมาเพราะได้ประโยชน์ ไม่ใช่เพราะส่งข้อความถี่ขึ้น |
 | **Viral / distribution: ทางให้คนอื่นพบเรา** | ลิงก์ Passport คำเชิญดูแลร่วม ประกาศหาย/เบาะแส และการบอกต่อจากความทรงจำ | ผู้รับเห็นคุณค่าและเกิดการใช้งานต่อ โดยไม่เปิดเผยข้อมูลเกินที่เจ้าของเลือก |
 | **ความได้เปรียบที่ต้องสร้าง** | ข้อมูลต่อเนื่องที่มีคุณภาพ, provenance, ระบบสิทธิ์, เวิร์กโฟลว์คลินิก, ชุดภาพตัวตนและการประเมินที่ทำซ้ำได้ | ประโยชน์และคุณภาพที่คู่แข่งทำตามได้ยาก โดยไม่ขัดสิทธิ์ผู้ใช้ |
@@ -182,7 +182,7 @@ LINE Agent ลดขั้นตอนจากเล่าเรื่องใ
 
 มีห้องสนทนาต่อเนื่อง การเลือกบุคลิก และความจำที่ผู้ใช้ควบคุม ใช้ช่วยอธิบายข้อมูลและทบทวนบริบทที่มีสิทธิ์ ไม่ใช่สัตวแพทย์ประจำตัวที่รับรองการวินิจฉัย การเปิดรับ LINE follow-up เป็นอีกความยินยอมหนึ่ง ไม่เกิดจากการเปิด memory เพียงอย่างเดียว
 
-LINE Agent ที่เตรียมในโค้ดรุ่น 22 ให้พิมพ์สั่งงานใน OA ส่วนตัวได้ เช่น จดอาการ ลงน้ำหนัก ตั้งเตือน หรือเริ่ม Passport มีการ์ดถามเพิ่มและยืนยันงานที่เกี่ยวข้อง พร้อมแจ้งกำลังทำงานและเปิดผลใน LIFF ต้องอัปเกรดฐานข้อมูลและเปิด flag ก่อนใช้จริง ดูบท 8.4 และ [คู่มือ Agent](docs/LINE_AGENT.md)
+LINE Agent ให้พิมพ์สั่งงานใน OA ส่วนตัวได้ เช่น จดอาการ ลงน้ำหนัก ตั้งเตือน หรือเริ่ม Passport มีการ์ดถามเพิ่มและยืนยันงานที่เกี่ยวข้อง พร้อมแจ้งกำลังทำงานและเปิดผลใน LIFF environment ใหม่ต้องอัปเกรดฐานข้อมูลและเปิด flag ก่อนใช้จริง ส่วน production ปัจจุบันผู้ดูแลทำ SQL/env แล้ว ดูบท 8.4 และ [คู่มือ Agent](docs/LINE_AGENT.md)
 
 ### 5.6 คัดกรองอาการ รูป และเหตุฉุกเฉิน
 
@@ -299,7 +299,7 @@ AI เลือกได้เฉพาะรหัสคำถามที่�
 | --- | --- | --- |
 | อ่านสมุด | ถอดข้อมูลเป็นร่าง | เจ้าของตรวจชื่อ วันนัด ปี และแหล่งที่มา |
 | Chat | ตอบจากบริบทห้อง/น้อง/ความจำที่อนุญาต | จำกัดข้อมูลและการให้คำตอบทางสุขภาพ |
-| LINE Agent (เตรียม local รุ่น 22) | LLM0 classify/normalize และ planner เลือก tools ตามงาน | Schema, สิทธิ์/ตัวสัตว์ปัจจุบัน คำสั่งชัดเจน การยืนยัน และ idempotency ฝั่งเซิร์ฟเวอร์ |
+| LINE Agent (schema 22; งานแก้/ลบบันทึกใช้ 23) | LLM0 classify/normalize และ planner เลือก tools ตามงาน | Schema, สิทธิ์/ตัวสัตว์ปัจจุบัน คำสั่งชัดเจน การยืนยัน และ idempotency ฝั่งเซิร์ฟเวอร์ |
 | ตกแต่งสมุด | ร่างองค์ประกอบจาก catalog | ตรวจ schema และให้เจ้าของเลือกบันทึก |
 | Passport | เลือก question ID ที่ยังควรถาม | Controlled catalog, rules และเจ้าของยืนยันข้อมูล |
 | Follow-up | เลือกส่ง/ข้าม เรื่อง แหล่ง หัวข้อและโทนตามขอบเขต | Fresh consent, cadence, quiet hours และข้อมูลต้นทาง |
@@ -326,11 +326,15 @@ Clinical context ที่ผู้ช่วยใช้เป็น projection 
 
 ### 8.4 LINE Agent: จากบทสนทนาไปสู่งานที่ทำสำเร็จ
 
-**เตรียม local รุ่น 22:** webhook เดิมตรวจลายเซ็นและเก็บ event เข้าคิว ตรวจสัญญาณฉุกเฉินแบบกฎก่อนใช้ LLM แล้วให้ LLM0 แยกคำถามทั่วไป คำตอบติดตาม และคำสั่งทำงาน พร้อม normalize ชื่อ วันเวลา จำนวนเงิน คำปฏิเสธและความไม่แน่ใจ Chat ทั่วไปส่งต่อ AI Chat เดิม ไม่ลงข้อมูลให้เอง งานข้อความ/ภาพทั้งหมดรวม LLM0/planner ยังใช้ OpenAI SDK + Responses API และ `gpt-6.1-sol` ตัวกลางเดิม ไม่เพิ่ม framework หรือโมเดลแยก
+**Agent schema 22 และส่วนแก้/ลบบันทึก schema 23:** webhook เดิมตรวจลายเซ็นและเก็บ event เข้าคิว ตรวจสัญญาณฉุกเฉินแบบกฎก่อนใช้ LLM แล้วให้ LLM0 แยกคำถามทั่วไป คำตอบติดตาม และคำสั่งทำงาน พร้อม normalize ชื่อ วันเวลา จำนวนเงิน คำปฏิเสธและความไม่แน่ใจ Chat ทั่วไปส่งต่อ AI Chat เดิม ไม่ลงข้อมูลให้เอง งานข้อความ/ภาพทั้งหมดรวม LLM0/planner ยังใช้ OpenAI SDK + Responses API และ `gpt-6.1-sol` ตัวกลางเดิม ไม่เพิ่ม framework หรือโมเดลแยก
 
-Agent มี **48 tools: อ่าน 22, สร้าง 10, ต้องยืนยัน 16** ผ่าน API ของโปรไฟล์ สมุดสุขภาพ ไดอารี่/เรื่องการดูแล เตือน สมุดความทรงจำ คลินิก/นัดหมาย Passport สถานะ PetID ประกาศหาย ลิงก์สรุป และ memory เมื่อข้อมูลจำเป็นไม่ครบจะถามด้วย Flex card ที่กดหรือพิมพ์ตอบได้ ก่อนทำจะแจ้งกำลังทำงาน และเมื่อจบส่งผล/งานที่ค้างพร้อม LIFF ไปยังรายการจริง การเลือกน้องต้องตรงกับคำขอและ resource ไม่เดาตัวแรกในบ้าน
+Agent มี **55 tools: อ่าน 23, สร้าง 10, ต้องยืนยัน 22** ผ่าน API ของโปรไฟล์ สมุดสุขภาพ ไดอารี่/เรื่องการดูแล เตือน สมุดความทรงจำ คลินิก/นัดหมาย Passport สถานะ PetID ประกาศหาย ลิงก์สรุป และ memory เมื่อข้อมูลจำเป็นไม่ครบจะถามด้วย Flex card ที่กดหรือพิมพ์ตอบได้ ก่อนทำจะแจ้งกำลังทำงาน และเมื่อจบส่งผล/งานที่ค้างพร้อม LIFF ไปยังรายการจริง การเลือกน้องต้องตรงกับคำขอและ resource ไม่เดาตัวแรกในบ้าน
 
-การสร้างจากคำสั่งชัดเจนทำได้ตาม schema ส่วนแก้ข้อมูล ลบ memory ส่งคำขอนัดหรือเผยแพร่ประกาศต้องตรวจยืนยัน plan รุ่นปัจจุบัน เซิร์ฟเวอร์จำกัด tool/path/method ไม่เปิด SQL โค้ด URL หรือผู้รับ LINE ให้โมเดลกำหนด ปุ่มผูกเจ้าของ/งาน/version/อายุและใช้ครั้งเดียว วัน “วันนี้/เมื่อวาน” อิงเวลาข้อความต้นฉบับใน Bangkok งานและแต่ละขั้นเก็บถาวรเพื่อ retry ด้วย key เดิม ไม่กล่าวว่าทั้งงานสำเร็จเมื่อมีเพียงบางขั้นที่ทำได้ การยกเลิกหยุดขั้นที่ยังไม่เริ่ม แต่ไม่ย้อนรายการที่ทำสำเร็จหรือส่งไปแล้ว
+การสร้างจากคำสั่งชัดเจนทำได้ตาม schema ส่วนแก้ข้อมูล ลบบันทึก/ความจำ ส่งคำขอนัดหรือเผยแพร่ประกาศต้องตรวจยืนยัน plan รุ่นปัจจุบัน เซิร์ฟเวอร์จำกัด tool/path/method ไม่เปิด SQL โค้ด URL หรือผู้รับ LINE ให้โมเดลกำหนด ปุ่มผูกเจ้าของ/งาน/version/อายุและใช้ครั้งเดียว วัน “วันนี้/เมื่อวาน” อิงเวลาข้อความต้นฉบับใน Bangkok งานและแต่ละขั้นเก็บถาวรเพื่อ retry ด้วย key เดิม ไม่กล่าวว่าทั้งงานสำเร็จเมื่อมีเพียงบางขั้นที่ทำได้ การยกเลิกหยุดขั้นที่ยังไม่เริ่ม แต่ไม่ย้อนรายการที่ทำสำเร็จหรือส่งไปแล้ว
+
+การแก้/ลบต้องอ่านรายการปัจจุบันก่อน และการยืนยันระบุชื่อน้อง ชื่อรายการและวันที่ หาก revision/version เปลี่ยนต้องโหลดและยืนยันใหม่ การลบถาวรไม่มีถังขยะ ผลสำเร็จพาไปหน้าประวัติที่เหลือผ่าน LIFF ไม่ไปลิงก์ของรายการที่ลบ กลุ่มดูแลลบเฉพาะการจัดกลุ่มและเก็บไดอารี่เดิม ส่วนต้นฉบับจากผู้เขียนนอกครอบครัว เช่น คลินิก เป็นอ่านอย่างเดียวสำหรับเจ้าของ UI ยังจัดการข้อมูลของตนได้โดยตรง อ่าน [RECORD_MUTATIONS.md](docs/RECORD_MUTATIONS.md)
+
+Planner prompt `2026-10-29.2` แยกแผนที่จะทำกับเหตุการณ์ที่ทำแล้ว และต้องถามเพิ่มหากเจ้าของยังไม่ได้เล่ารายละเอียด ไม่สร้างบันทึกแทนข้อความว่าจะเล่าในครั้งถัดไป
 
 เรื่องความยินยอม การเปิดสิทธิ์ การฝึก/ยืนยันตัวตน PetID การตรวจยืนยัน Passport ฉบับเต็ม สร้างลิงก์แชร์ อัปโหลดรูป และตรวจร่างจัดหน้า AI ยังใช้ LIFF Memory ใช้ได้เฉพาะเมื่อเปิด preference และยินยอม `ai_memory` อยู่จริง ไม่สร้างความจำจากแชทธรรมดา ผลอ่านที่นำมาตอบต้องยังมีสิทธิ์และข้อมูลไม่เปลี่ยนก่อนส่ง ระบบเก็บ receipt เป็น reference แทนสำเนาผลอ่านเต็ม
 
@@ -665,9 +669,9 @@ LINE token ตรวจ server-side และออก app JWT ของระ�
 
 ฐานข้อมูลใหม่ใช้ `supabase/bootstrap.sql` ครั้งเดียว ฐานข้อมูลเดิมใช้ diagnostic → guarded upgrade ที่ตรวจ known schema fingerprint และ checksums ไม่แก้ `relation users already exists` ด้วยการ drop ตารางหรือเติม `IF NOT EXISTS` เพื่อซ่อน schema drift
 
-รุ่นล่าสุดที่ยืนยันใน release 13 ตุลาคมคือ 21, fingerprint `5ff3a6478e28e83e84c4ffb6d5f74478` การเปลี่ยนต่อไปต้องเพิ่ม migration ใหม่ ไม่แก้ไฟล์ที่ส่งแล้วให้ checksums เดิมเปลี่ยน และสร้าง SQL รวม/manifest ตามเครื่องมือของโครงการ รายละเอียดใน [supabase/README.md](supabase/README.md)
+ประวัติ release 13 ตุลาคมใช้รุ่น 21, fingerprint `5ff3a6478e28e83e84c4ffb6d5f74478` ส่วนล่าสุดวันที่ 29 ตุลาคม ผู้ดูแลรันถึงรุ่น 23 และ read-only diagnostic ยืนยัน fingerprint `171c466a888ddd5fd7df4ab1f5055527` การเปลี่ยนต่อไปต้องเพิ่ม migration ใหม่ ไม่แก้ไฟล์ที่ส่งแล้วให้ checksums เดิมเปลี่ยน และสร้าง SQL รวม/manifest ตามเครื่องมือของโครงการ รายละเอียดใน [supabase/README.md](supabase/README.md)
 
-สำหรับ Agent เตรียม migration [`202610290022_line_agent.sql`](supabase/migrations/202610290022_line_agent.sql) และ SQL รวมถึงรุ่น 22 แล้ว เพิ่ม thread/turn/task/tool call/outbox/choice พร้อม RLS ผู้ดูแลเป็นผู้รัน diagnostic → upgrade → diagnostic กับฐานข้อมูลจริงเอง แล้วตรวจถึง 22 ก่อนเปิด flag ยังไม่มีหลักฐานว่า production ใช้ 22 ในการส่งมอบรอบนี้
+Agent ใช้ migration [`202610290022_line_agent.sql`](supabase/migrations/202610290022_line_agent.sql) สำหรับ thread/turn/task/tool call/outbox/choice พร้อม RLS รุ่น [`202610290023_record_mutations.sql`](supabase/migrations/202610290023_record_mutations.sql) เพิ่มการดูแล reminder/น้ำหนัก/ข้อมูลแชร์เมื่อแก้หรือลบบันทึก ผู้ดูแลรัน SQL กับฐานจริงเองแล้ว ระบบตรวจแบบอ่านอย่างเดียวถึง 23 ไม่ต้องแก้ env เพิ่มสำหรับส่วนแก้/ลบ และไม่รัน bootstrap ซ้ำ
 
 ### 17.3 API และความถูกต้องเมื่อ retry
 
@@ -707,7 +711,7 @@ Agent ใช้คิว PostgreSQL เดิมร่วมกับงาน i
 | Backend auth/internal | `APP_JWT_ISSUER`, `APP_JWT_SECRET`, `CRON_SECRET` | Template เดียวกัน |
 | Backend AI | `OPENAI_API_KEY`, `OPENAI_MODEL`, `OPENAI_EMBEDDING_MODEL`, `AI_DAILY_BUDGET_USD`, ราคาต่อ token ที่ใช้คำนวณ | Template เดียวกัน ค่าราคาเป็น config ที่ต้องตรวจ |
 | Backend LINE/media | Messaging/Login channel IDs/secrets/tokens, `LIFF_ID`, `LIFF_ENDPOINT`, `LINE_WEBHOOK_URL`, `BLOB_READ_WRITE_TOKEN` | Template เดียวกัน |
-| Backend LINE Agent | `LINE_AGENT_ENABLED=false`, optional `LINE_AGENT_LIFF_ID` ใช้ LIFF หลักเดิม | Template เดียวกัน เปิด `true` หลัง schema 22 และตรวจรับ; ผู้ดูแลตั้ง env จริงเอง |
+| Backend LINE Agent | `LINE_AGENT_ENABLED=false`, optional `LINE_AGENT_LIFF_ID` ใช้ LIFF หลักเดิม | Template เดียวกัน เปิด `true` หลัง schema 23 และตรวจรับ; ผู้ดูแลตั้ง env จริงเอง ไม่มีตัวแปรใหม่สำหรับแก้/ลบ |
 | Frontend | `API_ORIGIN` เป็น server-only; `NEXT_PUBLIC_LIFF_ID` ของแต่ละ app; Owner มี `NEXT_PUBLIC_LINE_OA_URL` | [.env Owner](frontend/owner-app/.env.example), [.env Clinic](frontend/clinic-portal/.env.example), [.env Admin](frontend/admin-console/.env.example) |
 | Research machine | `PETID_API_ORIGIN`, `PETID_API_TOKEN`, `PETID_EXPORT_ID` | [research .env.example](scripts/petid-ml/.env.example) |
 
@@ -818,7 +822,7 @@ CI ปัจจุบันมี database job รัน isolated DB/API แล�
 
 Release `a2a3294` มีบันทึก CI สำเร็จและ Vercel ทั้งสี่ READY พร้อม production HTTP/auth/privacy boundary probes และ Supabase schema 21 หลักฐานนี้เป็นสถานะรอบส่งมอบ ไม่ใช่ผล health check สดในวันที่ผู้อ่านเปิดคู่มือ
 
-รอบ Agent เตรียมโค้ด SQL รุ่น 22 และ env example แบบปิดไว้ใน local เท่านั้น การทดสอบแยกให้ดูหัวข้อรอบล่าสุดใน VERIFICATION ไม่แทนการอัปเกรด Supabase ตั้ง env ทดสอบ provider/LINE หรือ deploy จริง ผู้ดูแลต้องดำเนินขั้นตอนใน [LINE_AGENT.md](docs/LINE_AGENT.md) ก่อนเปิดให้ผู้ใช้
+วันที่ 29 ตุลาคม Agent release `8cc23e7` เป็น READY ทั้งสี่ Vercel projects และ LINE Webhook Verify สำเร็จ ผู้ดูแลตั้ง env และรัน SQL เองแล้ว ล่าสุด production schema 23 ตรงกับ fingerprint ที่ตรวจไว้ ส่วนแก้/ลบบันทึกรอบนี้ผ่าน **285 unit + 209 isolated PostgreSQL/API = 497 tests** พร้อม browser fixtures ไทย/อังกฤษ ตรวจสถานะ deploy ของโค้ดใหม่ใน [VERIFICATION.md](docs/VERIFICATION.md) โดยไม่ถือผล local แทนการทดสอบ provider/LINE จริง ผู้ใช้จะทดสอบกับพีโอนีเองและทีมไม่ได้สร้างบันทึกสุขภาพจริงเพื่อทดสอบ
 
 สิ่งที่ผลดังกล่าว **ยังไม่พิสูจน์** คือคุณภาพ OpenAI จริง การรับ/อ่าน LINE ของผู้ใช้จริง native camera/LIFF บนทุกเครื่อง ความแม่นยำทางคลินิก biometrics accuracy การมีลูกค้าที่จ่ายเงิน retention หรือ patentability
 
@@ -839,7 +843,7 @@ Release `a2a3294` มีบันทึก CI สำเร็จและ Vercel
 
 ## 21. แผนที่เอกสาร: แต่ละไฟล์อ่านเพื่ออะไร
 
-แผนที่เดิมจัดทำจาก Markdown ที่ติดตาม 20 ไฟล์ รวม AGENTS ของสาม frontend รอบ 29 ตุลาคมเพิ่มคู่มือ LINE Agent ไว้ด้านล่าง คู่มือนี้ทำหน้าที่เชื่อมภาพรวม ไม่แทน source หรือคู่มือฟีเจอร์ย่อย และจำนวนเอกสารเดิมไม่ใช่ inventory ปัจจุบันที่คงที่
+แผนที่เดิมจัดทำจาก Markdown ที่ติดตาม 20 ไฟล์ รวม AGENTS ของสาม frontend รอบ 29 ตุลาคมเพิ่มคู่มือ LINE Agent และการแก้/ลบบันทึกไว้ด้านล่าง คู่มือนี้ทำหน้าที่เชื่อมภาพรวม ไม่แทน source หรือคู่มือฟีเจอร์ย่อย และจำนวนเอกสารเดิมไม่ใช่ inventory ปัจจุบันที่คงที่
 
 ### 21.1 เริ่มต้นและทิศทาง
 
@@ -857,7 +861,8 @@ Release `a2a3294` มีบันทึก CI สำเร็จและ Vercel
 | เอกสาร | เขียนอะไร / อ่านเพื่ออะไร | อ่านจบได้อะไรและต้องระวังอะไร |
 | --- | --- | --- |
 | [PET_PASSPORT.md](docs/PET_PASSPORT.md) | Q&A/unknown/review/confirmation, selected history/photos, public/clinic scopes, notes, after-visit/LINE และ API | ออกแบบ อธิบาย และพัฒนา handover ตรงกับของจริง แยกจาก health summary เก่าและไม่อ้างผลทางคลินิกแล้ว |
-| [LINE_AGENT.md](docs/LINE_AGENT.md) | LLM0, 48 tools, การถาม/ยืนยัน ผลใน LIFF, สิทธิ์/retention, API และการเปิด flag/schema 22 | เข้าใจงานแชทกับงานที่เขียนข้อมูล แยกของที่เตรียม local จาก production และเปิดใช้ตามขั้นตอนโดยผู้ดูแล |
+| [LINE_AGENT.md](docs/LINE_AGENT.md) | LLM0, 55 tools, การถาม/ยืนยัน ผลใน LIFF, สิทธิ์/retention, API และ flag/schema 22–23 | เข้าใจงานแชทกับงานที่เขียนข้อมูล แยกผลตรวจ deploy จากบทสนทนาจริง และเปิด environment ใหม่ตามขั้นตอน |
+| [RECORD_MUTATIONS.md](docs/RECORD_MUTATIONS.md) | ขอบเขตแก้/ลบบันทึก ACL, revision/version, การยืนยัน ผลต่อ reminder/น้ำหนัก/แชร์ และตัวอย่างทดสอบ | จัดการข้อมูลผิดได้โดยไม่ทิ้งข้อมูลเชื่อมโยงเก่า เข้าใจว่าลบอะไรและอะไรยังอยู่ พร้อมข้อความทดสอบพีโอนี |
 | [PERSONALIZED_FOLLOWUPS.md](docs/PERSONALIZED_FOLLOWUPS.md) | Opt-in/sources, 5/7 วัน, quiet hours, preview/replies, bounded LLM และ scheduler limits | เข้าใจว่าทักต่อจากเรื่องเดิมอย่างไร ใครยินยอมอะไร และเมื่อใดควรข้าม; cadence ไม่ใช่ส่งทุกคนตรงวัน |
 | [PETID.md](docs/PETID.md) | ระบบค้นหา v0: photos/signature/embedding/index/LLM comparison/owner review | เข้าใจของที่ให้บริการค้นหาปัจจุบัน ไม่สับสนกับโมเดล biometric ที่ฝึกและรับรองแล้ว |
 | [PETID_DATASET.md](docs/PETID_DATASET.md) | Capture sessions, มุม/วัน/anchor, per-pet training consent, quality/review API | รู้ภาพใดอยู่ในกระบวนการใดและมีสิทธิ์อะไร owner attestation ยังไม่ใช่ ground truth อิสระ |
@@ -875,10 +880,10 @@ Release `a2a3294` มีบันทึก CI สำเร็จและ Vercel
 
 | เอกสาร | เขียนอะไร / อ่านเพื่ออะไร | อ่านจบได้อะไรและต้องระวังอะไร |
 | --- | --- | --- |
-| [DEPLOYMENT.md](docs/DEPLOYMENT.md) | 1 repo/4 projects, roots/domains/env, DB connection, SQL, LIFF และ deploy order | ตั้งสภาพแวดล้อมและเข้าใจจุดที่ต้องตรวจได้ แยก Agent รุ่น 22 ที่เตรียมไว้จากหลักฐาน production 21 ไม่คัด secrets ไป frontend |
+| [DEPLOYMENT.md](docs/DEPLOYMENT.md) | 1 repo/4 projects, roots/domains/env, DB connection, SQL, LIFF และ deploy order | ตั้งสภาพแวดล้อมและเข้าใจจุดที่ต้องตรวจได้ ตรวจ schema 23 และสถานะ Agent/deploy ของแต่ละรอบ ไม่คัด secrets ไป frontend |
 | [DEPLOYMENT_DIAGNOSIS.md](docs/DEPLOYMENT_DIAGNOSIS.md) | ประวัติ domain/zoom, LIFF inventory, rewrite/runtime/TLS/webhook และผลแก้ | ใช้เป็นตัวอย่าง troubleshooting และกรณีอ้างอิง ไม่ใช่สถานะสดหรือ runbook ที่ครอบคลุมทุก incident |
 | [supabase/README.md](supabase/README.md) | bootstrap/diagnostic/upgrade, RLS/roles/deletion, queue/vector และ DB tests | เปลี่ยน schema โดยรักษาข้อมูลและเข้าใจ permission; browser ไม่ query private schema ตรง |
-| [VERIFICATION.md](docs/VERIFICATION.md) | ผลตรวจแยกแต่ละรอบ ทั้ง local/isolated และ production พร้อม limits | รู้หลักฐานที่ผ่าน รุ่น สภาพแวดล้อม และสิ่งที่ยังไม่พิสูจน์ ไม่ใช้ test count หรือ local schema 22 แทน production หรือ product-market fit |
+| [VERIFICATION.md](docs/VERIFICATION.md) | ผลตรวจแยกแต่ละรอบ ทั้ง local/isolated และ production พร้อม limits | รู้หลักฐานที่ผ่าน รุ่น สภาพแวดล้อม และสิ่งที่ยังไม่พิสูจน์ ไม่ใช้ test count หรือ schema ในฐานแยกแทน production หรือ product-market fit |
 
 ### 21.5 เอกสารกำกับนักพัฒนา
 

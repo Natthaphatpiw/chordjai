@@ -1,0 +1,10 @@
+.memory-card .memory-item-content { flex: 1; min-width: 0; }
+.memory-item-actions { display: flex; align-items: center; gap: 4px; flex-shrink: 0; }
+.memory-item-editor .field { margin: 0 0 12px; }
+.memory-item-editor textarea { width: 100%; min-height: 120px; resize: vertical; }
+.memory-item-editor .form-actions { flex-wrap: wrap; gap: 8px; }
+@media (max-width: 540px) {
+  .memory-card { flex-wrap: wrap; }
+  .memory-card .memory-item-content { flex-basis: calc(100% - 54px); }
+  .memory-item-actions { margin-left: auto; }
+}

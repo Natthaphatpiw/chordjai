@@ -10,11 +10,15 @@ export const idempotency:MiddlewareHandler<ServiceEnv>=async(c,next)=>{
   // Mutable consent and source-dependent previews must revalidate current
   // permissions. Research consent carries its own durable request ID; follow-up
   // preferences use a revision check rather than replaying an old opt-in.
+  // Deleting an entire owner interview returns only {deleted:true}, with no
+  // source-dependent snapshot. Cache that narrow result so an authenticated
+  // Agent retry can recover after deletion; all other Passport routes recheck.
+  const passportDeletion=c.req.method==='DELETE'&&/^\/api\/v1\/health\/passport\/sessions\/[^/]+$/.test(c.req.path);
   const currentPermissionRoute=/^\/api\/v1\/biometric\/pets\/[^/]+\/research\/consent$/.test(c.req.path)
     || /^\/api\/v1\/biometric\/review\//.test(c.req.path)
     || /^\/api\/v1\/biometric\/pets\/[^/]+\/research\/sessions\/[^/]+\/checks$/.test(c.req.path)
     || /^\/api\/v1\/notification\/followup\/(?:preferences|preview)$/.test(c.req.path)
-    || /^\/api\/v1\/health\/passport\//.test(c.req.path)
+    || (!passportDeletion&&/^\/api\/v1\/health\/passport\//.test(c.req.path))
     || /^\/api\/v1\/clinic\/passports\//.test(c.req.path)
     || /^\/api\/v1\/share\/passports(?:\/|$)/.test(c.req.path);
   if(!key||!c.get('actor')||!['POST','PATCH','DELETE'].includes(c.req.method)||c.req.path.startsWith('/internal/')||c.req.path==='/api/v1/identity/line'||currentPermissionRoute)return next();

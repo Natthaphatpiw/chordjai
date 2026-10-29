@@ -94,9 +94,14 @@ app.patch('/api/v1/journal/pages/:id',async c=>{
   return ok(c,camel(await hydrate(actor.id,page)));
 });
 app.delete('/api/v1/journal/pages/:id',async c=>{
-  const actor=getActor(c);
-  const result=await withUser(actor.id,tx=>tx.query('delete from journal.pages where id=$1 and owner_id=$2 returning id',[uuid(c.req.param('id')),actor.id]));
-  if(!result.rowCount)throw new HttpError(404,'PAGE_NOT_FOUND','ไม่พบหน้าสมุด');
+  const actor=getActor(c),id=uuid(c.req.param('id'));
+  const expected=c.req.raw.body?await jsonBody(c,z.object({version:z.number().int().positive()}).strict()):null;
+  await withUser(actor.id,async tx=>{
+    const current=(await tx.query('select version from journal.pages where id=$1 and owner_id=$2 for update',[id,actor.id])).rows[0];
+    if(!current)throw new HttpError(404,'PAGE_NOT_FOUND','ไม่พบหน้าสมุด');
+    if(expected&&current.version!==expected.version)throw new HttpError(409,'VERSION_CONFLICT','หน้านี้ถูกแก้ไขแล้ว กรุณาโหลดล่าสุดก่อนลบ');
+    await tx.query('delete from journal.pages where id=$1 and owner_id=$2',[id,actor.id]);
+  });
   return ok(c,{deleted:true});
 });
 // Inert, bounded JSON only. A preview never changes the stored page or cover.

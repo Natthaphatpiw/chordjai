@@ -41,7 +41,7 @@ export default function Journal({ pet, demo, initialMemory }: { pet: Pet; demo: 
   const uploadInput = useRef<HTMLInputElement>(null); const swipe = useRef<{x:number;y:number} | null>(null);
   const loadGeneration = useRef(0); const pageCreationKey = useRef(''); const coverCreationKey = useRef('');
   const consumedMemory=useRef('');
-  const openedAgentPage=useRef('');
+  const openedAgentPage=useRef(''),deleteKeys=useRef(new Map<string,string>());
   useEffect(() => {
     const generation = ++loadGeneration.current; let cancelled = false; coverCreationKey.current=crypto.randomUUID();consumedMemory.current='';setLoadReady(false);
     setScreen('book'); setPage(null); setDirty(false); setSelected(''); setError(''); setNotice(''); setBook(null); setPages([]); setCoverEditing(false);
@@ -124,9 +124,9 @@ export default function Journal({ pet, demo, initialMemory }: { pet: Pet; demo: 
     } catch(cause) { setError(messageOf(cause,locale)); } finally { setBusy(false); }
   }
   async function removePage(item:JournalPage) {
-    if (busy || !window.confirm(t(`ลบหน้า “${item.title}” ออกจากสมุดหรือไม่?`,`Delete “${item.title}” from this book?`))) return;
+    if (busy || !window.confirm(t(`ลบหน้า “${item.title}” จากสมุดของ${pet.name} หรือไม่? ลบแล้วไม่สามารถกู้คืนหน้านี้ในแอปได้ รูปต้นฉบับยังอยู่ในคลังรูป`,`Permanently delete “${item.title}” from ${pet.name}’s book? This page cannot be restored in the app. Uploaded originals remain in your media library.`))) return;
     setBusy(true); setError('');
-    try { if (!demo) await api(`/journal/pages/${item.id}`,{method:'DELETE'}); const next=pages.filter(page=>page.id!==item.id); if(demo)localStorage.setItem(storageKey,JSON.stringify(next)); setPages(next); setReadIndex(index=>Math.max(0,Math.min(index,next.length-1))); setScreen(next.length ? 'read' : 'book'); setDirty(false); setNotice(t('ลบหน้าสมุดแล้ว','Page deleted.')); } catch(cause) { setError(messageOf(cause,locale)); } finally { setBusy(false); }
+    try { if (!demo){const identity=`${item.id}:${item.version}`;if(!deleteKeys.current.has(identity))deleteKeys.current.set(identity,crypto.randomUUID());await api(`/journal/pages/${item.id}`,{...json('DELETE',{version:item.version}),headers:{'Idempotency-Key':deleteKeys.current.get(identity)!}});} const next=pages.filter(page=>page.id!==item.id); if(demo)localStorage.setItem(storageKey,JSON.stringify(next)); setPages(next); setReadIndex(index=>Math.max(0,Math.min(index,next.length-1))); setScreen(next.length ? 'read' : 'book'); setDirty(false); setNotice(t('ลบหน้าสมุดแล้ว','Page deleted.')); } catch(cause) { if(cause instanceof ApiError&&cause.status===409){try{const latest=await api<JournalPage>(`/journal/pages/${item.id}`);setPages(current=>current.map(row=>row.id===latest.id?latest:row));}catch{}setError(t('หน้านี้เปลี่ยนแล้ว ตรวจฉบับล่าสุดก่อนลบอีกครั้ง','This page changed. Review the latest version before deleting again.'));}else setError(messageOf(cause,locale)); } finally { setBusy(false); }
   }
   async function upload(file: File) {
     if (!page || page.elements.length >= 100) { setError(t('หน้านี้มีชิ้นงานครบ 100 ชิ้นแล้ว','This page already contains 100 items.')); return; }

@@ -12,7 +12,7 @@ vi.mock('@chordjai/biometric-service', () => ({ default: { fetch: mocked.fetch }
 vi.mock('@chordjai/lostfound/src/app.ts', () => ({ default: { fetch: mocked.fetch } }));
 vi.mock('@chordjai/share/src/app.ts', () => ({ default: { fetch: mocked.fetch } }));
 vi.mock('./app', () => ({ default: { fetch: mocked.fetch } }));
-import { AGENT_TOOLS, AGENT_MANUAL_ACTIONS, agentRequestId, agentVisibleData, getAgentTool, toolCatalog, validateAgentArguments, assertAgentToolAccess, resolveAgentActionPetId } from './agent-tools';
+import { AGENT_TOOLS, AGENT_MANUAL_ACTIONS, agentRequestId, agentVisibleData, getAgentTool, toolCatalog, validateAgentArguments, assertAgentToolAccess, resolveAgentActionPetId, agentActionReview, assertAgentDeletionReplay, isAgentDeletionTool } from './agent-tools';
 
 const petId = '11111111-1111-4111-8111-111111111111', entryId = '22222222-2222-4222-8222-222222222222';
 const actor = { id: '33333333-3333-4333-8333-333333333333', role: 'owner' as const };
@@ -96,7 +96,7 @@ describe('bounded authorized agent tool adapters', () => {
     mocked.fetch.mockResolvedValueOnce(response({ id: entryId, petId }));
     expect(await resolveAgentActionPetId(actor, 'care.entries.update', { id: entryId, version: 1, kind: 'daily', title: 'Correction', observedAt: '2026-10-29T00:00:00Z' })).toBe(petId);
     const otherPetId = '44444444-4444-4444-8444-444444444444';
-    mocked.fetch.mockResolvedValueOnce(response([{ id: entryId, petId: otherPetId }]));
+    mocked.fetch.mockResolvedValueOnce(response({ id: entryId, petId: otherPetId }));
     await expect(resolveAgentActionPetId(actor, 'care.episodes.update', { id: entryId, petId, version: 1, title: 'Changed title', status: 'improving' })).rejects.toMatchObject({ code: 'AGENT_PET_MISMATCH' });
   });
   it('fails closed when a current resource lacks a valid pet reference and allows global owner memory', async () => {
@@ -104,6 +104,18 @@ describe('bounded authorized agent tool adapters', () => {
     await expect(resolveAgentActionPetId(actor, 'passport.sessions.get', { id: entryId })).rejects.toMatchObject({ code: 'AGENT_RESOURCE_PET_UNKNOWN' });
     mocked.fetch.mockResolvedValueOnce(response({memoryEnabled:true})).mockResolvedValueOnce(response([{ id: entryId, petId: null }]));
     expect(await resolveAgentActionPetId(actor, 'assistant.memories.update', { id: entryId, content: 'Owner preference' })).toBeUndefined();
+  });
+  it('reads a selected episode directly for review and pet resolution instead of a capped recent list',async()=>{
+    const current={id:entryId,petId,title:'Older care episode',startedAt:'2020-01-01T03:00:00Z',version:1};
+    mocked.fetch.mockImplementation((request:Request)=>Promise.resolve(response(request.url.endsWith(`/pets/${petId}`)?{id:petId,name:'Peony'}:current)));
+    const args={id:entryId,petId,version:1};
+    expect(await resolveAgentActionPetId(actor,'care.episodes.delete',args)).toBe(petId);
+    expect(await agentActionReview(actor,'care.episodes.delete',args,'en')).toContain('Older care episode');
+    expect(mocked.fetch.mock.calls.map(([request])=>(request as Request).url)).toEqual([
+      `https://agent.internal/api/v1/health/care/episodes/${entryId}`,
+      `https://agent.internal/api/v1/health/care/episodes/${entryId}`,
+      `https://agent.internal/api/v1/pets/${petId}`,
+    ]);
   });
   it('passes the owner task language to the real domain API', async () => {
     await getAgentTool('pets.get')!.execute(actor, {id:petId}, 'english-task', {language:'en'});
@@ -129,4 +141,48 @@ describe('bounded authorized agent tool adapters', () => {
     await expect(assertAgentToolAccess('assistant.memories.create', actor, {content:'', url:'https://attacker.invalid'})).rejects.toMatchObject({code:'AGENT_TOOL_ARGUMENTS_INVALID'});
     expect(mocked.fetch).not.toHaveBeenCalled(); expect(mocked.consentQuery).not.toHaveBeenCalled();
   });
+  it('adds single-record mutation tools with confirmation and current revision/version requirements', () => {
+    expect(AGENT_TOOLS).toHaveLength(55);
+    expect(getAgentTool('health.records.get')?.risk).toBe('read');
+    for(const name of ['health.records.update','health.records.delete','care.entries.delete','care.episodes.delete','journal.pages.delete','passport.sessions.delete'])expect(getAgentTool(name)?.risk).toBe('confirm');
+    for(const name of ['care.entries.delete','journal.pages.delete','passport.sessions.delete']){
+      expect(isAgentDeletionTool(name)).toBe(true);expect(validateAgentArguments(name,{id:entryId,version:1})).toEqual({id:entryId,version:1});
+      for(const args of [{id:entryId},{id:entryId,version:0},{ids:[entryId],version:1},{id:entryId,version:1,petId}])expect(()=>validateAgentArguments(name,args)).toThrow();
+    }
+    expect(()=>validateAgentArguments('health.records.delete',{id:entryId,revision:'stale'})).toThrow();
+    expect(validateAgentArguments('health.records.delete',{id:entryId,revision:'a'.repeat(32)})).toEqual({id:entryId,revision:'a'.repeat(32)});
+    expect(getAgentTool('health.records.deleteAll')).toBeUndefined();
+  });
+  it('sends exactly the confirmed revision to a fixed authenticated DELETE endpoint',async()=>{
+    mocked.fetch.mockResolvedValueOnce(response({id:entryId,petId,revision:'a'.repeat(32)})).mockResolvedValueOnce(response({deleted:true}));
+    const result=await getAgentTool('health.records.delete')!.execute(actor,{id:entryId,revision:'a'.repeat(32)},'delete-health-one');
+    const requests=mocked.fetch.mock.calls.map(([request])=>request as Request);expect(requests.map(request=>request.method)).toEqual(['GET','DELETE']);
+    expect(requests[1].url).toBe(`https://agent.internal/api/v1/health/records/${entryId}`);expect(await requests[1].json()).toEqual({revision:'a'.repeat(32)});
+    expect(requests[1].headers.get('authorization')).toBe('Bearer test-owner-token');expect(requests[1].headers.get('idempotency-key')).toBe(agentRequestId('delete-health-one'));expect(result.data).toEqual({deleted:true});
+  });
+  it('does not hide current version failures when deleting a selected diary entry',async()=>{
+    mocked.fetch.mockResolvedValueOnce(response({id:entryId,petId,version:2})).mockResolvedValueOnce(Response.json({error:{code:'VERSION_CONFLICT',message:'Changed elsewhere'}},{status:409}));
+    await expect(getAgentTool('care.entries.delete')!.execute(actor,{id:entryId,version:1},'delete-stale')).rejects.toMatchObject({status:409,code:'VERSION_CONFLICT'});
+    expect(await (mocked.fetch.mock.calls[1][0] as Request).json()).toEqual({version:1});
+  });
+  it('builds mutation review labels from the current resource and pet rather than model claims',async()=>{
+    mocked.fetch.mockResolvedValueOnce(response({id:entryId,petId,title:'Current ear-care diary',observedAt:'2026-10-29T03:00:00Z',reflection:'DO_NOT_REVIEW_PRIVATE'})).mockResolvedValueOnce(response({id:petId,name:'Peony'}));
+    const review=await agentActionReview(actor,'care.entries.delete',{id:entryId,version:1},'en');
+    expect(review).toContain('Current ear-care diary');expect(review).toContain('Peony');expect(review).toContain('29 Oct 2026');expect(review).not.toContain('DO_NOT_REVIEW_PRIVATE');
+    expect(mocked.fetch.mock.calls.every(([request])=>(request as Request).method==='GET')).toBe(true);
+  });
+  it('rechecks the recorded pet before replaying a prepared deletion without reading the deleted row',async()=>{
+    mocked.fetch.mockResolvedValueOnce(response({id:petId})).mockResolvedValueOnce(response({deleted:true}));
+    await getAgentTool('care.entries.delete')!.execute(actor,{id:entryId,version:1},'delete-response-lost',{language:'en',deletionReplay:{resourceId:entryId,petId}});
+    const requests=mocked.fetch.mock.calls.map(([request])=>request as Request);expect(requests.map(request=>[request.method,request.url])).toEqual([
+      ['GET',`https://agent.internal/api/v1/pets/${petId}`],['DELETE',`https://agent.internal/api/v1/health/care/entries/${entryId}`],
+    ]);expect(await requests[1].json()).toEqual({version:1});
+  });
+  it('rejects forged or scope-free deletion replay references before any service call',async()=>{
+    await expect(assertAgentDeletionReplay(actor,'care.entries.delete',{id:entryId,version:1},{resourceId:petId,petId})).rejects.toMatchObject({code:'AGENT_REPLAY_INVALID'});
+    await expect(assertAgentDeletionReplay(actor,'care.entries.delete',{id:entryId,version:1},{resourceId:entryId})).rejects.toMatchObject({code:'AGENT_REPLAY_INVALID'});
+    await expect(assertAgentDeletionReplay(actor,'pets.update',{id:petId,changes:{name:'Other'}},{resourceId:petId,petId})).rejects.toMatchObject({code:'AGENT_REPLAY_INVALID'});
+    expect(mocked.fetch).not.toHaveBeenCalled();
+  });
+
 });

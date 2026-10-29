@@ -1,15 +1,15 @@
 # Deployment ของ ChordJai
 
-## LINE Agent — เตรียม local รุ่นฐานข้อมูล 22 วันที่ 29 ตุลาคม 2026
+## LINE Agent และแก้ไข/ลบบันทึก — ฐานข้อมูล 23 วันที่ 29 ตุลาคม 2026
 
-**ยังไม่ deploy และยังไม่อัปเกรด Supabase จริง:** หลักฐาน production ล่าสุดเป็น schema **21** รอบนี้เตรียมโค้ด [LINE Agent](LINE_AGENT.md), migration [`202610290022_line_agent.sql`](../supabase/migrations/202610290022_line_agent.sql) และไฟล์รวมสำหรับผู้ดูแลนำไปรันเอง ไม่แก้ `.env` จริงหรือ environment บน Vercel และไม่ส่ง LINE ทดสอบจริง
+**ฐานข้อมูลจริงตรวจแล้วถึงรุ่น 23:** ผู้ดูแลรัน SQL และตั้ง env เอง Read-only diagnostic ยืนยัน fingerprint `171c466a888ddd5fd7df4ab1f5055527` รุ่น Agent ก่อนเพิ่มแก้/ลบ commit `8cc23e7` ขึ้น READY ทั้งสี่ project แล้ว สถานะ release ของโค้ดแก้/ลบดู [VERIFICATION.md](VERIFICATION.md) รอบนี้ไม่เพิ่ม env และไม่ส่ง LINE หรือสร้างบันทึกพีโอนีจริง ผู้ใช้เลือกทดสอบบทสนทนาจริงเองตาม [RECORD_MUTATIONS.md](RECORD_MUTATIONS.md)
 
 ใช้ **1 repo/4 Vercel projects/14 Services เดิม** Agent อยู่ใน `assistant` เชื่อม `notification` และ `scheduler` ผ่าน private bindings ไม่ต้องเพิ่ม service, Messaging webhook หรือ LIFF endpoint โมเดลยังเป็น `OPENAI_MODEL=gpt-6.1-sol` Dependency ใน checkout ใช้ Next.js `16.4.3` และ Zod `4.6.6`; ใช้ `npm ci` จาก lockfile ที่มาพร้อมกัน
 
-ลำดับเปิดใช้สำหรับผู้ดูแล:
+ลำดับเปิดใช้สำหรับ environment ใหม่ (โครงการนี้อัปเกรดฐานข้อมูลแล้ว):
 
 1. คง `LINE_AGENT_ENABLED=false` ระหว่างเตรียม backend และ owner app รุ่นใหม่
-2. ใน Supabase จริงรัน `diagnostic.sql` → `upgrade.sql` → `diagnostic.sql` ตรวจถึง **22** และไม่มี partial/unknown state ฐานข้อมูลมีข้อมูลแล้วห้ามรัน bootstrap ซ้ำ
+2. ใน Supabase จริงรัน `diagnostic.sql` → `upgrade.sql` → `diagnostic.sql` ตรวจถึง **23** และไม่มี partial/unknown state ฐานข้อมูลมีข้อมูลแล้วห้ามรัน bootstrap ซ้ำ
 3. ตั้ง env จริงของ backend เองตาม [backend/.env.example](../backend/.env.example) ใช้ credentials เดิมที่ถูกต้องและ optional `LINE_AGENT_LIFF_ID` ค่า LIFF หลักเดิม ถ้าไม่กำหนดจะใช้ `LIFF_ID`
 4. ตรวจ deployment ของ backend/owner app, bindings, Cron และ provider access ก่อนเปลี่ยน `LINE_AGENT_ENABLED=true` เฉพาะ environment ที่พร้อม แล้ว deploy การตั้งค่าใหม่
 5. ใช้บัญชีทดสอบของผู้ดูแลตรวจคำถามทั่วไป คำสั่งบันทึก การถามเพิ่ม/ยืนยัน และ LIFF ที่เปิดรายการเดียวกับงาน ดูเกณฑ์เปิดใช้ครบใน [LINE_AGENT.md](LINE_AGENT.md#11-สิ่งที่ผู้ดูแลต้องทำก่อนเปิดใช้)

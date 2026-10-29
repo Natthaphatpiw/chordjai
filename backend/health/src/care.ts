@@ -5,6 +5,7 @@ import {withUser,careSummary,type PoolClient} from '@chordjai/db';
 import {careEntryCreateSchema,careEntryUpdateSchema,careEpisodeCreateSchema,careEpisodeUpdateSchema,type CareEntryInput} from '@chordjai/contracts';
 import {mediaUrl} from '@chordjai/media';
 import {getActor,ok,jsonBody,uuid,HttpError,type ServiceEnv} from '@chordjai/service-kit';
+import {requireRecordMutations,optionalDeleteGuard} from './mutations';
 
 const base='/api/v1/health/care';
 const digest=(body:unknown)=>createHash('sha256').update(JSON.stringify(body)).digest('hex');
@@ -22,7 +23,8 @@ function pageQuery(query:Record<string,string>){
 // PostgreSQL's full precision in a canonical UTC string on every response.
 const episodeTimestamps=`to_char(started_at AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS started_at,to_char(resolved_at AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS resolved_at`;
 const entryColumns=`e.id,e.pet_id,e.created_by,e.client_entry_id,e.episode_id,e.kind,e.title,to_char(e.observed_at AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS observed_at,e.narrative,e.clinical_note,e.observations,e.visit,e.share_with_clinic,e.share_costs,e.provenance,e.passport_session_id,e.passport_clinic_note_id,e.passport_source,e.version,e.edited_by,e.created_at,e.updated_at,
-  (public.can_write_pet(e.pet_id) AND (e.created_by=public.current_user_id() OR public.is_pet_owner(e.pet_id))) AS can_edit,
+  (public.can_write_pet(e.pet_id) AND (e.created_by=public.current_user_id() OR public.is_pet_owner(e.pet_id)) AND to_regprocedure('health.sync_record_mutation()') IS NOT NULL) AS can_edit,
+  (public.can_write_pet(e.pet_id) AND (e.created_by=public.current_user_id() OR public.is_pet_owner(e.pet_id))) AS can_delete,
   e.created_by=public.current_user_id() AS can_edit_reflection,
   coalesce((SELECT r.content FROM health.care_reflections r WHERE r.entry_id=e.id),'') AS reflection,
   coalesce((SELECT jsonb_agg(jsonb_build_object('label',c.label,'amountMinor',c.amount_minor,'currency',c.currency,'kind',c.kind) ORDER BY c.position) FROM health.care_costs c WHERE c.entry_id=e.id),'[]'::jsonb) AS costs,
@@ -94,6 +96,7 @@ export function registerCareRoutes(app:Hono<ServiceEnv>){
   app.patch(`${base}/entries/:id`,async c=>{
     const actor=getActor(c),id=uuid(c.req.param('id')),body=await jsonBody(c,careEntryUpdateSchema);validateCareDates(body);
     const entry=await withUser(actor.id,async db=>{
+      await requireRecordMutations(db);
       const current=(await db.query('SELECT * FROM health.care_entries WHERE id=$1 FOR UPDATE',[id])).rows[0];
       if(!current)throw new HttpError(404,'CARE_ENTRY_NOT_FOUND','ไม่พบบันทึกการดูแล');
       await writeAccess(db,current.pet_id);
@@ -113,15 +116,29 @@ export function registerCareRoutes(app:Hono<ServiceEnv>){
     });return ok(c,await hydrate(entry));
   });
   app.delete(`${base}/entries/:id`,async c=>{
-    const actor=getActor(c);
-    const deleted=await withUser(actor.id,db=>db.query('DELETE FROM health.care_entries WHERE id=$1 RETURNING id',[uuid(c.req.param('id'))]));
-    if(!deleted.rowCount)throw new HttpError(404,'CARE_ENTRY_NOT_FOUND','ไม่พบบันทึกหรือไม่มีสิทธิ์ลบ');return ok(c,{deleted:true});
+    const actor=getActor(c),id=uuid(c.req.param('id')),body=await optionalDeleteGuard(c,'version');
+    await withUser(actor.id,async db=>{
+      const current=(await db.query('SELECT * FROM health.care_entries WHERE id=$1 FOR UPDATE',[id])).rows[0];
+      if(!current)throw new HttpError(404,'CARE_ENTRY_NOT_FOUND','ไม่พบบันทึกการดูแล');
+      await writeAccess(db,current.pet_id);
+      if(current.created_by!==actor.id&&!(await db.query('SELECT 1 WHERE public.is_pet_owner($1)',[current.pet_id])).rowCount)throw new HttpError(403,'CARE_EDIT_REQUIRED','ลบได้เฉพาะผู้เขียนหรือเจ้าของน้อง');
+      if(body.version!==undefined&&body.version!==current.version)throw new HttpError(409,'VERSION_CONFLICT','บันทึกนี้เปลี่ยนจากที่อื่นแล้ว กรุณาโหลดฉบับล่าสุดก่อนลบ');
+      await db.query('DELETE FROM health.care_entries WHERE id=$1',[id]);
+    });return ok(c,{deleted:true});
+  });
+  app.get(`${base}/episodes/:id`,async c=>{
+    const actor=getActor(c),id=uuid(c.req.param('id'));
+    const found=await withUser(actor.id,async db=>(await db.query(`SELECT id,pet_id,created_by,client_episode_id,title,status,${episodeTimestamps},version,created_at,updated_at,
+      (public.can_write_pet(pet_id) AND (created_by=public.current_user_id() OR public.is_pet_owner(pet_id)) AND to_regprocedure('health.sync_record_mutation()') IS NOT NULL) AS can_edit,
+      (public.can_write_pet(pet_id) AND (created_by=public.current_user_id() OR public.is_pet_owner(pet_id)) AND to_regprocedure('health.sync_record_mutation()') IS NOT NULL) AS can_delete FROM health.care_episodes WHERE id=$1`,[id])).rows[0]);
+    if(!found)throw new HttpError(404,'CARE_EPISODE_NOT_FOUND','ไม่พบเรื่องการดูแล');return ok(c,found);
   });
   app.get(`${base}/episodes`,async c=>{
     const actor=getActor(c),petId=uuid(c.req.query('petId')),page=pageQuery(c.req.query()),status=c.req.query('status')??null;
     if(status!==null&&!['active','ongoing','improving','resolved'].includes(status))throw new HttpError(400,'VALIDATION_ERROR','สถานะเรื่องการดูแลไม่ถูกต้อง');
     return ok(c,await withUser(actor.id,async db=>(await db.query(`SELECT id,pet_id,created_by,client_episode_id,title,status,${episodeTimestamps},version,created_at,updated_at,
-      (public.can_write_pet(pet_id) AND (created_by=public.current_user_id() OR public.is_pet_owner(pet_id))) AS can_edit FROM health.care_episodes WHERE pet_id=$1
+      (public.can_write_pet(pet_id) AND (created_by=public.current_user_id() OR public.is_pet_owner(pet_id)) AND to_regprocedure('health.sync_record_mutation()') IS NOT NULL) AS can_edit,
+      (public.can_write_pet(pet_id) AND (created_by=public.current_user_id() OR public.is_pet_owner(pet_id)) AND to_regprocedure('health.sync_record_mutation()') IS NOT NULL) AS can_delete FROM health.care_episodes WHERE pet_id=$1
       AND ($2::timestamptz IS NULL OR (started_at,id)<($2::timestamptz,$3::uuid))
       AND ($4::text IS NULL OR ($4='active' AND status IN ('ongoing','improving')) OR status=$4)
       ORDER BY health.care_episodes.started_at DESC,id DESC LIMIT $5`,[petId,page.before,page.beforeId,status,page.limit])).rows));
@@ -139,6 +156,7 @@ export function registerCareRoutes(app:Hono<ServiceEnv>){
   app.patch(`${base}/episodes/:id`,async c=>{
     const actor=getActor(c),body=await jsonBody(c,careEpisodeUpdateSchema),id=uuid(c.req.param('id'));
     const episode=await withUser(actor.id,async db=>{
+      await requireRecordMutations(db);
       const current=(await db.query('SELECT * FROM health.care_episodes WHERE id=$1 FOR UPDATE',[id])).rows[0];
       if(!current)throw new HttpError(404,'CARE_EPISODE_NOT_FOUND','ไม่พบเรื่องการดูแล');
       await writeAccess(db,current.pet_id);
@@ -147,6 +165,18 @@ export function registerCareRoutes(app:Hono<ServiceEnv>){
       const changed=(await db.query(`UPDATE health.care_episodes SET title=$2,status=$3,resolved_at=$4,version=version+1 WHERE id=$1 AND version=$5 RETURNING *,${episodeTimestamps}`,[id,body.title,body.status,body.resolvedAt,body.version])).rows[0];
       if(!changed)throw new HttpError(409,'VERSION_CONFLICT','เรื่องการดูแลนี้เปลี่ยนจากที่อื่นหรือคุณไม่มีสิทธิ์แก้ไข');return changed;
     });const{create_hash,...publicEpisode}=episode;return ok(c,{...publicEpisode,canEdit:true});
+  });
+  app.delete(`${base}/episodes/:id`,async c=>{
+    const actor=getActor(c),id=uuid(c.req.param('id')),body=await jsonBody(c,z.object({version:z.number().int().positive()}).strict());
+    await withUser(actor.id,async db=>{
+      await requireRecordMutations(db);
+      const current=(await db.query('SELECT * FROM health.care_episodes WHERE id=$1 FOR UPDATE',[id])).rows[0];
+      if(!current)throw new HttpError(404,'CARE_EPISODE_NOT_FOUND','ไม่พบเรื่องการดูแล');
+      await writeAccess(db,current.pet_id);
+      if(current.created_by!==actor.id&&!(await db.query('SELECT 1 WHERE public.is_pet_owner($1)',[current.pet_id])).rowCount)throw new HttpError(403,'CARE_EDIT_REQUIRED','ลบได้เฉพาะผู้เขียนหรือเจ้าของน้อง');
+      if(body.version!==current.version)throw new HttpError(409,'VERSION_CONFLICT','เรื่องการดูแลนี้เปลี่ยนจากที่อื่นแล้ว กรุณาโหลดฉบับล่าสุดก่อนลบ');
+      await db.query('DELETE FROM health.care_episodes WHERE id=$1',[id]);
+    });return ok(c,{deleted:true,entriesPreserved:true});
   });
   app.get(`${base}/summary`,async c=>{
     const actor=getActor(c),petId=uuid(c.req.query('petId')),includeCosts=c.req.query('includeCosts');

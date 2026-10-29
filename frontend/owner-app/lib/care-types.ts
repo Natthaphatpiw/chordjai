@@ -47,6 +47,7 @@ export interface CareEntry extends CareEntryInput {
   updatedAt: string;
   photos: CarePhoto[];
   canEdit: boolean;
+  canDelete?: boolean;
   canEditReflection: boolean;
   passportSource?:PassportCareSource|null;
 }
@@ -63,6 +64,7 @@ export interface CareEpisode {
   createdAt: string;
   updatedAt: string;
   canEdit?: boolean;
+  canDelete?: boolean;
 }
 export interface CareSummaryEntry {
   id: string;

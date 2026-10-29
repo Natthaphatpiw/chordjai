@@ -4,7 +4,7 @@ import {withSystem,withUser,closeDatabase} from '@chordjai/db';
 import {signSession} from '@chordjai/auth';
 import app from './app';
 import {deliverAgentMessage,executeAgentTask,ingestAgentTurn} from './agent';
-import {getAgentTool} from './agent-tools';
+import {agentRequestId,getAgentTool} from './agent-tools';
 import {bangkokAgentNow} from './agent-model';
 
 const provider=vi.hoisted(()=>({structured:vi.fn(),text:vi.fn(),push:vi.fn(),background:vi.fn()}));
@@ -46,7 +46,12 @@ describe.skipIf(!isolated)('durable LINE Agent with isolated PostgreSQL and mock
    await db.query('delete from assistant.memories where user_id=any($1::uuid[])',[users]);
    await db.query('delete from assistant.preferences where user_id=any($1::uuid[])',[users]);
    await db.query("delete from identity.consents where user_id=any($1::uuid[]) and purpose='ai_memory'",[users]);
+   await db.query('delete from health.passport_sessions where created_by=any($1::uuid[])',[users]);
    await db.query('delete from health.care_entries where created_by=any($1::uuid[])',[users]);
+   await db.query('delete from health.care_episodes where created_by=any($1::uuid[])',[users]);
+   await db.query('delete from health.records where created_by=any($1::uuid[])',[users]);
+   await db.query('delete from journal.pages where owner_id=any($1::uuid[])',[users]);
+   await db.query('delete from journal.books where owner_id=any($1::uuid[])',[users]);
    await db.query('delete from notify.reminders where user_id=any($1::uuid[])',[users]);
    await db.query('delete from notify.followup_deliveries where user_id=any($1::uuid[])',[users]);
    await db.query('delete from notify.followup_preferences where user_id=any($1::uuid[])',[users]);
@@ -221,6 +226,93 @@ describe.skipIf(!isolated)('durable LINE Agent with isolated PostgreSQL and mock
    await input('ลองใหม่');await executeAgentTask(pending.id);current=await task();expect(current.status,JSON.stringify(current.result)).toBe('succeeded');expect(await entries()).toHaveLength(1);
    const next=await withSystem(async db=>(await db.query('select key_uuid,status from assistant.agent_tool_calls where task_id=$1 order by step',[pending.id])).rows);expect(next.map(row=>row.key_uuid)).toEqual(first.map(row=>row.key_uuid));expect(next.map(row=>row.status)).toEqual(['succeeded','succeeded']);expect(await withSystem(async db=>(await db.query('select count(*)::int n from notify.reminders where user_id=$1',[owner])).rows[0].n)).toBe(1);
   }finally{transient.mockRestore();}
+ });
+ it('reviews the current diary title and pet before confirmation, then deletes exactly that entry without a dead deep link',async()=>{
+  const saved=await getAgentTool('care.entries.create')!.execute({id:owner,role:'owner'},diary({title:'DIARY_DELETE_REVIEW_TARGET',narrative:'DELETE_NARRATIVE_CANARY',reflection:'DELETE_REFLECTION_CANARY'}),randomUUID());
+  plans.push(ready([action('care.entries.delete',{id:saved.resourceId,version:1})]));await input('ลบบันทึก DIARY_DELETE_REVIEW_TARGET ของถั่วเหลืองให้หน่อย');const pending=await task();
+  expect(pending.status).toBe('awaiting_confirmation');expect(pending.question.text).toContain('DIARY_DELETE_REVIEW_TARGET');expect(pending.question.text).toContain('ถั่วเหลือง');expect(pending.question.text).toContain('ลบถาวร');
+  await executeAgentTask(pending.id);expect(await entries()).toHaveLength(1);await deliverPending();expect(JSON.stringify(provider.push.mock.calls)).toContain('DIARY_DELETE_REVIEW_TARGET');
+  await postback((await choices(pending.id)).find(row=>row.action==='confirm').id);await executeAgentTask(pending.id);const completed=await task();expect(completed.status,JSON.stringify(completed.result)).toBe('succeeded');expect(await entries()).toHaveLength(0);
+  const receipt=await withSystem(async db=>(await db.query('select result from assistant.agent_tool_calls where task_id=$1',[pending.id])).rows[0].result);
+  expect(receipt).toMatchObject({tool:'care.entries.delete',deleted:true,preparedDeletion:true,petId:pet});expect(receipt.path).toBe(`/app?tab=health&petId=${pet}`);expect(receipt.path).not.toContain(String(saved.resourceId));
+  for(const canary of ['DELETE_NARRATIVE_CANARY','DELETE_REFLECTION_CANARY','DIARY_DELETE_REVIEW_TARGET']){expect(JSON.stringify(receipt)).not.toContain(canary);expect(JSON.stringify(completed.result)).not.toContain(canary);}
+  await deliverPending();expect(JSON.stringify(provider.push.mock.calls)).toContain('ประวัติที่เหลือ');expect((await call(`/api/v1/assistant/agent/tasks/${pending.id}`)).body.data.results[0].deleted).toBe(true);
+ });
+ it('asks which pet an ambiguous deletion concerns and removes only the selected pet item after confirmation',async()=>{
+  const first=await getAgentTool('care.entries.create')!.execute({id:owner,role:'owner'},diary({title:'KEEP_FIRST_PET'}),randomUUID());
+  const second=await getAgentTool('care.entries.create')!.execute({id:owner,role:'owner'},diary({petId:secondPet,title:'DELETE_SELECTED_SECOND_PET'}),randomUUID());
+  plans.push(ready([action('care.entries.delete',{id:first.resourceId,version:1})]));await input('ลบบันทึกนี้ให้หน่อย');const pending=await task();expect(pending.status).toBe('collecting');expect(await entries()).toHaveLength(2);
+  const selected=(await choices(pending.id)).find(row=>row.action==='pet'&&row.value===secondPet);plans.push(ready([action('care.entries.delete',{id:second.resourceId,version:1})]));await postback(selected.id);
+  const review=await task();expect(review.status).toBe('awaiting_confirmation');expect(review.question.text).toContain('ถั่วดำ');expect(review.question.text).toContain('DELETE_SELECTED_SECOND_PET');
+  await postback((await choices(pending.id)).find(row=>row.action==='confirm').id);await executeAgentTask(pending.id);expect((await task()).status).toBe('succeeded');expect((await entries()).map(row=>row.id)).toEqual([first.resourceId]);
+ });
+ it('allows a typed cancellation of a reviewed deletion without mutating the original entry',async()=>{
+  const saved=await getAgentTool('care.entries.create')!.execute({id:owner,role:'owner'},diary({title:'KEEP_CANCELLED_DELETE'}),randomUUID());
+  plans.push(ready([action('care.entries.delete',{id:saved.resourceId,version:1})]));await input('ลบบันทึก KEEP_CANCELLED_DELETE ของถั่วเหลืองให้หน่อย');const pending=await task();expect(pending.status).toBe('awaiting_confirmation');
+  await input('ยกเลิก');await executeAgentTask(pending.id);expect((await task()).status).toBe('cancelled');expect((await entries()).map(row=>row.id)).toEqual([saved.resourceId]);
+  expect(await withSystem(async db=>(await db.query('select count(*)::int count from assistant.agent_tool_calls where task_id=$1',[pending.id])).rows[0].count)).toBe(0);
+ });
+ it('stops a stale-version deletion and requires a new reviewed request instead of offering a blind retry',async()=>{
+  const saved=await getAgentTool('care.entries.create')!.execute({id:owner,role:'owner'},diary({title:'Changed after review'}),randomUUID());
+  plans.push(ready([action('care.entries.delete',{id:saved.resourceId,version:1})]));await input('ลบบันทึกของถั่วเหลืองรายการ Changed after review');const pending=await task();
+  await getAgentTool('care.entries.update')!.execute({id:owner,role:'owner'},{id:saved.resourceId,version:1,kind:'visit',title:'Newer corrected diary',observedAt:new Date().toISOString(),narrative:'Keep this correction'},randomUUID());
+  await postback((await choices(pending.id)).find(row=>row.action==='confirm').id);await executeAgentTask(pending.id);
+  const failed=await task();expect(failed.status).toBe('failed');expect(failed.error_code).toBe('VERSION_CONFLICT');expect((await entries())[0]).toMatchObject({id:saved.resourceId,version:2,title:'Newer corrected diary'});
+  expect((await choices(pending.id)).some(row=>row.action==='retry')).toBe(false);await input('ลองใหม่');expect((await task()).status).toBe('failed');expect(await entries()).toHaveLength(1);
+  const error=await withSystem(async db=>(await db.query("select normalized->>'errorCode' code from assistant.agent_turns where input_text='ลองใหม่' and user_id=$1 order by created_at desc limit 1",[owner])).rows[0]);expect(error.code).toBe('AGENT_REVIEW_CHANGED');
+ });
+ it('recovers a committed deletion after its response is lost using the prepared receipt and original idempotency key',async()=>{
+  const saved=await getAgentTool('care.entries.create')!.execute({id:owner,role:'owner'},diary({narrative:'LOST_DELETE_PRIVATE_CANARY'}),randomUUID());const tool=getAgentTool('care.entries.delete')!,original=tool.execute;
+  plans.push(ready([action('care.entries.delete',{id:saved.resourceId,version:1})]));await input('ลบบันทึกของถั่วเหลืองรายการนี้');const pending=await task();await postback((await choices(pending.id)).find(row=>row.action==='confirm').id);
+  const lost=vi.spyOn(tool,'execute').mockImplementationOnce(async(...args)=>{await original(...args);throw new Error('Synthetic deletion response lost after commit');});
+  try{
+   await executeAgentTask(pending.id);expect((await task()).status).toBe('failed');expect(await entries()).toHaveLength(0);
+   const before=await withSystem(async db=>(await db.query('select key_uuid,result from assistant.agent_tool_calls where task_id=$1',[pending.id])).rows[0]);expect(before.result).toMatchObject({preparedDeletion:true,resourceId:saved.resourceId,petId:pet});expect(JSON.stringify(before.result)).not.toContain('LOST_DELETE_PRIVATE_CANARY');
+   await input('ลองใหม่');expect((await task()).status).toBe('queued');await executeAgentTask(pending.id);const completed=await task();expect(completed.status,JSON.stringify(completed.result)).toBe('succeeded');expect(await entries()).toHaveLength(0);
+   const after=await withSystem(async db=>(await db.query('select key_uuid,result from assistant.agent_tool_calls where task_id=$1',[pending.id])).rows[0]);expect(after.key_uuid).toBe(before.key_uuid);expect(after.result).toMatchObject({deleted:true,petId:pet});expect(after.result.path).toBe(`/app?tab=health&petId=${pet}`);expect(lost).toHaveBeenCalledTimes(2);
+  }finally{lost.mockRestore();}
+ });
+ it('recovers a Passport deletion with a reference-only cached result after its response is lost',async()=>{
+  const saved=await getAgentTool('passport.sessions.create')!.execute({id:owner,role:'owner'},{petId:pet,reason:'PASSPORT_DELETE_PRIVATE_CANARY'},randomUUID());
+  const tool=getAgentTool('passport.sessions.delete')!,original=tool.execute;
+  plans.push(ready([action('passport.sessions.delete',{id:saved.resourceId,version:1})]));await input('ลบ Passport ของถั่วเหลืองรายการนี้');const pending=await task();expect(pending.status).toBe('awaiting_confirmation');
+  await postback((await choices(pending.id)).find(row=>row.action==='confirm').id);
+  const lost=vi.spyOn(tool,'execute').mockImplementationOnce(async(...args)=>{await original(...args);throw new Error('Synthetic Passport deletion response lost after commit');});
+  try{
+   await executeAgentTask(pending.id);expect((await task()).status).toBe('failed');
+   expect(await withSystem(async db=>(await db.query('select id from health.passport_sessions where id=$1',[saved.resourceId])).rowCount)).toBe(0);
+   const before=await withSystem(async db=>(await db.query('select key_uuid,result from assistant.agent_tool_calls where task_id=$1',[pending.id])).rows[0]);expect(before.result).toMatchObject({preparedDeletion:true,resourceId:saved.resourceId,petId:pet});
+   await input('ลองใหม่');expect((await task()).status).toBe('queued');await executeAgentTask(pending.id);const completed=await task();expect(completed.status,JSON.stringify(completed.result)).toBe('succeeded');
+   const after=await withSystem(async db=>(await db.query('select key_uuid,result from assistant.agent_tool_calls where task_id=$1',[pending.id])).rows[0]);expect(after.key_uuid).toBe(before.key_uuid);expect(after.result).toMatchObject({deleted:true,petId:pet});expect(after.result.path).toBe(`/app?tab=health&petId=${pet}`);
+   const cached=await withSystem(async db=>(await db.query('select response from ops.idempotency where user_id=$1 and key=$2',[owner,agentRequestId(before.key_uuid)])).rows);
+   expect(cached).toHaveLength(1);expect(cached[0].response.data).toEqual({deleted:true});expect(JSON.stringify(cached)).not.toContain('PASSPORT_DELETE_PRIVATE_CANARY');expect(lost).toHaveBeenCalledTimes(2);
+  }finally{lost.mockRestore();}
+ });
+ it('reviews and deletes an older episode beyond the first fifty results without deleting newer groups',async()=>{
+  const old=randomUUID();await withSystem(async db=>{
+   await db.query("insert into health.care_episodes(id,pet_id,created_by,client_episode_id,create_hash,title,started_at) values($1,$2,$3,$1,repeat('a',64),'OLDER_EPISODE_TARGET','2020-01-01T00:00:00Z')",[old,pet,owner]);
+   await db.query("insert into health.care_episodes(pet_id,created_by,client_episode_id,create_hash,title,started_at) select $1,$2,gen_random_uuid(),repeat('b',64),'NEWER_EPISODE_'||i,now() from generate_series(1,50)i",[pet,owner]);
+  });
+  const recent=await getAgentTool('care.episodes.list')!.execute({id:owner,role:'owner'},{petId:pet},randomUUID());expect((recent.data as {id:string}[])).toHaveLength(50);expect((recent.data as {id:string}[]).some(row=>row.id===old)).toBe(false);
+  plans.push(ready([action('care.episodes.delete',{id:old,petId:pet,version:1})]));await input('ลบกลุ่มเรื่องการดูแล OLDER_EPISODE_TARGET ของถั่วเหลือง');const pending=await task();expect(pending.status).toBe('awaiting_confirmation');expect(pending.question.text).toContain('OLDER_EPISODE_TARGET');
+  await postback((await choices(pending.id)).find(row=>row.action==='confirm').id);await executeAgentTask(pending.id);expect((await task()).status).toBe('succeeded');
+  const remaining=await withSystem(async db=>(await db.query('select id,title from health.care_episodes where created_by=$1',[owner])).rows);expect(remaining).toHaveLength(50);expect(remaining.every(row=>row.title.startsWith('NEWER_EPISODE_'))).toBe(true);
+ });
+ it('uses a fresh health-record revision for reviewed correction and deletion through the real domain APIs',async()=>{
+  const saved=await getAgentTool('health.records.create')!.execute({id:owner,role:'owner'},{petId:pet,kind:'note',title:'Original health note',recordedAt:new Date().toISOString(),notes:'Owner source'},randomUUID());
+  const current=await getAgentTool('health.records.get')!.execute({id:owner,role:'owner'},{id:saved.resourceId},randomUUID());const revision=(current.data as {revision:string}).revision;expect(revision).toMatch(/^[0-9a-f]{32}$/);
+  plans.push(ready([action('health.records.update',{id:saved.resourceId,revision,kind:'note',title:'Corrected health note',recordedAt:new Date().toISOString(),notes:'Owner correction'})]));await input('แก้ไขบันทึกสุขภาพของถั่วเหลืองเป็น Corrected health note');const updating=await task();expect(updating.question.text).toContain('Original health note');
+  await postback((await choices(updating.id)).find(row=>row.action==='confirm').id);await executeAgentTask(updating.id);expect((await task()).status).toBe('succeeded');
+  const changed=await getAgentTool('health.records.get')!.execute({id:owner,role:'owner'},{id:saved.resourceId},randomUUID());expect(changed.data).toMatchObject({title:'Corrected health note'});const nextRevision=(changed.data as {revision:string}).revision;expect(nextRevision).not.toBe(revision);
+  plans.push(ready([action('health.records.delete',{id:saved.resourceId,revision:nextRevision})]));await input('ลบบันทึกสุขภาพ Corrected health note ของถั่วเหลืองให้หน่อย');const deleting=await task();expect(deleting.question.text).toContain('Corrected health note');
+  await postback((await choices(deleting.id)).find(row=>row.action==='confirm').id);await executeAgentTask(deleting.id);expect((await task()).status).toBe('succeeded');expect(await withSystem(async db=>(await db.query('select id from health.records where id=$1',[saved.resourceId])).rows)).toEqual([]);
+ });
+ it('deletes a reviewed Story page by current version while retaining another page and the correct pet context',async()=>{
+  const create=getAgentTool('journal.pages.create')!;
+  const saved=await create.execute({id:owner,role:'owner'},{petId:pet,title:'DELETE_STORY_PAGE',elements:[]},randomUUID());const keep=await create.execute({id:owner,role:'owner'},{petId:pet,title:'KEEP_STORY_PAGE',elements:[]},randomUUID());
+  plans.push(ready([action('journal.pages.delete',{id:saved.resourceId,version:1})]));await input('ลบหน้าความทรงจำ DELETE_STORY_PAGE ของถั่วเหลือง');const pending=await task();expect(pending.status).toBe('awaiting_confirmation');expect(pending.question.text).toContain('DELETE_STORY_PAGE');
+  await postback((await choices(pending.id)).find(row=>row.action==='confirm').id);await executeAgentTask(pending.id);const completed=await task();expect(completed.status,JSON.stringify(completed.result)).toBe('succeeded');expect(completed.result.results[0].path).toBe(`/app?tab=journal&petId=${pet}`);
+  expect(await withSystem(async db=>(await db.query('select id from journal.pages where owner_id=$1',[owner])).rows.map(row=>row.id))).toEqual([keep.resourceId]);
  });
  it('uses the existing AI chat conversation for ordinary questions without making a diary entry',async()=>{
   normalizations.push(normalized({route:'chat',normalizedText:'สวัสดี',petMentions:[]}));await input('สวัสดี');const thread=await withSystem(async db=>(await db.query('select * from assistant.agent_threads where user_id=$1',[owner])).rows[0]);

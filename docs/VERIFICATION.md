@@ -1,5 +1,18 @@
 # ผลตรวจระบบ — อัปเดต 29 ตุลาคม 2026
 
+## แก้ไข/ลบบันทึก และ LINE Agent 55 tools — 29 ตุลาคม 2026
+
+- **286 unit tests + 211 isolated PostgreSQL/API tests ผ่าน รวม 497 ข้อ** รวม Agent 44 ข้อและ health mutation 15 ข้อ ตรวจสิทธิ์ผู้เขียน/เจ้าของ/ครอบครัว, revision/version conflict, retry หลัง response หายไม่ทำงานซ้ำ และการยืนยันรายการปัจจุบันก่อนลบ
+- Health record แก้/ลบแล้วปรับการเตือนข้ามผู้ดูแลร่วม คำนวณน้ำหนักล่าสุด และเพิกถอนสรุปเก่า; บันทึกต้นฉบับจากคลินิกนอกครอบครัวเป็น read-only สำหรับเจ้าของ การเปลี่ยน clinical/cost/media ที่แชร์ไว้ยกเลิกเฉพาะฉบับที่อ้างข้อมูลนั้น และลบกลุ่มแล้วยังเก็บไดอารี่พร้อมเพิ่ม version
+- SQL/security/consent/erasure/HNSW/queue/concurrency และ known-prefix upgrades ผ่าน รวม **22→23→23** และ **23→23→23** รักษา sentinel เดิม ปฏิเสธ schema/checksum drift; manifest รุ่น 1–22 ไม่เปลี่ยน
+- ผู้ดูแลแจ้งว่ารัน SQL รุ่น 23 แล้ว Read-only diagnostic ของ Supabase จริงยืนยัน **23 migrations** และ fingerprint `171c466a888ddd5fd7df4ab1f5055527` ไม่รัน migration หรือแก้ env จริงโดย agent
+- Workspace TypeScript, production builds Owner/Clinic/Admin, runtime dependency checker **164 sources** และ isolated production install/startup ของทั้ง **14 services** ผ่าน ทุก `/healthz` ตอบ 200
+- Browser fixtures ภาษาไทย/อังกฤษ 390px ผ่านการแก้/ยกเลิก/Escape/409/read-only/ลบ health record, แก้ชื่อและลบกลุ่มโดยเก็บไดอารี่, ลบ Passport โดยเก็บผลหลังพบหมอในไดอารี่, ลบ Story ตาม version และแก้/ลบ AI memory; Care Diary และ memory-book Story regression ผ่าน ไม่มี browser errors หรือ horizontal overflow ในหน้าที่ตรวจ
+- ตรวจ Passport DELETE lost-response retry โดย cache เฉพาะผล `{deleted:true}` เส้นทาง Passport อื่นยังอ่านสิทธิ์และ source ปัจจุบันใหม่ทุกครั้ง; Agent จัดการ care episode ตาม ID ได้แม้รายการเก่าอยู่นอก 50 รายการล่าสุด
+- Agent เพิ่มเป็น **55 tools: อ่าน 23, สร้าง 10, ต้องยืนยัน 22** ตรวจชื่อสัตว์/รายการ/วันที่จาก server ก่อนยืนยันลบ เก็บ prepared deletion receipt เพื่อกู้ผลหลัง transport failure และเปิดประวัติที่เหลือผ่าน LIFF หลังลบสำเร็จ ไม่ retry ฉบับที่ version conflict โดยอัตโนมัติ
+
+หลักฐานอยู่ใน ignored `.verification/record-mutation-*` และ `.verification/record-mutations/` สคริปต์ UI คือ [`test-record-mutations-ui.mjs`](../scripts/test-record-mutations-ui.mjs) และ [`test-memory-mutations-ui.mjs`](../scripts/test-memory-mutations-ui.mjs) การทดสอบนี้ใช้ข้อมูลสังเคราะห์และ provider fixtures ไม่ส่ง LINE จริง ไม่เรียกโมเดลจริง และไม่สร้าง/แก้/ลบบันทึกพีโอนีใน production ผู้ใช้เลือกตรวจบทสนทนาจริงเองตาม [คู่มือแก้/ลบและข้อความทดสอบ](RECORD_MUTATIONS.md) สถานะ deploy จะบันทึกหลังตรวจ release commit แล้ว
+
 ## ตรวจ production และแก้ circular service binding — 29 ตุลาคม 2026
 
 - ตรวจ deployment ของ commit `4350a03`: owner app ขึ้น READY แต่ backend `dpl_8x2ZzUwgwGgdRnG1B4vETXbDcw7L` ขึ้น ERROR รหัส `CIRCULAR_SERVICE_BINDING` พร้อมข้อความ `notification -> assistant -> notification`; API Agent บน custom domain ยังตอบ 404 จึงยังไม่ยืนยัน flow จริงหรือส่งข้อความทดสอบข้ามจุดที่เสีย

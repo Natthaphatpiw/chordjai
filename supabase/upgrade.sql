@@ -57,7 +57,8 @@ select jsonb_build_object('fingerprint',md5(details::text),'details',details) as
  (19,'202610120019','202610120019_petid_capture_review.sql','64167dbd0c3abda6a38cf9ae24dd9e36'),
  (20,'202610120020','202610120020_petid_dataset_exports.sql','0c2dfee5c0d1fcd947fea70cbeca3968'),
  (21,'202610130021','202610130021_pet_passport.sql','5ff3a6478e28e83e84c4ffb6d5f74478'),
- (22,'202610290022','202610290022_line_agent.sql','1fa6dec40eefeeea2f053758c500131c')
+ (22,'202610290022','202610290022_line_agent.sql','1fa6dec40eefeeea2f053758c500131c'),
+ (23,'202610290023','202610290023_record_mutations.sql','171c466a888ddd5fd7df4ab1f5055527')
   ) k(ordinal,version,file,fingerprint) where k.fingerprint=current_state->>'fingerprint';
   if known_count is null then
     raise exception 'Unrecognized or partial ChordJai schema (%). No changes applied. Run supabase/diagnostic.sql and review the full JSON; use bootstrap only on a fresh project.',current_state->>'fingerprint';
@@ -2090,7 +2091,107 @@ $migration_202610290022$;
 
   insert into ops.schema_migrations(version,checksum) values('202610290022','7ee400c841a933f496d47fce111f89fa99a3803d40ec7807d1f4ae7fb96b5efb') on conflict(version) do nothing;
 
-  if exists(select 1 from ops.schema_migrations m where m.version not in ('202610100001','202610100002','202610100003','202610100004','202610100005','202610100006','202610100007','202610100008','202610100009','202610100010','202610100011','202610100012','202610100013','202610100014','202610110015','202610120016','202610120017','202610120018','202610120019','202610120020','202610130021','202610290022')) then
+  select m.checksum into checksum from ops.schema_migrations m where m.version='202610290023';
+  if checksum is not null and checksum<>'0dbceb21851b06c67cff519d44df52319b6c475968eaff53128b2cece3830c32' then
+    raise exception 'Checksum mismatch for migration 202610290023. No changes applied.';
+  end if;
+
+  if known_count<23 then
+    if checksum is not null then raise exception 'Tracker claims unapplied migration 202610290023. No changes applied.'; end if;
+    execute $migration_202610290023$
+-- Record mutations retain actor/RLS authorization in the API. These triggers
+-- perform only source-bound maintenance which must span family-owned rows.
+create function health.sync_record_mutation() returns trigger
+language plpgsql security definer set search_path='' as $$
+declare target_pet uuid;source_id uuid;latest_weight numeric;reminder_recipient uuid;
+begin
+ target_pet=old.pet_id;source_id=old.id;
+ -- Serialize the shared profile aggregate for concurrent record edits/deletes.
+ perform 1 from pet.pets where id=target_pet for update;
+ if tg_op='DELETE' then
+   delete from notify.reminders where pet_id=target_pet and dedupe_key='health:'||source_id::text;
+ elsif new.next_due_at is null then
+   delete from notify.reminders where pet_id=target_pet and dedupe_key='health:'||source_id::text;
+ else
+   select coalesce(new.created_by,p.owner_id) into reminder_recipient from pet.pets p where p.id=target_pet;
+   if new.next_due_at is not distinct from old.next_due_at then
+     update notify.reminders set title=new.title where pet_id=target_pet and dedupe_key='health:'||source_id::text;
+   else
+     insert into notify.reminders(pet_id,user_id,title,due_at,dedupe_key)
+       values(target_pet,reminder_recipient,new.title,new.next_due_at,'health:'||source_id::text)
+       on conflict(dedupe_key) do update set title=excluded.title,due_at=excluded.due_at,sent_at=null,completed_at=null;
+   end if;
+ end if;
+ if old.kind='weight' or (tg_op='UPDATE' and new.kind='weight') then
+   select value into latest_weight from health.records where pet_id=target_pet and kind='weight'
+     order by recorded_at desc,created_at desc,id desc limit 1;
+   update pet.pets set weight_kg=latest_weight where id=target_pet;
+ end if;
+ -- Legacy health summaries do not carry source IDs. Revoke this pet's old
+ -- summaries after a clinical correction rather than serve a stale copy.
+ update share.links set revoked_at=coalesce(revoked_at,now()) where pet_id=target_pet and revoked_at is null;
+ if tg_op='DELETE' then return old;end if;return new;
+end $$;
+revoke all on function health.sync_record_mutation() from public,chordjai_app,chordjai_worker;
+create trigger record_mutation_sync after update or delete on health.records for each row execute function health.sync_record_mutation();
+
+create function health.invalidate_care_mutation() returns trigger
+language plpgsql security definer set search_path='' as $$
+declare entry_id uuid;
+begin
+ if tg_table_name='care_entries' then
+   entry_id=old.id;
+   if tg_op='UPDATE' and row(new.episode_id,new.kind,new.title,new.observed_at,new.narrative,new.clinical_note,new.observations,new.visit,new.share_with_clinic,new.share_costs,new.passport_source)
+     is not distinct from row(old.episode_id,old.kind,old.title,old.observed_at,old.narrative,old.clinical_note,old.observations,old.visit,old.share_with_clinic,old.share_costs,old.passport_source) then return new;end if;
+ elsif tg_op='DELETE' then entry_id=old.entry_id;
+ else entry_id=new.entry_id;
+ end if;
+ update share.links set revoked_at=coalesce(revoked_at,now()) where revoked_at is null
+   and snapshot->'careEntries' @> jsonb_build_array(jsonb_build_object('id',entry_id::text));
+ update health.passport_share_links l set revoked_at=coalesce(l.revoked_at,now()) where l.revoked_at is null
+   and exists(select 1 from health.passport_sessions s where s.id=l.session_id and entry_id=any(s.history_entry_ids));
+ update health.passport_sessions set status='draft',current_snapshot_id=null,published_to_clinic=false,version=version+1
+   where entry_id=any(history_entry_ids) and current_snapshot_id is not null;
+ if tg_op='DELETE' then return old;end if;return new;
+end $$;
+revoke all on function health.invalidate_care_mutation() from public,chordjai_app,chordjai_worker;
+create trigger care_mutation_snapshots after update on health.care_entries for each row execute function health.invalidate_care_mutation();
+create trigger care_cost_mutation_snapshots after insert or update or delete on health.care_costs for each row execute function health.invalidate_care_mutation();
+create trigger care_media_mutation_snapshots after insert or update or delete on health.care_media for each row execute function health.invalidate_care_mutation();
+
+create function health.invalidate_episode_mutation() returns trigger
+language plpgsql security definer set search_path='' as $$
+begin
+ update share.links set revoked_at=coalesce(revoked_at,now()) where pet_id=old.pet_id and revoked_at is null
+   and exists(select 1 from jsonb_array_elements(coalesce(snapshot->'careEntries','[]'::jsonb)) e where e->'episode'->>'id'=old.id::text);
+ if tg_op='DELETE' then return old;end if;return new;
+end $$;
+revoke all on function health.invalidate_episode_mutation() from public,chordjai_app,chordjai_worker;
+create trigger episode_mutation_snapshots before update or delete on health.care_episodes for each row execute function health.invalidate_episode_mutation();
+
+-- FK SET NULL is still a visible change: invalidate a stale edit/delete review.
+create function health.bump_care_reference_version() returns trigger
+language plpgsql set search_path='' as $$
+begin
+ if new.version=old.version and row(new.episode_id,new.passport_session_id,new.passport_clinic_note_id)
+   is distinct from row(old.episode_id,old.passport_session_id,old.passport_clinic_note_id) then new.version=old.version+1;end if;
+ return new;
+end $$;
+revoke all on function health.bump_care_reference_version() from public,chordjai_app,chordjai_worker;
+create trigger care_reference_version before update of episode_id,passport_session_id,passport_clinic_note_id on health.care_entries for each row execute function health.bump_care_reference_version();
+
+drop trigger passport_history_invalidate on health.care_entries;
+create trigger passport_history_invalidate before delete or update of episode_id,kind,title,observed_at,narrative,clinical_note,observations,visit,share_with_clinic,share_costs,passport_source
+ on health.care_entries for each row execute function health.invalidate_passport_history();
+$migration_202610290023$;
+    raise notice 'Applied 202610290023_record_mutations.sql';
+  else
+    raise notice 'Verified existing 202610290023_record_mutations.sql';
+  end if;
+
+  insert into ops.schema_migrations(version,checksum) values('202610290023','0dbceb21851b06c67cff519d44df52319b6c475968eaff53128b2cece3830c32') on conflict(version) do nothing;
+
+  if exists(select 1 from ops.schema_migrations m where m.version not in ('202610100001','202610100002','202610100003','202610100004','202610100005','202610100006','202610100007','202610100008','202610100009','202610100010','202610100011','202610100012','202610100013','202610100014','202610110015','202610120016','202610120017','202610120018','202610120019','202610120020','202610130021','202610290022','202610290023')) then
     raise exception 'Migration tracker contains a version unknown to this checkout. No changes applied.';
   end if;
   select s.state->>'fingerprint' into actual_state from (
@@ -2122,7 +2223,7 @@ with service_schemas(name) as (
 )
 select jsonb_build_object('fingerprint',md5(details::text),'details',details) as state from catalog
   ) s;
-  if actual_state<> '1fa6dec40eefeeea2f053758c500131c' then
+  if actual_state<> '171c466a888ddd5fd7df4ab1f5055527' then
     raise exception 'Final schema verification failed (%). No changes applied.',actual_state;
   end if;
 end $upgrade$;

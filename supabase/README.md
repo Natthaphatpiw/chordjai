@@ -2,15 +2,25 @@
 
 ใช้ Supabase project เดียวกับ PostgreSQL + pgvector รหัสผู้ใช้และน้องเป็น UUID เวลาเก็บ UTC และแสดงผล Asia/Bangkok ใช้ region/connection hostname ที่ project ของคุณแสดงจริง
 
-## รุ่น 22: LINE Agent — เตรียม local วันที่ 29 ตุลาคม 2026
+## รุ่น 23: แก้ไขและลบบันทึก — 29 ตุลาคม 2026
+
+ผู้ดูแลรัน `upgrade.sql` เองแล้ว และการตรวจ production แบบ read-only ยืนยัน migration **23** กับ fingerprint `171c466a888ddd5fd7df4ab1f5055527` การส่งมอบรอบนี้ไม่รัน SQL หรือแก้ env จริงแทนผู้ดูแล ไม่ต้องเพิ่ม `.env` สำหรับฟีเจอร์นี้
+
+Migration [`202610290023_record_mutations.sql`](migrations/202610290023_record_mutations.sql) ทำให้การแก้/ลบประวัติสุขภาพอัปเดตการเตือนที่ผูกกับรายการและคำนวณน้ำหนักล่าสุดจากประวัติที่เหลือ พร้อมยกเลิกสรุป/Passport ฉบับเก่าที่อ้างข้อมูลเปลี่ยน และเพิ่ม version ของไดอารี่เมื่อ reference กลุ่มหรือ Passport ถูกนำออก ใช้ trigger ภายใน transaction และไม่เปิดให้ app/worker เรียกฟังก์ชันสิทธิ์สูงตรง ๆ
+
+API ยังตรวจสิทธิ์และ revision/version ก่อนแก้หรือลบ และปิดการแก้ไขที่ต้องพึ่ง trigger นี้เมื่อฐานยังไม่ถึงรุ่น 23 การลบกลุ่มดูแลเก็บไดอารี่ไว้เป็นรายการไม่จัดกลุ่ม การลบ Passport ไม่ลบไดอารี่หลังพบหมอที่บันทึกแยกแล้ว อ่านขอบเขตและวิธีทดสอบใน [RECORD_MUTATIONS.md](../docs/RECORD_MUTATIONS.md)
+
+รอบนี้ผ่าน **285 unit + 209 isolated PostgreSQL/API = 497 tests** รวม ACL, concurrent revision conflict, reminder/weight/share invalidation และ guarded upgrade 22→23→23 ผู้ใช้เลือกทดสอบ LINE จริงกับพีโอนีเอง การทดสอบอัตโนมัติไม่สร้างหรือลบบันทึกสุขภาพจริง ดูสถานะ deploy ใน [VERIFICATION.md](../docs/VERIFICATION.md)
+
+`bootstrap.sql` ฉบับนี้รวมถึงรุ่น 23 สำหรับฐานข้อมูลว่างเท่านั้น ฐานข้อมูล ChordJai เดิมใช้ `diagnostic.sql` → `upgrade.sql` → `diagnostic.sql` ซึ่งตรวจ fingerprint/checksum ก่อนเพิ่มเฉพาะ migration ที่ขาด ไม่รัน bootstrap ซ้ำหรือแก้ migration เก่าที่ส่งแล้ว
+
+## รุ่น 22: LINE Agent — 29 ตุลาคม 2026
 
 Migration [`202610290022_line_agent.sql`](migrations/202610290022_line_agent.sql) เพิ่ม `assistant.agent_threads`, `agent_turns`, `agent_tasks`, `agent_tool_calls`, `agent_deliveries` และ `agent_choices` สำหรับคำสั่ง LINE การถามเพิ่ม การยืนยัน แผนงาน ผลอ้างอิง และข้อความตอบที่ retry ได้ ตัวเลือกผูกเจ้าของ/งาน/version/อายุ ใช้ได้ครั้งเดียว แอปอ่านงานของเจ้าของผ่าน RLS ส่วนการเขียนแผนและตัวเลือกเป็นงานระบบที่ตรวจแล้ว โมเดลไม่มี SQL tool
 
 ถอน service consent หรือระงับบัญชีจะยกเลิกงานที่ยังไม่จบและปิดข้อความที่รอส่ง การลบบัญชีลบข้อมูล Agent ตามเจ้าของ scheduler ล้าง raw turns/tasks ที่เกิน 30 วันและเก็บกวาด choices/outbox ตามอายุ แต่ไม่ลบรายการไดอารี่หรือการเตือนที่เจ้าของสั่งบันทึกไว้ ประวัติที่ส่งเข้า AI Chat ใช้วงจรลบของ Chat แยกต่างหาก รายละเอียดใน [LINE_AGENT.md](../docs/LINE_AGENT.md)
 
-**ยังไม่ได้รัน migration 22 ใน Supabase จริง** หลักฐาน production ล่าสุดคือรุ่น **21** ตามหัวข้อประวัติด้านล่าง ผู้ดูแลจะรัน `diagnostic.sql` → `upgrade.sql` → `diagnostic.sql` เองก่อนเปิด `LINE_AGENT_ENABLED=true` ใน backend ค่าเริ่มต้นใน env example เป็น `false`; รอบนี้ไม่แก้ env จริง ไม่ส่ง LINE จริง และไม่เพิ่ม repo/project/service/webhook
-
-`bootstrap.sql` ฉบับนี้รวมถึงรุ่น 22 สำหรับฐานข้อมูลว่างเท่านั้น ฐานข้อมูล ChordJai เดิมใช้ `upgrade.sql` ที่ตรวจ fingerprint/checksum ก่อนเพิ่มเฉพาะ migration ที่ขาด ไม่รัน bootstrap ซ้ำหรือแก้ migration เก่าที่ส่งแล้ว
+LINE Agent รุ่น 22 deploy แล้วใน release `8cc23e7` ซึ่ง Vercel ทั้งสี่ projects เป็น READY และผู้ดูแลแจ้งว่าตั้ง env จริงแล้ว สถานะฐานข้อมูลล่าสุดเป็นรุ่น 23 ตามหัวข้อด้านบน ค่าเริ่มต้นใน env example ยังคง `LINE_AGENT_ENABLED=false` สำหรับ environment ใหม่ การตรวจ deploy/webhook ไม่แทนการทดสอบบทสนทนาจริงในบัญชีผู้ใช้
 
 ## รุ่น 21: Pet Passport แบบ Q&A
 
