@@ -101,7 +101,7 @@ LINE_WEBHOOK_URL=https://www.chordjai.life/api/v1/notification/webhooks/line
 BLOB_READ_WRITE_TOKEN=<privateBlobstoreที่sin1>
 ```
 
-Vercel Services ใช้ env ร่วมกันใน backend project ส่วน `ASSISTANT_INTERNAL_URL` และ `NOTIFICATION_INTERNAL_URL` **มาจาก private service bindings** โดย notification/scheduler เรียก assistant และ assistant เรียก notification ไม่ต้องกรอก public URL แทนบน Vercel สำหรับ local fallback localhost8787 ใช้ `API_PORT=8787` การเพิ่ม Agent ไม่ต้องเพิ่ม env ให้ frontend เพียงเพื่อเปิด flag แต่ owner app ต้องมีหน้าผลรุ่นใหม่
+Vercel Services ใช้ env ร่วมกันใน backend project ส่วน `ASSISTANT_INTERNAL_URL` มาจาก binding ให้ notification/scheduler เรียก assistant และ `NOTIFICATION_INTERNAL_URL` ให้ scheduler เรียก notification ส่วน assistant ใช้ notification handler ภายใน process พร้อม worker auth เดิม ไม่ประกาศ binding ย้อนกลับเพราะ Vercel ปฏิเสธวงจรด้วย `CIRCULAR_SERVICE_BINDING` ไม่ต้องกรอก public URL แทนบน Vercel สำหรับ local scheduler fallback localhost8787 ใช้ `API_PORT=8787` การเพิ่ม Agent ไม่ต้องเพิ่ม env ให้ frontend เพียงเพื่อเปิด flag แต่ owner app ต้องมีหน้าผลรุ่นใหม่
 
 DATABASE_URL เป็น connection string Postgres ของ Supabase ไม่ใช่ project URL HTTPS และไม่ใช่ anon/service_role key รหัสผ่านมีอักขระพิเศษต้อง URL encode คง sslmode=require ไว้ใน production การเข้า DB ทุก user transaction SET LOCAL ROLE chordjai_app + app.user_id เพื่อใช้ RLS worker ใช้ role chordjai_worker ตัว connection principal ต้อง SET ROLEได้
 

@@ -48,6 +48,9 @@ describe.skipIf(!isolated)('durable LINE Agent with isolated PostgreSQL and mock
    await db.query("delete from identity.consents where user_id=any($1::uuid[]) and purpose='ai_memory'",[users]);
    await db.query('delete from health.care_entries where created_by=any($1::uuid[])',[users]);
    await db.query('delete from notify.reminders where user_id=any($1::uuid[])',[users]);
+   await db.query('delete from notify.followup_deliveries where user_id=any($1::uuid[])',[users]);
+   await db.query('delete from notify.followup_preferences where user_id=any($1::uuid[])',[users]);
+   await db.query('delete from notify.line_accounts where user_id=any($1::uuid[])',[users]);
    await db.query('delete from notify.webhook_events where event_id=any($1::text[])',[events]);
    await db.query("delete from pet.members where pet_id=$1 and user_id=$2",[foreignPet,owner]);
    await db.query("update identity.users set status='active' where id=any($1::uuid[])",[users]);
@@ -72,11 +75,7 @@ describe.skipIf(!isolated)('durable LINE Agent with isolated PostgreSQL and mock
    if(options.feature==='agent.answer')return {summary:'จากบันทึกที่เจ้าของรายงาน ถั่วเหลืองยังมีอาการเกาหูครับ'};
    throw new Error(`Unmocked AI feature ${options.feature}`);
   });
-  vi.stubGlobal('fetch',vi.fn(async(value:RequestInfo|URL)=>{
-   const url=new URL(value instanceof Request?value.url:String(value));
-   if(['localhost','127.0.0.1'].includes(url.hostname)&&url.pathname==='/internal/agent/capture-followup')return new Response(JSON.stringify({data:{captured:true}}),{status:200,headers:{'Content-Type':'application/json'}});
-   throw new Error('External network forbidden in agent integration fixture');
-  }));
+  vi.stubGlobal('fetch',vi.fn(async()=>{throw new Error('External network forbidden in agent integration fixture');}));
  });
  afterAll(async()=>{await clean();await withSystem(db=>db.query('delete from identity.users where id=any($1::uuid[])',[users]));await closeDatabase();vi.unstubAllGlobals();vi.unstubAllEnvs();});
 
@@ -229,7 +228,24 @@ describe.skipIf(!isolated)('durable LINE Agent with isolated PostgreSQL and mock
   await deliverPending();expect(JSON.stringify(provider.push.mock.calls[0]![1])).toContain('สวัสดีครับ');
  });
  it('keeps follow-up replies private without inventing an action or entering clinical diary data',async()=>{
-  normalizations.push(normalized({route:'followup_reply',normalizedText:'ดีขึ้นแล้ว',petMentions:[]}));await input('ดีขึ้นแล้ว');expect(provider.text).not.toHaveBeenCalled();expect(await entries()).toHaveLength(0);expect(await task()).toBeUndefined();await deliverPending();expect(JSON.stringify(provider.push.mock.calls[0]![1])).toContain('ส่วนตัว');
+  const checkin=randomUUID();
+  await withSystem(async db=>{
+   await db.query("insert into notify.line_accounts(user_id,followed) values($1,true)",[owner]);
+   await db.query(`insert into notify.followup_preferences(user_id,enabled,consent_version,sources) values($1,true,'2026-10-12.followup.v1','{"care":true,"booklet":false,"journal":false,"assistantMemory":false}'::jsonb)`,[owner]);
+   await db.query(`insert into notify.followup_deliveries(id,user_id,local_day,settings_version,status,selected_pet_id,accepted_at,source_refs) values($1,$2,current_date,1,'accepted',$3,now(),'[{"source":"care"}]'::jsonb)`,[checkin,owner,pet]);
+  });
+  vi.stubEnv('VERCEL','1');vi.stubEnv('NOTIFICATION_INTERNAL_URL','');
+  normalizations.push(normalized({route:'followup_reply',normalizedText:'ดีขึ้นแล้ว',petMentions:[]}));const eventId=await input('ดีขึ้นแล้ว');expect(provider.text).not.toHaveBeenCalled();expect(await entries()).toHaveLength(0);expect(await task()).toBeUndefined();
+  const replies=await withSystem(async db=>(await db.query('select user_id,delivery_id,pet_id,event_id,content from notify.followup_replies where user_id=$1',[owner])).rows);
+  expect(replies).toEqual([{user_id:owner,delivery_id:checkin,pet_id:pet,event_id:eventId,content:'ดีขึ้นแล้ว'}]);expect(fetch).not.toHaveBeenCalled();
+  await deliverPending();expect(JSON.stringify(provider.push.mock.calls[0]![1])).toContain('ส่วนตัว');
+ });
+ it('falls back to ordinary chat when no current follow-up exists without requiring a reverse service binding',async()=>{
+  vi.stubEnv('VERCEL','1');vi.stubEnv('NOTIFICATION_INTERNAL_URL','');
+  normalizations.push(normalized({route:'followup_reply',normalizedText:'ดีขึ้นแล้ว',petMentions:[]}));await input('ดีขึ้นแล้ว');
+  expect(provider.text).toHaveBeenCalledTimes(1);expect(await entries()).toHaveLength(0);expect(await task()).toBeUndefined();expect(fetch).not.toHaveBeenCalled();
+  const replies=await withSystem(async db=>(await db.query('select id from notify.followup_replies where user_id=$1',[owner])).rows);expect(replies).toEqual([]);
+  await deliverPending();expect(JSON.stringify(provider.push.mock.calls[0]![1])).toContain('สวัสดีครับ');expect(JSON.stringify(provider.push.mock.calls[0]![1])).not.toContain('ส่วนตัว');
  });
  it('prioritizes emergency guidance and help without executing tools',async()=>{
   await input('น้องหายใจไม่ออก');normalizations.push(normalized({route:'help',normalizedText:'ทำอะไรได้บ้าง'}));await input('ทำอะไรได้บ้าง');expect(await task()).toBeUndefined();expect(await entries()).toHaveLength(0);await deliverPending();expect(JSON.stringify(provider.push.mock.calls)).toContain('/emergency?lang=th');expect(provider.structured.mock.calls.filter(([o])=>o.feature==='agent.plan')).toHaveLength(0);

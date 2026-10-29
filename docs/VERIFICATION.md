@@ -1,5 +1,15 @@
 # ผลตรวจระบบ — อัปเดต 29 ตุลาคม 2026
 
+## ตรวจ production และแก้ circular service binding — 29 ตุลาคม 2026
+
+- ตรวจ deployment ของ commit `4350a03`: owner app ขึ้น READY แต่ backend `dpl_8x2ZzUwgwGgdRnG1B4vETXbDcw7L` ขึ้น ERROR รหัส `CIRCULAR_SERVICE_BINDING` พร้อมข้อความ `notification -> assistant -> notification`; API Agent บน custom domain ยังตอบ 404 จึงยังไม่ยืนยัน flow จริงหรือส่งข้อความทดสอบข้ามจุดที่เสีย
+- แก้ด้วยการลบ assistant → notification binding และเรียก notification handler ภายใน process ด้วย worker auth เดิม การเก็บ follow-up reply ไม่พึ่ง reverse URL แล้ว ขณะที่ notification/scheduler → assistant และ scheduler → notification ยังคงอยู่ เพิ่ม regression ตรวจกราฟ bindings ไม่มีวงจร
+- หลังแก้ **279 unit tests + 187 isolated DB/API tests ผ่าน รวม 466 ข้อ** รวมการเก็บ follow-up reply จริงในฐานแยกและ fallback ไป Chat เมื่อไม่มีรายการที่ตอบได้ Workspace TypeScript, dependency checker 163 sources และ isolated startup/healthz ทั้ง 14 services ผ่าน
+- Read-only diagnostic บน Supabase ของโครงการยืนยัน **22 migrations** และ fingerprint `1fa6dec40eefeeea2f053758c500131c` หลังผู้ดูแลรัน SQL เอง ไม่มีการแก้ SQL/schema หรือข้อมูลผู้ใช้ในการตรวจนี้
+- พบชื่อ `LINE_AGENT_ENABLED` และ `LINE_AGENT_LIFF_ID` ใน Production env ของ backend ผ่าน UI โดยไม่เปิด secrets; ยังไม่ใช้การมีชื่อตัวแปรแทนหลักฐานค่าที่ทำงานจริง การอ่าน env ผ่าน connector ถูกปฏิเสธ 403 และ UI ต้องยืนยันอีเมลก่อน reveal จึงไม่ได้ข้ามการตรวจนั้น
+
+หลักฐานอยู่ใน ignored `.verification/line-agent-binding-*` และ `.verification/line-agent-live/` การตรวจส่งข้อความจากบัญชี LINE จริงและเปิด LIFF ยังต้องทำหลัง backend รุ่นแก้ขึ้น READY และมีบัญชี LINE ที่เข้าสู่ระบบพร้อมทดสอบ
+
 ## LINE Agent: LLM0, tools, การ์ดถามต่อ และ LIFF — 29 ตุลาคม 2026
 
 หลักฐานรอบนี้มาจาก **การตรวจโค้ดใน local และฐานข้อมูลแยก** ไม่รัน migration 22 ใน Supabase จริง ไม่แก้ `.env` จริงหรือ Vercel environment และยังไม่ได้ตรวจรับฟีเจอร์นี้บน production สถานะฐานข้อมูลจริงที่ตรวจไว้ก่อนหน้ายังคงเป็นรุ่น 21 การ commit/push โค้ดแยกจากการอัปเกรดฐานข้อมูลและเปิด flag ซึ่งผู้ดูแลจะทำเองตาม [LINE_AGENT.md](LINE_AGENT.md)

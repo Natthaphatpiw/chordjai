@@ -285,7 +285,7 @@ LINE_AGENT_LIFF_ID=2010549060-FRfLt9mJ
 - `APP_JWT_SECRET`, `CRON_SECRET`, `APP_ORIGIN` และ API/origin เดิม
 - LINE Messaging channel/token หรือการออก token ที่ระบบเดิมใช้ และ LINE Login/LIFF config เดิม
 
-`ASSISTANT_INTERNAL_URL` และ `NOTIFICATION_INTERNAL_URL` ถูก inject ด้วย **Vercel Services bindings** ตาม `backend/vercel.json` ไม่ต้องกรอก URL public แทนเองใน Vercel ฝั่ง local มี fallback ผ่าน dev API เดิม อย่าส่ง API key, channel secret หรือ connection string ที่มีรหัสผ่านในแชทหรือ commit ลง Git
+`ASSISTANT_INTERNAL_URL` ถูก inject ให้ notification/scheduler เรียก assistant และ `NOTIFICATION_INTERNAL_URL` ถูก inject ให้ scheduler เรียก notification ตาม `backend/vercel.json` ไม่ต้องกรอก URL public แทนเอง ส่วน assistant เก็บคำตอบ follow-up ผ่าน notification handler ภายใน process พร้อม worker auth เดิม จึงไม่ต้องมี binding ย้อนกลับและไม่เกิดวงจร `notification → assistant → notification` ซึ่ง Vercel ปฏิเสธ ฝั่ง local scheduler มี fallback ผ่าน dev API เดิม อย่าส่ง API key, channel secret หรือ connection string ที่มีรหัสผ่านในแชทหรือ commit ลง Git
 
 ไม่ต้องเพิ่ม env ให้ owner/clinic/admin เพียงเพื่อเปิด Agent แต่ owner app ต้อง deploy โค้ดหน้าผลรุ่นใหม่ด้วยเพื่อเปิด deep link ได้ครบ
 

@@ -711,7 +711,7 @@ Agent ใช้คิว PostgreSQL เดิมร่วมกับงาน i
 | Frontend | `API_ORIGIN` เป็น server-only; `NEXT_PUBLIC_LIFF_ID` ของแต่ละ app; Owner มี `NEXT_PUBLIC_LINE_OA_URL` | [.env Owner](frontend/owner-app/.env.example), [.env Clinic](frontend/clinic-portal/.env.example), [.env Admin](frontend/admin-console/.env.example) |
 | Research machine | `PETID_API_ORIGIN`, `PETID_API_TOKEN`, `PETID_EXPORT_ID` | [research .env.example](scripts/petid-ml/.env.example) |
 
-`ASSISTANT_INTERNAL_URL` และ `NOTIFICATION_INTERNAL_URL` มาจาก Vercel service bindings ไม่ต้องกรอก public URL แทน: notification/scheduler เรียก assistant และ assistant เรียก notification ส่วน `API_PORT` เป็น local tooling Agent ใช้ repo/4 projects/14 Services เดิมและไม่เพิ่ม env ฝั่ง frontend เพื่อเปิด flag แต่ owner app ต้อง deploy หน้าผลรุ่นใหม่ด้วย
+`ASSISTANT_INTERNAL_URL` และ `NOTIFICATION_INTERNAL_URL` มาจาก Vercel service bindings ไม่ต้องกรอก public URL แทน: notification/scheduler เรียก assistant และ scheduler เรียก notification ส่วน assistant ใช้ notification handler ภายใน process พร้อม worker auth เดิมเพื่อหลีกเลี่ยง circular service binding ที่ Vercel ไม่รองรับ ส่วน `API_PORT` เป็น local tooling Agent ใช้ repo/4 projects/14 Services เดิมและไม่เพิ่ม env ฝั่ง frontend เพื่อเปิด flag แต่ owner app ต้อง deploy หน้าผลรุ่นใหม่ด้วย
 
 ระบบนี้ใช้ **PostgreSQL connection string** ใน backend `DATABASE_URL` ไม่ได้ใช้ HTTPS project URL หรือ anon/service_role API key แทน connection string เลือก transaction pooler ตามหน้า Connect ของ Supabase ใช้ host/username ของ project จริง ใส่ DB password ที่ URL-encode และคง TLS เช่นรูปแบบต่อไปนี้โดยใช้ placeholders เท่านั้น:
 

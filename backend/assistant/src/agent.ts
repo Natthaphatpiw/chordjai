@@ -66,8 +66,10 @@ async function deliverAgentMessageCore(deliveryId:string){
  return withSystem(async db=>{const row=(await db.query<Delivery>('select * from assistant.agent_deliveries where id=$1',[deliveryId])).rows[0];if(!row)return;await lockUser(db,row.user_id);await sendDelivery(db,row);});
 }
 async function captureReply(userId:string,eventId:string,text:string){
- const origin=process.env.NOTIFICATION_INTERNAL_URL??(process.env.VERCEL?'':`http://localhost:${process.env.API_PORT??8787}`);if(!origin)return false;
- const r=await fetch(new URL('/internal/agent/capture-followup',origin),{method:'POST',headers:{'Content-Type':'application/json',Authorization:`Bearer ${process.env.CRON_SECRET}`},body:JSON.stringify({userId,eventId,text}),signal:AbortSignal.timeout(8000)});
+ // Reuse the authenticated notification handler in-process, like other agent
+ // tools. A reverse service binding would cycle notification -> assistant.
+ const notification=(await import('@chordjai/notification-service')).default;
+ const r=await notification.fetch(new Request('https://agent.internal/internal/agent/capture-followup',{method:'POST',headers:{'Content-Type':'application/json',Authorization:`Bearer ${process.env.CRON_SECRET}`},body:JSON.stringify({userId,eventId,text}),signal:AbortSignal.timeout(8000)}));
  if(!r.ok)throw new HttpError(503,'AGENT_FOLLOWUP_UNAVAILABLE','ยังเก็บคำตอบติดตามไม่ได้');
  const payload=await r.json() as {data?:{captured?:boolean}};return payload.data?.captured===true;
 }

@@ -166,15 +166,7 @@
             "sin1"
           ]
         }
-      },
-      "bindings": [
-        {
-          "type": "service",
-          "service": "notification",
-          "format": "url",
-          "env": "NOTIFICATION_INTERNAL_URL"
-        }
-      ]
+      }
     },
     "scheduler": {
       "root": "scheduler",
