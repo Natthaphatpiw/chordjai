@@ -1,5 +1,14 @@
 # ผลตรวจระบบ — อัปเดต 29 ตุลาคม 2026
 
+## ตรวจจริงรอบ 12:49 และแก้การ์ดที่มีแต่ยกเลิก — 29 ตุลาคม 2026
+
+- Runtime log ของ event เดียวกับข้อความทดสอบยืนยัน LINE `read`, `ack`, `loading` สถานะ `accepted`; LLM0/Agent planner สำเร็จ การ์ดคำถามส่งสำเร็จ ฐานข้อมูลมีหนึ่ง task สถานะ `collecting` และยังไม่มี tool call จึงยังไม่อ้างว่าทดสอบการบันทึก/ไม่ซ้ำ/เปิด LIFF ในบัญชีจริงครบแล้ว
+- เพิ่มปุ่มพิมพ์รายละเอียดที่เปิดคีย์บอร์ดสำหรับคำถามปลายเปิด ไม่มีคำตอบหรือข้อเท็จจริงสำเร็จรูปที่ระบบแต่งให้ การกดเปิดไม่เรียก LLM หรือบันทึก ไม่เปลี่ยน task/version และไม่ส่งข้อความกำลังทำงานเมื่อยังไม่มีคำตอบ ตรวจ owner/version/action/สิทธิ์ก่อนรับ control และปุ่มเก่าใช้เขียนข้อมูลไม่ได้
+- ผ่าน **319 unit + 215 isolated DB/API = 534 ข้อ** รวมเปิดคีย์บอร์ดซ้ำแล้วรอคำถามเดิม พิมพ์คำตอบจริงจึงสร้างครั้งเดียว, ข้ามบัญชี/สลับ action ถูกปฏิเสธ และแปดตัวเลือกจากโมเดลไม่ทำให้ปุ่มพิมพ์/ยกเลิกหาย TypeScript, 166-source dependency checker และ isolated startup ของทั้ง 14 services ผ่าน
+- LINE Message Validation API ตรวจ Flex card พร้อม `inputOption: openKeyboard` จริงแล้วตอบ HTTP 200 โดยไม่มี recipient และไม่ส่งข้อความหาผู้ใช้ ไม่แก้ SQL/env หรือประวัติสุขภาพจริง
+
+รายละเอียดใน [LINE_AGENT_FEEDBACK.md](LINE_AGENT_FEEDBACK.md) หลักฐาน ignored `.verification/line-clarification/` และ scoped production trace ใน `.verification/line-feedback/` ผลหลังตอบรายละเอียดและเปิด LIFF ต้องตรวจต่อจากการกระทำจริงของผู้ใช้
+
 ## ข้อความจริงจาก LINE: Chat guard / รับแล้ว / loading / อ่านแล้ว — 29 ตุลาคม 2026
 
 - Read-only trace ของข้อความที่ผู้ใช้รายงานยืนยัน `agent.normalize=ok, route=chat` → `assistant.chat=ok` → delivery `sent` ที่ตรงกับ fallback เรื่องยา ไม่มี Agent task หรือไดอารี่ใหม่จากข้อความนั้น การเล่าแผนโดยไม่ขอบันทึกเป็น Chat ถูกต้อง แต่ fallback กว้างเกินบริบท รายละเอียดใน [LINE_AGENT_FEEDBACK.md](LINE_AGENT_FEEDBACK.md)

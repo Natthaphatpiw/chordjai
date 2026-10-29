@@ -1,6 +1,6 @@
 import {createHash} from 'node:crypto';
 
-export type AgentStage='normalized'|'question_queued'|'confirmation_queued'|'task_queued'|'tool_succeeded'|'tool_failed'|'task_finished'|'delivery_sent'|'delivery_failed'|'turn_failed'|'result_requested';
+export type AgentStage='normalized'|'keyboard_requested'|'question_queued'|'confirmation_queued'|'task_queued'|'tool_succeeded'|'tool_failed'|'task_finished'|'delivery_sent'|'delivery_failed'|'turn_failed'|'result_requested';
 type References={turnId?:string|null;taskId?:string|null;deliveryId?:string|null};
 type Details={route?:string|null;status?:string|null;kind?:string|null;tool?:string;errorCode?:string|null;hasLiff?:boolean};
 const routes=new Set(['chat','agent','followup_reply','help','emergency','unsupported']);

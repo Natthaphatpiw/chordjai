@@ -41,7 +41,7 @@ async function outbox(db:PoolClient,userId:string,taskId:string|null,turnId:stri
 }
 async function choices(db:PoolClient,task:Task,items:{label:string;action:string;value:string}[]):Promise<AgentCardChoice[]>{
  await db.query('update assistant.agent_choices set consumed_at=coalesce(consumed_at,now()) where task_id=$1',[task.id]);
- const result:AgentCardChoice[]=[];for(const item of items.slice(0,8)){const row=(await db.query<{id:string}>(`insert into assistant.agent_choices(user_id,task_id,version,action,value,expires_at) values($1,$2,$3,$4,$5,least($6,now()+interval '24 hours')) returning id`,[task.user_id,task.id,task.version,item.action,item.value,task.expires_at])).rows[0]!;result.push({id:row.id,label:item.label});}return result;
+ const result:AgentCardChoice[]=[];for(const item of items.slice(0,8)){const row=(await db.query<{id:string}>(`insert into assistant.agent_choices(user_id,task_id,version,action,value,expires_at) values($1,$2,$3,$4,$5,least($6,now()+interval '24 hours')) returning id`,[task.user_id,task.id,task.version,item.action,item.value,task.expires_at])).rows[0]!;result.push({id:row.id,label:item.label,...(item.action==='compose'?{keyboard:true}:{})});}return result;
 }
 /** Pushes only a persisted response to a verified user's incoming event. The
  * retry key and <24h TTL are fixed before delivery, including timeout retries. */
@@ -212,7 +212,7 @@ async function planTask(db:PoolClient,actor:Actor,task:Task,text:string,petMenti
   if(plan.mode==='ask'){
    if(!plan.question)throw new HttpError(502,'AGENT_INVALID_PLAN','Missing clarification question');
    await db.query("update assistant.agent_tasks set status='collecting',question=$2::jsonb where id=$1",[task.id,JSON.stringify({text:plan.question,options:plan.options,accessChecks,...(task.question&&typeof task.question==='object'&&'selectedPetId' in task.question?{selectedPetId:(task.question as {selectedPetId:string}).selectedPetId}:{})})]);
-   const buttons=await choices(db,task,[...plan.options.map(option=>({...option,action:'answer'})),{label:t(task.language,'ยกเลิกงาน','Cancel task'),action:'cancel',value:''}]);
+   const buttons=await choices(db,task,[...plan.options.slice(0,6).map(option=>({...option,action:'answer'})),{label:t(task.language,'พิมพ์รายละเอียด','Type details'),action:'compose',value:''},{label:t(task.language,'ยกเลิกงาน','Cancel task'),action:'cancel',value:''}]);
    await outbox(db,actor.id,task.id,null,`question:${task.version}`,`task:${task.id}:question:${task.version}`,[agentCard(task.title,plan.question,buttons,undefined,task.language)]);return;
   }
   if(actions.some(action=>getAgentTool(action.tool)!.risk==='confirm'||getAgentTool(action.tool)!.risk==='write'&&!explicitWriteRequest(task.request_text))){
@@ -230,11 +230,11 @@ export async function ingestAgentTurn(eventId:string,userId:string){
   const result=await ingestAgentTurnCore(eventId,userId);
   // Read only committed state; a failed log probe cannot fail an accepted turn.
   try{
-   const trace=await withSystem(async db=>(await db.query<{id:string;route:string|null;state:string;task_id:string|null;task_status:string|null;has_question:boolean;error_code:string|null}>(`select t.id,t.route,t.state,k.id task_id,k.status task_status,k.question is not null has_question,t.normalized->>'errorCode' error_code from assistant.agent_turns t join assistant.agent_threads th on th.id=t.thread_id left join assistant.agent_tasks k on k.id=th.current_task_id where t.event_id=$1 and t.user_id=$2`,[eventId,userId])).rows[0]);
+   const trace=await withSystem(async db=>(await db.query<{id:string;route:string|null;state:string;task_id:string|null;task_status:string|null;has_question:boolean;control:string|null;error_code:string|null}>(`select t.id,t.route,t.state,k.id task_id,k.status task_status,k.question is not null has_question,t.normalized->>'control' control,t.normalized->>'errorCode' error_code from assistant.agent_turns t join assistant.agent_threads th on th.id=t.thread_id left join assistant.agent_tasks k on k.id=th.current_task_id where t.event_id=$1 and t.user_id=$2`,[eventId,userId])).rows[0]);
    if(trace){
     const refs={turnId:trace.id,taskId:trace.route==='agent'?trace.task_id:null};
-    agentStage(trace.error_code?'turn_failed':'normalized',refs,{route:trace.route,status:trace.state,errorCode:trace.error_code});
-    if(trace.route==='agent'&&trace.task_id){
+    agentStage(trace.error_code?'turn_failed':trace.control==='compose'?'keyboard_requested':'normalized',refs,{route:trace.route,status:trace.state,errorCode:trace.error_code});
+    if(trace.route==='agent'&&trace.task_id&&trace.control!=='compose'){
      const stage=trace.task_status==='collecting'&&trace.has_question?'question_queued':trace.task_status==='awaiting_confirmation'?'confirmation_queued':trace.task_status==='queued'?'task_queued':null;
      if(stage)agentStage(stage,refs,{status:trace.task_status});
     }
@@ -270,9 +270,18 @@ async function ingestAgentTurnCore(eventId:string,userId:string){
    }
    if(task&&task.expires_at<=new Date()&&!terminal.has(task.status)){await db.query("update assistant.agent_tasks set status='cancelled',error_code='AGENT_TASK_EXPIRED',version=version+1,question=null where id=$1",[task.id]);task=undefined;}
    if(turn.postback_data){
-    const match=turn.postback_data.match(/^agent:choice:([0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})$/i);
-    const choice=match?(await db.query<{id:string;task_id:string;version:number;action:string;value:string}>(`select * from assistant.agent_choices where id=$1 and user_id=$2 and consumed_at is null and expires_at>now()`,[match[1],userId])).rows[0]:undefined;
+    const match=turn.postback_data.match(/^agent:(choice|compose):([0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})$/i);
+    const choice=match?(await db.query<{id:string;task_id:string;version:number;action:string;value:string}>(`select * from assistant.agent_choices where id=$1 and user_id=$2 and consumed_at is null and expires_at>now()`,[match[2],userId])).rows[0]:undefined;
     if(!choice||!task||task.id!==choice.task_id||task.version!==choice.version)throw new HttpError(409,'AGENT_CHOICE_STALE','ตัวเลือกนี้หมดอายุหรือข้อมูลเปลี่ยนแล้ว กรุณาพิมพ์คำขอใหม่');
+    if((match?.[1]==='compose')!==(choice.action==='compose'))throw new HttpError(409,'AGENT_CHOICE_STALE','ตัวเลือกไม่ตรงกับการทำงาน กรุณาใช้การ์ดล่าสุด');
+    if(choice.action==='compose'){
+     if(task.status!=='collecting')throw new HttpError(409,'AGENT_CHOICE_STALE','กรุณาใช้คำถามล่าสุด');
+     await assertTaskAccess(actor,task);
+     // Opening the keyboard supplies no answer or authorisation. Keep the
+     // question/version and reusable button intact until text is sent.
+     await db.query("update assistant.agent_turns set route='agent',normalized=jsonb_build_object('control','compose') where id=$1",[turn.id]);
+     await finish();return{handled:true};
+    }
     await db.query('update assistant.agent_choices set consumed_at=now() where id=$1',[choice.id]);
     if(choice.action==='cancel'){await cancelTask(db,task,turn);await finish();return{handled:true};}
     if(choice.action==='confirm'&&task.status==='awaiting_confirmation'){await queueTask(db,task,turn,true);await finish();return{handled:true};}

@@ -119,6 +119,29 @@ describe.skipIf(!isolated)('durable LINE Agent with isolated PostgreSQL and mock
    expect(JSON.stringify(stages)).not.toMatch(/พีโอนี|ไรหู|คลินิก|https:|agent-fixture/);expect(JSON.stringify(stages)).not.toContain(owner);expect(JSON.stringify(stages)).not.toContain(pending.id);
   }finally{logs.mockRestore();await withSystem(db=>db.query("update pet.pets set name='ถั่วเหลือง' where id=$1",[pet]));}
  });
+ it('keeps an open-ended question pending when opening the keyboard, then saves only the actual typed details once',async()=>{
+  plans.push(ask('อยากเล่าเรื่องอะไรให้บันทึกครับ?',[]));await input('ช่วยบันทึกไดอารี่ของถั่วเหลืองให้หน่อย เดี๋ยวฉันเล่ารายละเอียดเพิ่ม');
+  const pending=await task(),compose=(await choices(pending.id)).find(row=>row.action==='compose');expect(compose).toBeDefined();
+  const question=await deliveries(pending.id);expect(JSON.stringify(question)).toContain('openKeyboard');expect(JSON.stringify(question)).toContain(`agent:compose:${compose.id}`);
+  const modelCalls=provider.structured.mock.calls.length;
+  for(let repeat=0;repeat<2;repeat++)await input('',owner,{type:'postback',message:undefined,postback:{data:`agent:compose:${compose.id}`}});
+  const unchanged=await task();expect(unchanged).toMatchObject({id:pending.id,status:'collecting',version:pending.version,question:pending.question});
+  expect(provider.structured).toHaveBeenCalledTimes(modelCalls);expect(await entries()).toHaveLength(0);expect(await deliveries(pending.id)).toHaveLength(question.length);expect((await choices(pending.id)).some(row=>row.id===compose.id)).toBe(true);
+  plans.push(ready([action('care.entries.create',diary())]));await input(example);expect((await task()).status).toBe('queued');await executeAgentTask(pending.id);await executeAgentTask(pending.id);
+  expect(await entries()).toHaveLength(1);expect((await task()).status).toBe('succeeded');
+ });
+ it('rejects keyboard controls from another owner or a different action without consuming the real choice',async()=>{
+  plans.push(ask('เล่ารายละเอียดที่ต้องการจดได้เลย',[]));await input();const pending=await task(),available=await choices(pending.id);
+  const compose=available.find(row=>row.action==='compose'),cancel=available.find(row=>row.action==='cancel'),before=provider.structured.mock.calls.length;
+  await input('',other,{type:'postback',message:undefined,postback:{data:`agent:compose:${compose.id}`}});
+  await input('',owner,{type:'postback',message:undefined,postback:{data:`agent:compose:${cancel.id}`}});
+  expect((await task()).status).toBe('collecting');expect(provider.structured).toHaveBeenCalledTimes(before);expect(await entries()).toHaveLength(0);
+  expect((await choices(pending.id)).map(row=>row.id)).toEqual(expect.arrayContaining([compose.id,cancel.id]));
+ });
+ it('reserves room for typing and cancellation even when the planner returns eight answer options',async()=>{
+  plans.push(ask('เลือกเรื่องที่จะจดหรือพิมพ์เอง',Array.from({length:8},(_,index)=>({label:`ตัวเลือก ${index+1}`,value:`รายละเอียด ${index+1}`}))));await input();
+  const pending=await task(),available=await choices(pending.id);expect(available).toHaveLength(8);expect(available.filter(row=>row.action==='answer')).toHaveLength(6);expect(available.map(row=>row.action)).toEqual(expect.arrayContaining(['compose','cancel']));
+ });
  it('asks with a card when the pet is ambiguous, then accepts a private versioned postback answer',async()=>{
   plans.push(ready([action('care.entries.create',diary())]));await input('ไปพบหมอมา บันทึกให้หน่อย');const pending=await task();expect(pending.status).toBe('collecting');
   await deliverPending();const card=JSON.stringify(provider.push.mock.calls[0]![1]);expect(card).toContain('postback');expect(card).toContain('กดตัวเลือกหรือพิมพ์คำตอบ');expect(await entries()).toHaveLength(0);
@@ -162,7 +185,7 @@ describe.skipIf(!isolated)('durable LINE Agent with isolated PostgreSQL and mock
  it('repairs incomplete tool arguments into a clarification without inventing a reminder time or writing',async()=>{
   plans.push(ready([action('reminders.create',{petId:pet,title:'ไปพบหมอ'})]),ask('ให้เตือนเรื่องถั่วเหลืองวันไหนและกี่โมงครับ',[{label:'ขอคิดก่อน',value:'ยังไม่ทราบวันเวลา'}]));await input('ตั้งเตือนถั่วเหลืองไปพบหมอให้หน่อย');const pending=await task();expect(pending.status).toBe('collecting');expect(pending.plan).toEqual([]);
   const planning=provider.structured.mock.calls.filter(([o])=>o.feature==='agent.plan');expect(planning).toHaveLength(2);expect(planning[1]![0].input.observations).toContainEqual({tool:'validation',result:expect.objectContaining({error:'AGENT_TOOL_ARGUMENTS_INVALID',details:expect.stringContaining('dueAt')})});
-  expect(await withSystem(async db=>(await db.query('select count(*)::int n from notify.reminders where user_id=$1',[owner])).rows[0].n)).toBe(0);expect(await entries()).toHaveLength(0);await deliverPending();expect(JSON.stringify(provider.push.mock.calls)).toContain('วันไหนและกี่โมง');expect(JSON.stringify(provider.push.mock.calls)).toContain('กดตัวเลือกหรือพิมพ์คำตอบ');
+  expect(await withSystem(async db=>(await db.query('select count(*)::int n from notify.reminders where user_id=$1',[owner])).rows[0].n)).toBe(0);expect(await entries()).toHaveLength(0);await deliverPending();expect(JSON.stringify(provider.push.mock.calls)).toContain('วันไหนและกี่โมง');expect(JSON.stringify(provider.push.mock.calls)).toContain('พิมพ์รายละเอียดหรือคำตอบ แล้วกดส่ง');
  });
  it('inspects real records while planning and never treats read-only inspection as permission for a mutation',async()=>{
   plans.push({mode:'inspect',title:'ดูน้องที่ดูแล',message:'',question:'',options:[],actions:[action('pets.list',{})]},ready([action('care.entries.create',diary())]));await input();

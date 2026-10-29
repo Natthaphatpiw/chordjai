@@ -81,7 +81,8 @@ export async function queueAgentLineEvent(userId:string,value:unknown):Promise<b
     // Also catch synchronous config/fetch construction failures. Once durable
     // work is committed, a best-effort latency optimisation cannot undo it.
     const background=Promise.resolve().then(async()=>{
-      let fresh=feedbackFresh(event);
+      const keyboardOnly=event.type==='postback'&&Boolean(event.postback?.data.startsWith('agent:compose:'));
+      let fresh=!keyboardOnly&&feedbackFresh(event);
       if(fresh)try{
         const turn=await withSystem(async tx=>(await tx.query<{state:string}>('select state from assistant.agent_turns where event_id=$1 and user_id=$2',[event.webhookEventId,userId])).rows[0]);
         if(turn?.state==='done')fresh=false;

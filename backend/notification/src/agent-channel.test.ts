@@ -187,6 +187,12 @@ describe('receipt, ACK and loading follow accepted private messages',()=>{
   threadLanguage='en';currentEvent={...event,type:'postback',postback:{data:'agent:choice:fixture'},message:undefined};await processLineEvent(event.webhookEventId);
   expect(mock.reply).toHaveBeenCalledTimes(2);for(const call of mock.reply.mock.calls)expect(call[1]).toEqual([{type:'text',text:'Message received. I’m processing it.'}]);
  });
+ it('processes a keyboard-only postback without claiming to process an answer or displaying loading',async()=>{
+  production();currentEvent={...event,type:'postback',message:undefined,postback:{data:'agent:compose:11111111-1111-4111-8111-111111111111'}};
+  await processLineEvent(event.webhookEventId);await drainBackground();
+  expect(mock.enqueue).toHaveBeenCalledWith('agent.turn',expect.anything(),expect.anything(),expect.anything());expect(fetch).toHaveBeenCalledOnce();
+  expect(mock.reply).not.toHaveBeenCalled();expect(mock.loading).not.toHaveBeenCalled();expect(mock.read).not.toHaveBeenCalled();
+ });
  it('keeps PAUSE and unconsented onboarding on their own response path without an agent ACK or animation',async()=>{
   serviceConsent=false;await processLineEvent(event.webhookEventId);expect(mock.reply).toHaveBeenCalledOnce();expect(mock.reply.mock.calls[0]?.[1]?.[0]?.text).not.toContain('รับข้อความแล้ว');expect(mock.loading).not.toHaveBeenCalled();
   mock.reply.mockClear();serviceConsent=true;mock.command.mockReturnValue('pause');mock.processCommand.mockResolvedValue({changed:true,language:'en'});await processLineEvent(event.webhookEventId);
