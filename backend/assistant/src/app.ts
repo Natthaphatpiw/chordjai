@@ -5,8 +5,10 @@ import { runText, hasUnsafeMedicalAdvice } from '@chordjai/ai';
 import { createService, getActor, HttpError, jsonBody, ok, camel, uuid, aiLanguage, localeText } from '@chordjai/service-kit';
 import { buildMemoryContext, boundedRecentMessages, type Preferences, type Memory } from './memory.js';
 import { buildClinicalCareContext } from './care-context.js';
+import {registerAgentRoutes} from './agent';
 
 export const app = createService('assistant');
+registerAgentRoutes(app);
 const defaultPreferences: Preferences = { assistant_name: 'ChordJai', tone: 'warm', about_user: '', memory_enabled: false };
 const preferenceSchema = z.object({ assistantName: z.string().trim().min(1).max(80).default('ChordJai'), tone: z.enum(['warm','concise','playful','professional']).default('warm'), aboutUser: z.string().max(2000).default(''), memoryEnabled: z.boolean().default(false) });
 app.get('/api/v1/assistant/preferences', async c => {

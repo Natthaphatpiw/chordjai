@@ -110,7 +110,15 @@
             "sin1"
           ]
         }
-      }
+      },
+      "bindings": [
+        {
+          "type": "service",
+          "service": "assistant",
+          "format": "url",
+          "env": "ASSISTANT_INTERNAL_URL"
+        }
+      ]
     },
     "media": {
       "root": "media",
@@ -153,12 +161,20 @@
       "entrypoint": "src/index.ts",
       "functions": {
         "src/index.ts": {
-          "maxDuration": 60,
+          "maxDuration": 120,
           "regions": [
             "sin1"
           ]
         }
-      }
+      },
+      "bindings": [
+        {
+          "type": "service",
+          "service": "notification",
+          "format": "url",
+          "env": "NOTIFICATION_INTERNAL_URL"
+        }
+      ]
     },
     "scheduler": {
       "root": "scheduler",
@@ -177,6 +193,12 @@
           "service": "notification",
           "format": "url",
           "env": "NOTIFICATION_INTERNAL_URL"
+        },
+        {
+          "type": "service",
+          "service": "assistant",
+          "format": "url",
+          "env": "ASSISTANT_INTERNAL_URL"
         }
       ]
     }

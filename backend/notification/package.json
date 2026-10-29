@@ -17,6 +17,7 @@
     "hono": "^4.13.13",
     "zod": "^4.0.0",
     "@chordjai/line": "*",
-    "@chordjai/queue": "*"
+    "@chordjai/queue": "*",
+    "@vercel/functions": "^3.4.0"
   }
 }

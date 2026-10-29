@@ -1,4 +1,22 @@
-# ผลตรวจระบบ — อัปเดต 13 ตุลาคม 2026
+# ผลตรวจระบบ — อัปเดต 29 ตุลาคม 2026
+
+## LINE Agent: LLM0, tools, การ์ดถามต่อ และ LIFF — 29 ตุลาคม 2026
+
+หลักฐานรอบนี้มาจาก **การตรวจโค้ดใน local และฐานข้อมูลแยก** ไม่รัน migration 22 ใน Supabase จริง ไม่แก้ `.env` จริงหรือ Vercel environment และยังไม่ได้ตรวจรับฟีเจอร์นี้บน production สถานะฐานข้อมูลจริงที่ตรวจไว้ก่อนหน้ายังคงเป็นรุ่น 21 การ commit/push โค้ดแยกจากการอัปเกรดฐานข้อมูลและเปิด flag ซึ่งผู้ดูแลจะทำเองตาม [LINE_AGENT.md](LINE_AGENT.md)
+
+- **277 unit tests + 186 isolated PostgreSQL/API tests ผ่าน รวม 463 ข้อ** ส่วน integration รวม Agent 34 ข้อ ใช้ domain API และฐานข้อมูลแยกจริง แต่จำลอง OpenAI/LINE และปิด external network
+- ตัวอย่างคำสั่งบันทึกการดูแลไรหูสร้างไดอารี่ส่วนตัวจริงในฐานทดสอบ พร้อมข้อความกำลังทำงานและผลสำเร็จที่อ้างถึง LIFF ของงาน/น้องตัวเดิม; มี 48 tools พร้อม schema และระดับ read/write/confirm ที่เซิร์ฟเวอร์ตรวจอีกชั้น
+- ตรวจการถามด้วยปุ่มและข้อความ, การเลือกน้อง, ID ของน้องผิดแม้อยู่บ้านเดียวกัน, วันที่อ้างอิงข้อความก่อนข้ามวัน, คำถามข้อมูลไม่ครบ, ปุ่มเก่า/ข้ามเจ้าของ, การยืนยันตรงรุ่น, กลุ่ม/room, worker auth และทางฉุกเฉินที่ไม่ต้องรอ AI
+- Duplicate webhook, racing worker, domain commit แล้ว response หาย, partial failure/retry และ LINE retry key คงเดิมไม่สร้างรายการซ้ำ; fast path เริ่มหลัง durable commit และคิวยังคงรองรับ HTTP/network/config failure
+- ทดสอบสามบัญชีพร้อมกันใน instance เดียว: process permit ปฏิเสธงานที่ชนทันทีด้วย `AGENT_BUSY`, ไม่รอจน connection pool หมด, คืน permit หลังข้อผิดพลาด และ retry ทำงานต่อโดยข้อความไม่ปนบัญชี
+- ตรวจสิทธิ์ซ้ำก่อนส่ง: ถอนสิทธิ์น้องที่อยู่ในปุ่ม, ลบบันทึกขณะที่ยังอ่านน้องได้, ถอน optional memory และเปลี่ยนสิทธิ์ จะไม่ส่งคำตอบ/รายละเอียดเดิมที่ค้างอยู่; receipt เก็บ reference/digest แทน snapshot ของข้อมูลส่วนตัว รายการงานและ personal export ไม่ replay copied plan/question/tool arguments
+- SQL/RLS 6 ตารางใหม่, immutable ownership/arguments/keys, consent withdrawal, account cascade และชุด security/queue/HNSW เดิมผ่าน; safe upgrades รวม **21→22→22** และ 22 รันซ้ำรักษาข้อมูล sentinel เดิม fingerprint ของ migration 1–21 ไม่เปลี่ยน
+- Workspace TypeScript และ production builds Owner/Clinic/Admin ผ่าน; runtime dependency checker ตรวจ 163 source files และ isolated production install/start ของ 14 services ทุก `/healthz` คืน 200
+- Browser fixture บน production build ผ่านไทย/อังกฤษ 390px: nested `liff.state`, polling สถานะ, task API ต้องมี session, เลือกน้องถูกตัว, เปิดบันทึกที่ระบุและ highlight, 404 ไม่เปิดเผยผล และหน้าอ่านไม่ส่ง mutation ไม่มี overflow หรือ browser errors ตรวจ components ตาม React Best Practices
+- ปรับ patch dependencies เป็น Next.js 16.4.3, Zod 4.6.6 และ Undici 6.29.1; `npm audit` พบ **0 vulnerabilities** ณรอบตรวจนี้ ไม่เปลี่ยน major version หรือ downgrade Blob
+
+หลักฐานอยู่ใน ignored `.verification/line-agent-*` และ `.verification/line-agent/` สคริปต์ UI คือ [`scripts/test-agent-result-ui.mjs`](../scripts/test-agent-result-ui.mjs) ใช้ localhost และข้อมูลสังเคราะห์ ผลนี้ไม่แทนการทดสอบ model routing กับข้อความจริง, provider access/LINE quota, latency ใน production หรือ LINE iOS/Android ของผู้ใช้จริง
+
 
 ## Pet Passport Q&A และการดูแลหลังพบหมอ — 13 ตุลาคม 2026
 

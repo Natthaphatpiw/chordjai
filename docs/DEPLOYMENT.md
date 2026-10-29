@@ -1,5 +1,21 @@
 # Deployment ของ ChordJai
 
+## LINE Agent — เตรียม local รุ่นฐานข้อมูล 22 วันที่ 29 ตุลาคม 2026
+
+**ยังไม่ deploy และยังไม่อัปเกรด Supabase จริง:** หลักฐาน production ล่าสุดเป็น schema **21** รอบนี้เตรียมโค้ด [LINE Agent](LINE_AGENT.md), migration [`202610290022_line_agent.sql`](../supabase/migrations/202610290022_line_agent.sql) และไฟล์รวมสำหรับผู้ดูแลนำไปรันเอง ไม่แก้ `.env` จริงหรือ environment บน Vercel และไม่ส่ง LINE ทดสอบจริง
+
+ใช้ **1 repo/4 Vercel projects/14 Services เดิม** Agent อยู่ใน `assistant` เชื่อม `notification` และ `scheduler` ผ่าน private bindings ไม่ต้องเพิ่ม service, Messaging webhook หรือ LIFF endpoint โมเดลยังเป็น `OPENAI_MODEL=gpt-6.1-sol` Dependency ใน checkout ใช้ Next.js `16.4.3` และ Zod `4.6.6`; ใช้ `npm ci` จาก lockfile ที่มาพร้อมกัน
+
+ลำดับเปิดใช้สำหรับผู้ดูแล:
+
+1. คง `LINE_AGENT_ENABLED=false` ระหว่างเตรียม backend และ owner app รุ่นใหม่
+2. ใน Supabase จริงรัน `diagnostic.sql` → `upgrade.sql` → `diagnostic.sql` ตรวจถึง **22** และไม่มี partial/unknown state ฐานข้อมูลมีข้อมูลแล้วห้ามรัน bootstrap ซ้ำ
+3. ตั้ง env จริงของ backend เองตาม [backend/.env.example](../backend/.env.example) ใช้ credentials เดิมที่ถูกต้องและ optional `LINE_AGENT_LIFF_ID` ค่า LIFF หลักเดิม ถ้าไม่กำหนดจะใช้ `LIFF_ID`
+4. ตรวจ deployment ของ backend/owner app, bindings, Cron และ provider access ก่อนเปลี่ยน `LINE_AGENT_ENABLED=true` เฉพาะ environment ที่พร้อม แล้ว deploy การตั้งค่าใหม่
+5. ใช้บัญชีทดสอบของผู้ดูแลตรวจคำถามทั่วไป คำสั่งบันทึก การถามเพิ่ม/ยืนยัน และ LIFF ที่เปิดรายการเดียวกับงาน ดูเกณฑ์เปิดใช้ครบใน [LINE_AGENT.md](LINE_AGENT.md#11-สิ่งที่ผู้ดูแลต้องทำก่อนเปิดใช้)
+
+ข้อความ Agent ตอบคำขอที่ผู้ใช้เพิ่งส่งผ่าน LINE Push API จึงใช้ OA quota แยกจาก optional follow-up แบบ 5/7 วัน ไม่เปิด follow-up หรือ memory consent ให้อัตโนมัติ
+
 ## Pet Passport Q&A — ฐานข้อมูล 21
 
 เพิ่ม migration `202610130021_pet_passport.sql` ก่อน deploy โค้ด health/clinic/share รุ่นนี้ ใช้ 1 repo/4 projects และ environment เดิมทั้งหมด ไม่ขยายสิทธิ์คลินิกเดิม เจ้าของเลือก `passport.read` และ `passport.write` แยก รูปให้หมอโหลดด้วยสิทธิ์ปัจจุบัน ลิงก์ที่แก้/เพิกถอนใช้ต่อไม่ได้ ขั้นตอนและ API อยู่ใน [PET_PASSPORT.md](PET_PASSPORT.md)
@@ -78,11 +94,14 @@ LINE_LOGIN_CHANNEL_SECRET=<อยู่ในbackend/.env.local>
 LINE_LOGIN_CHANNEL_ACCESS_TOKEN=<ใช้สคริปต์setupLINEเท่านั้น>
 LIFF_ID=2010549060-FRfLt9mJ
 LIFF_ENDPOINT=https://www.chordjai.life/app
+LINE_AGENT_ENABLED=false
+# Optional: เว้นไว้เพื่อใช้ LIFF_ID เดิม
+LINE_AGENT_LIFF_ID=2010549060-FRfLt9mJ
 LINE_WEBHOOK_URL=https://www.chordjai.life/api/v1/notification/webhooks/line
 BLOB_READ_WRITE_TOKEN=<privateBlobstoreที่sin1>
 ```
 
-Vercel Services ใช้ env ร่วมกันใน backend project ส่วน `NOTIFICATION_INTERNAL_URL` **มาจาก private service binding** ไม่ต้องกรอกบน Vercel สำหรับ local fallback localhost8787 ใช้ `API_PORT=8787`
+Vercel Services ใช้ env ร่วมกันใน backend project ส่วน `ASSISTANT_INTERNAL_URL` และ `NOTIFICATION_INTERNAL_URL` **มาจาก private service bindings** โดย notification/scheduler เรียก assistant และ assistant เรียก notification ไม่ต้องกรอก public URL แทนบน Vercel สำหรับ local fallback localhost8787 ใช้ `API_PORT=8787` การเพิ่ม Agent ไม่ต้องเพิ่ม env ให้ frontend เพียงเพื่อเปิด flag แต่ owner app ต้องมีหน้าผลรุ่นใหม่
 
 DATABASE_URL เป็น connection string Postgres ของ Supabase ไม่ใช่ project URL HTTPS และไม่ใช่ anon/service_role key รหัสผ่านมีอักขระพิเศษต้อง URL encode คง sslmode=require ไว้ใน production การเข้า DB ทุก user transaction SET LOCAL ROLE chordjai_app + app.user_id เพื่อใช้ RLS worker ใช้ role chordjai_worker ตัว connection principal ต้อง SET ROLEได้
 
@@ -109,6 +128,8 @@ Production fallback ของทั้ง Next rewrites และ public SSR req
 Preview frontend ต้องตั้ง API_ORIGINเป็น backend preview ที่เข้าคู่กันและไม่ได้มี Deployment Protectionบล็อก webhook/LIFF user การใช้งาน preview กับ LINEต้องมีLIFFทดสอบและhttps endpointของตัวเอง ไม่ใช้secret productionทดสอบอัตโนมัติ
 
 ## Supabase SQL
+
+สถานะเตรียมรอบ LINE Agent: ไฟล์ SQL ใน checkout รวม migration **22** แล้ว ผู้ดูแลเป็นผู้รันกับฐานข้อมูลจริงเองตามขั้นตอนด้านบน หลักฐาน production ที่มีอยู่ยังยืนยันเพียง **21** หัวข้อวันที่ด้านล่างเก็บเป็นประวัติการส่งมอบแต่ละรอบ
 
 อัปเดต 12 ตุลาคม 2026: โค้ด Care Diary ต้องมี migration 1–16 ครบ โดยสมุด/Story/PetID ใช้ migration 15 และไดอารี่เพิ่ม migration 16 Supabase ของโปรเจกต์นี้ตรวจยืนยันเป็นรุ่น 16 แล้ว สำหรับฐานข้อมูลเดิมอื่นที่ผ่าน diagnostic ให้รัน `supabase/upgrade.sql` หรือ `npm run db:upgrade` ซึ่งเพิ่มเฉพาะส่วนที่ขาดและตรวจ fingerprint ก่อนทุกครั้ง Backend health และ biometric กำหนดระยะเวลา Function 120 วินาทีสำหรับ batch/รูปหลายมุม โดยตัว AI ยังมี timeout และงบของแต่ละฟีเจอร์เอง ไม่ต้องเพิ่ม env หรือเปลี่ยน LIFF endpoint
 

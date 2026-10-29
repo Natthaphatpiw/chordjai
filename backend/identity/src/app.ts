@@ -97,7 +97,17 @@ app.get('/api/v1/identity/export', async c => {
     const passportPhotos=(await tx.query('select m.* from health.passport_snapshot_media m join health.passport_snapshots s on s.id=m.snapshot_id where s.owner_id=$1',[actor.id])).rows;
     const passportLinks=(await tx.query('select id,session_id,snapshot_id,expires_at,revoked_at,created_at from health.passport_share_links where owner_id=$1',[actor.id])).rows;
     const passportClinicNotes=(await tx.query('select n.id,n.session_id,n.snapshot_id,n.pet_id,n.clinic_id,n.author_id,n.findings,n.treatment,n.care_instructions,n.next_followup_at,n.created_at from health.passport_clinic_notes n where n.author_id=$1 or n.pet_id in(select id from pet.pets where owner_id=$1)',[actor.id])).rows;
-    return { exportedAt: new Date().toISOString(), profile, pets, consents, health, journal, memoryBooks, memories, preferences, conversations, messages, triage, media, inbox, reminders, appointments, lostCases, petid, petidPhotos, shares,careEntries,careEpisodes,careReflections,careCosts,careMedia,petidCaptureSessions,petidCaptureSamples,petidTrainingConsents,petidTrainingConsentHistory,petidImageChecks,petidImageQuality,petidIndependentReviews,petidDatasetParticipation,followupPreferences,followupConsentHistory,followupHistory,followupReplies,passportSessions,passportTurns,passportSnapshots,passportPhotos,passportLinks,passportClinicNotes };
+    const agentAvailable=(await tx.query("select to_regclass('assistant.agent_tasks') is not null available")).rows[0]?.available;
+    const lineAgent=agentAvailable?{
+      threads:(await tx.query('select * from assistant.agent_threads where user_id=$1',[actor.id])).rows,
+      turns:(await tx.query('select id,thread_id,event_id,request_id,input_text,normalized,route,state,created_at,processed_at from assistant.agent_turns where user_id=$1',[actor.id])).rows,
+      // Owner-authored input is exported in turns. Do not replay copied
+      // domain fields from an old plan after resource access has changed.
+      tasks:(await tx.query('select id,thread_id,language,version,status,reference_at,created_at,updated_at,expires_at,error_code from assistant.agent_tasks where user_id=$1',[actor.id])).rows,
+      toolCalls:(await tx.query('select id,task_id,step,tool_name,status,result,error_code,created_at,updated_at from assistant.agent_tool_calls where user_id=$1',[actor.id])).rows,
+      deliveries:(await tx.query('select id,task_id,turn_id,kind,status,error_code,created_at,sent_at,expires_at from assistant.agent_deliveries where user_id=$1',[actor.id])).rows,
+    }:null;
+    return { exportedAt: new Date().toISOString(), profile, pets, consents, health, journal, memoryBooks, memories, preferences, conversations, messages, triage, media, inbox, reminders, appointments, lostCases, petid, petidPhotos, shares,careEntries,careEpisodes,careReflections,careCosts,careMedia,petidCaptureSessions,petidCaptureSamples,petidTrainingConsents,petidTrainingConsentHistory,petidImageChecks,petidImageQuality,petidIndependentReviews,petidDatasetParticipation,followupPreferences,followupConsentHistory,followupHistory,followupReplies,passportSessions,passportTurns,passportSnapshots,passportPhotos,passportLinks,passportClinicNotes,lineAgent };
   });
   c.header('Content-Disposition', 'attachment; filename="chordjai-personal-data.json"');
   return ok(c, camel(exported));

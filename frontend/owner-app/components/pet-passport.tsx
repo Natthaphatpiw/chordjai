@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState, type ReactNode } from 'react';
+import {agentEntryParams,agentTaskId} from './agent-result-model';
 import { ArrowLeft, ArrowRight, Check, CheckCheck, ClipboardList, Coins, FileHeart, Link2, LockKeyhole, Plus, RotateCcw, ShieldCheck, Siren, Stethoscope, Trash2 } from 'lucide-react';
 import { passportQuestion, type PassportAnswer, type PassportAnswerStatus, type PassportClinicNote, type PassportQuestion, type PassportSession } from '../../../packages/contracts/src/passport';
 import { normalizePassportAnswerStatus } from '../../../packages/contracts/src/passport-plan';
@@ -31,6 +32,7 @@ export default function PetPassport({ pet, demo, entries, episodes, onClose, onA
   const [selectedPhotos, setSelectedPhotos] = useState<string[]>([]), [ownerChecked, setOwnerChecked] = useState(false), [publishToClinic, setPublishToClinic] = useState(false), [publicChecked, setPublicChecked] = useState(false), [expiry, setExpiry] = useState('7');
   const [links, setLinks] = useState<PassportLink[]>([]), [allDemoLinks, setAllDemoLinks] = useState<Record<string, PassportLink[]>>({}), [after, setAfter] = useState<AfterVisitDraft | null>(null), [retry, setRetry] = useState<Retry | null>(null), [conflict, setConflict] = useState(false);
   const generation = useRef(0), localeRef = useRef(locale), createId = useRef(''), input = useRef<HTMLTextAreaElement>(null);
+  const openedAgentSession=useRef('');
   const storageKey = `chordjai.demo.passport.v1.${pet.id}`;
   localeRef.current = locale;
   useEffect(() => {
@@ -67,6 +69,13 @@ export default function PetPassport({ pet, demo, entries, episodes, onClose, onA
       setLinks(latestLinks.filter(link => link.sessionId === latest.id)); setAnswer(''); setReviewId(null); setAfter(null);
     });
   }
+  useEffect(()=>{
+    if(loading||busy||dirty||demo)return;
+    const params=agentEntryParams(window.location.href),id=agentTaskId(params.get('sessionId'));
+    if(!id||openedAgentSession.current===id||(params.get('petId')&&params.get('petId')!==pet.id))return;
+    const saved=sessions.find(item=>item.id===id);if(!saved)return;
+    openedAgentSession.current=id;void load(saved);
+  },[loading,busy,dirty,demo,pet.id,sessions]);
   function start() { createId.current = crypto.randomUUID(); setSession(null); setReason(''); setEpisodeId(''); setHistoryIds([]); setPhotos([]); setPhotoPending(false); setError(''); setNotice(''); setStage('start'); }
   function create() {
     if (!reason.trim() || photoPending) return;

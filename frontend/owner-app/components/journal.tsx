@@ -10,6 +10,7 @@ import { Busy, ErrorBox, Modal, Notice } from './ui';
 import { graphicLabel, JournalGraphic, useJournalGraphics } from './journal-graphics';
 import { boundElement, canvasHeight, orderPages, safeJournalPhoto, scaleElement, STORY_HEIGHT, diaryMemoryPage } from './journal-model';
 import './journal-book.css';
+import {agentEntryParams,agentTaskId} from './agent-result-model';
 
 const colors = ['#ffffff', '#fffaf5', '#ffe3c4', '#ffb777', '#e5f8e9', '#e3f5ff'];
 type Draft = { theme: JournalTheme; elements: JournalElement[] };
@@ -40,6 +41,7 @@ export default function Journal({ pet, demo, initialMemory }: { pet: Pet; demo: 
   const uploadInput = useRef<HTMLInputElement>(null); const swipe = useRef<{x:number;y:number} | null>(null);
   const loadGeneration = useRef(0); const pageCreationKey = useRef(''); const coverCreationKey = useRef('');
   const consumedMemory=useRef('');
+  const openedAgentPage=useRef('');
   useEffect(() => {
     const generation = ++loadGeneration.current; let cancelled = false; coverCreationKey.current=crypto.randomUUID();consumedMemory.current='';setLoadReady(false);
     setScreen('book'); setPage(null); setDirty(false); setSelected(''); setError(''); setNotice(''); setBook(null); setPages([]); setCoverEditing(false);
@@ -60,6 +62,13 @@ export default function Journal({ pet, demo, initialMemory }: { pet: Pet; demo: 
     setScreen('edit');setCoverEditing(false);setDirty(true);setSelected('');setDraft(null);setUndo(null);setConflict(false);
     setNotice(t('นำเรื่องที่เลือกมาเป็นร่างแล้ว แต่งเพิ่มและบันทึกเมื่อพร้อม','Your selected story is now a draft. Decorate it and save when ready.'));
   },[initialMemory?.key,loadReady,busy,pet.id,demo]);
+  useEffect(()=>{
+    if(!loadReady||busy||dirty||demo)return;
+    const params=agentEntryParams(window.location.href),id=agentTaskId(params.get('pageId'));
+    if(!id||openedAgentPage.current===id||(params.get('petId')&&params.get('petId')!==pet.id))return;
+    const index=pages.findIndex(item=>item.id===id);if(index<0)return;
+    openedAgentPage.current=id;setReadIndex(index);setScreen('read');setCoverEditing(false);
+  },[loadReady,busy,dirty,demo,pet.id,pages]);
   useEffect(() => { if(coverEditing && !book && !dirty) setPage(defaultCover()); if (demo) { setPages(current => current.map(item => localizeDemoPage(item,locale))); if (!dirty) setPage(current => current ? localizeDemoPage(current,locale) : current); } },[locale,demo]);
   useEffect(()=>{window.dispatchEvent(new CustomEvent('chordjai:journal-dirty',{detail:{dirty}}));return()=>{window.dispatchEvent(new CustomEvent('chordjai:journal-dirty',{detail:{dirty:false}}));};},[dirty]);
   useEffect(() => {

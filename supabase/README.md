@@ -2,6 +2,16 @@
 
 ใช้ Supabase project เดียวกับ PostgreSQL + pgvector รหัสผู้ใช้และน้องเป็น UUID เวลาเก็บ UTC และแสดงผล Asia/Bangkok ใช้ region/connection hostname ที่ project ของคุณแสดงจริง
 
+## รุ่น 22: LINE Agent — เตรียม local วันที่ 29 ตุลาคม 2026
+
+Migration [`202610290022_line_agent.sql`](migrations/202610290022_line_agent.sql) เพิ่ม `assistant.agent_threads`, `agent_turns`, `agent_tasks`, `agent_tool_calls`, `agent_deliveries` และ `agent_choices` สำหรับคำสั่ง LINE การถามเพิ่ม การยืนยัน แผนงาน ผลอ้างอิง และข้อความตอบที่ retry ได้ ตัวเลือกผูกเจ้าของ/งาน/version/อายุ ใช้ได้ครั้งเดียว แอปอ่านงานของเจ้าของผ่าน RLS ส่วนการเขียนแผนและตัวเลือกเป็นงานระบบที่ตรวจแล้ว โมเดลไม่มี SQL tool
+
+ถอน service consent หรือระงับบัญชีจะยกเลิกงานที่ยังไม่จบและปิดข้อความที่รอส่ง การลบบัญชีลบข้อมูล Agent ตามเจ้าของ scheduler ล้าง raw turns/tasks ที่เกิน 30 วันและเก็บกวาด choices/outbox ตามอายุ แต่ไม่ลบรายการไดอารี่หรือการเตือนที่เจ้าของสั่งบันทึกไว้ ประวัติที่ส่งเข้า AI Chat ใช้วงจรลบของ Chat แยกต่างหาก รายละเอียดใน [LINE_AGENT.md](../docs/LINE_AGENT.md)
+
+**ยังไม่ได้รัน migration 22 ใน Supabase จริง** หลักฐาน production ล่าสุดคือรุ่น **21** ตามหัวข้อประวัติด้านล่าง ผู้ดูแลจะรัน `diagnostic.sql` → `upgrade.sql` → `diagnostic.sql` เองก่อนเปิด `LINE_AGENT_ENABLED=true` ใน backend ค่าเริ่มต้นใน env example เป็น `false`; รอบนี้ไม่แก้ env จริง ไม่ส่ง LINE จริง และไม่เพิ่ม repo/project/service/webhook
+
+`bootstrap.sql` ฉบับนี้รวมถึงรุ่น 22 สำหรับฐานข้อมูลว่างเท่านั้น ฐานข้อมูล ChordJai เดิมใช้ `upgrade.sql` ที่ตรวจ fingerprint/checksum ก่อนเพิ่มเฉพาะ migration ที่ขาด ไม่รัน bootstrap ซ้ำหรือแก้ migration เก่าที่ส่งแล้ว
+
 ## รุ่น 21: Pet Passport แบบ Q&A
 
 เพิ่ม sessions, ประวัติคำตอบ, ฉบับที่เจ้าของยืนยัน, รูปที่เลือก, ลิงก์อ่านอย่างเดียว และบันทึกจากคลินิก พร้อมการเชื่อมผลหลังพบหมอกลับเข้า Care Diary/เรื่องการดูแล/นัดติดตามใน transaction เดียว ใช้สิทธิ์ใหม่ `passport.read` และ `passport.write` แยกจาก grant เดิม หมอที่เขียนต้องมีบทบาท vet ทั้งบัญชีและสมาชิกคลินิก การแก้คำตอบ ลบรูป ถอนความยินยอม หรือเพิกถอนสิทธิ์ทำให้ฉบับเดิมใช้ต่อไม่ได้

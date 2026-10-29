@@ -11,6 +11,7 @@ import { bangkokLocalDateTime, CARE_PAGE_SIZE, CARE_PHOTO_LIMIT, clinicalProject
 import { Busy, Empty, ErrorBox, Modal, Notice } from './ui';
 import dynamic from 'next/dynamic';
 import './care-diary.css';
+import {agentEntryParams,agentTaskId} from './agent-result-model';
 const PetPassport = dynamic(() => import('./pet-passport'), { loading: () => <Busy/> });
 
 export interface CareDiaryProps {
@@ -57,6 +58,7 @@ export default function CareDiary({pet,demo,onMemory,onCheckUrgency,onShare,init
   const photoPreviews=useRef(new Set<string>());
   const [summary,setSummary]=useState<CareSummary|null>(null), [summaryCosts,setSummaryCosts]=useState(false), [summarySelection,setSummarySelection]=useState<string[]>([]);
   const [passportOpen,setPassportOpen]=useState(initialPassport);
+  const [linkedEntry,setLinkedEntry]=useState('');
   const [memory,setMemory]=useState<CareEntry|null>(null), [memoryText,setMemoryText]=useState(false), [memoryPhoto,setMemoryPhoto]=useState('');
   const [episodeEditing,setEpisodeEditing]=useState<CareEpisode|null>(null), [episodeStatus,setEpisodeStatus]=useState<CareEpisodeStatus>('ongoing');
   const generation=useRef(0), localeRef=useRef(locale), creationId=useRef(''), episodeCreationId=useRef(''), submission=useRef<{fingerprint:string;key:string}|null>(null), initialOpened=useRef(false);
@@ -75,6 +77,20 @@ export default function CareDiary({pet,demo,onMemory,onCheckUrgency,onShare,init
     return()=>{generation.current++;controller.abort();for(const url of photoPreviews.current)URL.revokeObjectURL(url);photoPreviews.current.clear();};
   },[pet.id,demo,storageKey]);
   useEffect(()=>{if(initialComposer && !loading && !initialOpened.current){initialOpened.current=true;openComposer('daily');}},[initialComposer,loading]);
+  useEffect(()=>{if(initialPassport)setPassportOpen(true);},[initialPassport]);
+  useEffect(()=>{
+    if(loading||demo)return;
+    const params=agentEntryParams(window.location.href),id=agentTaskId(params.get('entryId'));
+    if(!id||(params.get('petId')&&params.get('petId')!==pet.id))return;
+    const current=generation.current,controller=new AbortController();
+    void api<CareEntry>(`/health/care/entries/${id}`,{signal:controller.signal}).then(entry=>{
+      if(controller.signal.aborted||generation.current!==current)return;
+      if(entry.petId!==pet.id)return;
+      setEntries(items=>mergeCareEntries(items,[entry]));setKindFilter('all');setEpisodeFilter('all');setLinkedEntry(id);
+    }).catch(cause=>{if(!controller.signal.aborted&&generation.current===current)setError(messageOf(cause,localeRef.current));});
+    return()=>controller.abort();
+  },[loading,pet.id,demo]);
+  useEffect(()=>{if(linkedEntry&&entries.some(entry=>entry.id===linkedEntry))document.getElementById(`care-entry-${linkedEntry}`)?.scrollIntoView({block:'center',behavior:'smooth'});},[linkedEntry,entries]);
   useEffect(()=>{window.dispatchEvent(new CustomEvent('chordjai:care-dirty',{detail:{dirty}}));return()=>{window.dispatchEvent(new CustomEvent('chordjai:care-dirty',{detail:{dirty:false}}));};},[dirty]);
   useEffect(()=>{if(!dirty)return;const warn=(event:BeforeUnloadEvent)=>{event.preventDefault();};window.addEventListener('beforeunload',warn);return()=>window.removeEventListener('beforeunload',warn);},[dirty]);
   const visible=entries.filter(entry=>(kindFilter==='all'||entry.kind===kindFilter)&&(episodeFilter==='all'||(episodeFilter==='none'?!entry.episodeId:entry.episodeId===episodeFilter)));
@@ -195,7 +211,7 @@ export default function CareDiary({pet,demo,onMemory,onCheckUrgency,onShare,init
     {loading?<Busy label={t('เปิดเรื่องราวของน้อง…','Opening your pet’s diary…')}/>:<div className="care-layout"><div className="care-main">
       <div className="care-timeline-heading"><h2>{t('ทุกเรื่องที่อยากจำ','The story so far')}</h2><div className="care-passport-actions"><button className="text-button" onClick={()=>setPassportOpen(true)} disabled={busy}><ClipboardList size={18}/>{t('เตรียมพบคุณหมอ','Prepare for the vet')}</button>{entries.length?<button className="text-button" onClick={()=>void openSummary()} disabled={busy}>{t('สรุปสุขภาพที่บันทึกไว้','Recorded health summary')}</button>:null}</div></div>
       <div className="care-filters"><div role="group" aria-label={t('กรองประเภทบันทึก','Filter updates')}>{(['all','daily','symptom','visit','followup'] as const).map(kind=><button key={kind} aria-pressed={kindFilter===kind} onClick={()=>setKindFilter(kind)}>{kind==='all'?t('ทั้งหมด','All'):kindLabel(kind,t)}</button>)}</div><label className="care-episode-filter"><span className="sr-only">{t('กรองเรื่องที่ดูแล','Filter care episodes')}</span><select aria-label={t('กรองเรื่องที่ดูแล','Filter care episodes')} value={episodeFilter} onChange={event=>setEpisodeFilter(event.target.value)}><option value="all">{t('ทุกเรื่องที่ดูแล','All care episodes')}</option><option value="none">{t('ยังไม่เชื่อมกับเรื่องที่ดูแล','No care episode')}</option>{episodes.map(item=><option key={item.id} value={item.id}>{item.title}</option>)}</select></label></div>
-      {!visible.length?<Empty icon={<BookHeart size={34}/>} title={entries.length?t('ยังไม่มีบันทึกในหมวดนี้','No updates in this view'):t('เริ่มจากเรื่องเล็ก ๆ วันนี้ก็ได้','Start with one little moment today')} detail={t('พิมพ์สั้น ๆ ว่าน้องเป็นอย่างไร ไม่ต้องกรอกข้อมูลครบทุกช่อง','A few words about how your pet is doing are enough. You do not need to fill in every field.')}/>:<ol className="care-timeline">{visible.map(entry=>{const Icon=icons[entry.kind], episode=episodes.find(item=>item.id===entry.episodeId);return <li className="care-entry" key={entry.id}>
+      {!visible.length?<Empty icon={<BookHeart size={34}/>} title={entries.length?t('ยังไม่มีบันทึกในหมวดนี้','No updates in this view'):t('เริ่มจากเรื่องเล็ก ๆ วันนี้ก็ได้','Start with one little moment today')} detail={t('พิมพ์สั้น ๆ ว่าน้องเป็นอย่างไร ไม่ต้องกรอกข้อมูลครบทุกช่อง','A few words about how your pet is doing are enough. You do not need to fill in every field.')}/>:<ol className="care-timeline">{visible.map(entry=>{const Icon=icons[entry.kind], episode=episodes.find(item=>item.id===entry.episodeId);return <li className={`care-entry ${linkedEntry===entry.id?'care-agent-linked':''}`} id={`care-entry-${entry.id}`} key={entry.id}>
         <div className="care-entry-top"><span className="care-type"><Icon size={17}/>{kindLabel(entry.kind,t)}</span><time dateTime={entry.observedAt}>{reportDate(entry.observedAt,locale)}</time></div><h3>{entry.title}</h3><p className="care-narrative">{entry.narrative}</p>
         {entry.passportSource?<p className="care-passport-source"><ClipboardList size={14}/>{entry.passportSource.kind==='owner_confirmed_clinic_note'?t('เจ้าของตรวจและบันทึกผลโดยอ้างอิงโน้ตคลินิก','Owner-reviewed update linked to a clinic note'):t('เจ้าของยืนยันผลหลังพบหมอจาก Passport','Owner-confirmed visit results from Passport')}</p>:null}
         {episode?<button className="care-episode-tag" onClick={()=>setEpisodeFilter(episode.id)}>{episode.title}<span>{episodeLabel(episode.status,t)}</span></button>:null}

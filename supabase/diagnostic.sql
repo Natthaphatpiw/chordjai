@@ -50,7 +50,8 @@ select jsonb_build_object('fingerprint',md5(details::text),'details',details) as
  (18,'202610120018','202610120018_personalized_followups.sql','d97d1d3156bf85d6dda7bfd850d86d0c'),
  (19,'202610120019','202610120019_petid_capture_review.sql','64167dbd0c3abda6a38cf9ae24dd9e36'),
  (20,'202610120020','202610120020_petid_dataset_exports.sql','0c2dfee5c0d1fcd947fea70cbeca3968'),
- (21,'202610130021','202610130021_pet_passport.sql','5ff3a6478e28e83e84c4ffb6d5f74478')
+ (21,'202610130021','202610130021_pet_passport.sql','5ff3a6478e28e83e84c4ffb6d5f74478'),
+ (22,'202610290022','202610290022_line_agent.sql','1fa6dec40eefeeea2f053758c500131c')
 ), inferred as (
  select max(k.ordinal) as version from known k,current_state s where k.fingerprint=s.state->>'fingerprint'
 )
@@ -93,6 +94,7 @@ select jsonb_build_object(
  when 19 then (to_regclass('biometric.capture_checks') is not null and to_regclass('biometric.capture_reviews') is not null)
  when 20 then (to_regclass('biometric.dataset_exports') is not null and to_regclass('biometric.training_eligible_samples') is not null)
  when 21 then (to_regclass('health.passport_sessions') is not null and to_regclass('health.passport_snapshots') is not null and to_regprocedure('health.passport_clinic_access(uuid,uuid,text)') is not null)
+ when 22 then (to_regclass('assistant.agent_tasks') is not null and to_regclass('assistant.agent_deliveries') is not null)
  end,
    'is_exact_current_state',k.fingerprint=s.state->>'fingerprint') order by k.ordinal) from known k)
 ) as chordjai_diagnostic from current_state s cross join inferred i;

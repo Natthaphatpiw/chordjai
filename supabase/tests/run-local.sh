@@ -27,6 +27,7 @@ done
 if ! "$test_ready"; then echo 'Isolated PostgreSQL did not become ready.' >&2; exit 1; fi
 docker exec -i "$test_container" psql -U postgres -q -v ON_ERROR_STOP=1 < "$test_root/supabase/bootstrap.sql"
 docker exec -i "$test_container" psql -U postgres -q -v ON_ERROR_STOP=1 < "$test_root/supabase/tests/security.sql"
+docker exec -i "$test_container" psql -U postgres -q -v ON_ERROR_STOP=1 < "$test_root/supabase/tests/line_agent.sql"
 docker exec -i "$test_container" psql -U postgres -q -v ON_ERROR_STOP=1 < "$test_root/supabase/tests/petid_index.sql"
 python3 "$test_root/supabase/tests/concurrency.py" "$test_container"
 python3 "$test_root/supabase/tests/upgrade.py" "$test_container"
@@ -37,5 +38,5 @@ if "$http_tests"; then
   cd "$test_root"
   # These suites share a gallery and test exact global candidate counts.
   # Run files serially so one suite's synthetic lost pet cannot enter another.
-  TEST_DATABASE_URL="$test_url" npx --no-install vitest run --maxWorkers=1 tests/integration.test.ts backend/biometric/src/hybrid.integration.test.ts backend/health/src/import.integration.test.ts backend/journal/src/book.integration.test.ts backend/biometric/src/photos.integration.test.ts backend/health/src/care.integration.test.ts backend/analytics/src/care-kpis.integration.test.ts backend/biometric/src/research.integration.test.ts backend/notification/src/followup.integration.test.ts backend/analytics/src/ip-followup-kpis.integration.test.ts backend/biometric/src/review.integration.test.ts backend/biometric/src/dataset.integration.test.ts backend/health/src/passport.integration.test.ts backend/clinic/src/passport.integration.test.ts backend/share/src/passport.integration.test.ts
+  TEST_DATABASE_URL="$test_url" npx --no-install vitest run --maxWorkers=1 tests/integration.test.ts backend/biometric/src/hybrid.integration.test.ts backend/health/src/import.integration.test.ts backend/journal/src/book.integration.test.ts backend/biometric/src/photos.integration.test.ts backend/health/src/care.integration.test.ts backend/analytics/src/care-kpis.integration.test.ts backend/biometric/src/research.integration.test.ts backend/notification/src/followup.integration.test.ts backend/analytics/src/ip-followup-kpis.integration.test.ts backend/biometric/src/review.integration.test.ts backend/biometric/src/dataset.integration.test.ts backend/health/src/passport.integration.test.ts backend/clinic/src/passport.integration.test.ts backend/share/src/passport.integration.test.ts backend/assistant/src/agent.integration.test.ts
 fi

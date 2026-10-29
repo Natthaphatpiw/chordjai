@@ -14,6 +14,7 @@ import { Modal, ErrorBox, Notice, Empty, Busy } from './ui';
 import { RecordIcon } from './record-icon';
 import { MAX_BOOKLET_PAGES, MAX_BOOKLET_IMAGE_BYTES, moveBookletPage, prepareBookletPhoto, bookletSaveKey, specificBookletWarnings, readyBookletEntry, type BookletPage } from './booklet';
 import './health-booklet.css';
+import {agentEntryParams,agentTaskId} from './agent-result-model';
 type OcrRecord = Omit<HealthRecord,'id'|'petId'|'recordedAt'> & {recordedAt:string|null;sourcePage:number};
 function useKindNames(){const {t}=useLocale();return {vaccine:t("วัคซีน","Vaccines"),weight:t("น้ำหนัก","Weight"),medication:t("ยา","Medication"),parasite:t("การป้องกันปรสิต","Parasite prevention"),checkin:t("เช็กอิน","Check-in"),note:t("บันทึกทั่วไป","General note")};}
 export function Health({pet,records,demo,onRecords,onError,onShare,onMemory,startDiary=false,startTriage=false,startOcr=false}:{startDiary?:boolean;startTriage?:boolean;startOcr?:boolean;onMemory:(draft:CareMemoryDraft)=>void;pet:Pet;records:HealthRecord[];demo:boolean;onRecords:(records:HealthRecord[])=>void;onError:(message:string)=>void;onShare:()=>void}) { const {locale,t}=useLocale(); const kindNames=useKindNames();
@@ -23,6 +24,7 @@ export function Health({pet,records,demo,onRecords,onError,onShare,onMemory,star
   useEffect(()=>{const changed=(event:Event)=>{careDirty.current=Boolean((event as CustomEvent<{dirty:boolean}>).detail?.dirty);};window.addEventListener('chordjai:care-dirty',changed);return()=>window.removeEventListener('chordjai:care-dirty',changed);},[]);
   function changeView(next:'diary'|'booklet'){if(next===view)return;if(careDirty.current&&!window.confirm(t('มีบันทึกดูแลที่ยังไม่ได้บันทึก ต้องการออกโดยไม่บันทึกหรือไม่?','You have an unsaved care entry. Leave without saving?')))return;careDirty.current=false;setView(next);}
   const [adding,setAdding]=useState(false);const [ocr,setOcr]=useState(startOcr);const [triage,setTriage]=useState(startTriage);const [filter,setFilter]=useState('all');const [notice,setNotice]=useState('');const [busy,setBusy]=useState(false);
+  useEffect(()=>{const params=agentEntryParams(window.location.href);if(params.get('petId')&&params.get('petId')!==pet.id)return;if(agentTaskId(params.get('recordId'))){setView('booklet');setFilter('all');}else if(agentTaskId(params.get('sessionId'))){setView('diary');setPassportStart(true);}},[pet.id]);
   const upcoming=records.filter(item=>item.nextDueAt).slice().sort((a,b)=>(a.nextDueAt||'').localeCompare(b.nextDueAt||'')).slice(0,3);
   const weights=records.filter(item=>item.kind==='weight'&&item.value!=null).sort((a,b)=>a.recordedAt.localeCompare(b.recordedAt));
   const currentWeight=weights.at(-1)?.value??pet.weightKg;

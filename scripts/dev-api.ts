@@ -19,10 +19,10 @@ const app=new Hono();
 const routes:[RegExp,typeof identity][]=[
   [/^\/api\/v1\/identity(?:\/|$)/,identity],[/^\/api\/v1\/(?:pets|invitations)(?:\/|$)/,pet],
   [/^\/api\/v1\/health(?:\/|$)/,health],[/^\/api\/v1\/journal(?:\/|$)/,journal],
-  [/^\/api\/v1\/assistant(?:\/|$)/,assistant],[/^\/api\/v1\/triage(?:\/|$)/,triage],
+  [/^\/api\/v1\/assistant(?:\/|$)|^\/internal\/agent\/(?:ingest|execute|deliver)$/,assistant],[/^\/api\/v1\/triage(?:\/|$)/,triage],
   [/^\/api\/v1\/(?:biometric|petid)(?:\/|$)/,biometric],[/^\/api\/v1\/lostfound(?:\/|$)/,lostfound],
   [/^\/api\/v1\/(?:clinic|clinics)(?:\/|$)/,clinic],[/^\/api\/v1\/share(?:\/|$)/,share],
-  [/^\/api\/v1\/notification(?:\/|$)|^\/internal\/(?:process-line|reminders)$/,notification],
+  [/^\/api\/v1\/notification(?:\/|$)|^\/internal\/(?:process-line|reminders|followups)$|^\/internal\/agent\/capture-followup$/,notification],
   [/^\/api\/v1\/media(?:\/|$)/,media],[/^\/api\/v1\/analytics(?:\/|$)/,analytics],
   [/^\/internal\/cron\//,scheduler]
 ];

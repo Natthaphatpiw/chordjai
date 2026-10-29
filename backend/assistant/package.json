@@ -10,11 +10,23 @@
     ".": "./src/app.ts"
   },
   "dependencies": {
+    "@chordjai/auth": "*",
+    "@chordjai/pet": "*",
+    "@chordjai/health": "*",
+    "@chordjai/journal-service": "*",
+    "@chordjai/notification-service": "*",
+    "@chordjai/clinic": "*",
+    "@chordjai/biometric-service": "*",
+    "@chordjai/lostfound": "*",
+    "@chordjai/share": "*",
     "@chordjai/db": "*",
     "@chordjai/service-kit": "*",
     "@chordjai/contracts": "*",
     "hono": "^4.13.13",
     "zod": "^4.0.0",
-    "@chordjai/ai": "*"
+    "@chordjai/ai": "*",
+    "@vercel/functions": "^3.4.0",
+    "@chordjai/queue": "*",
+    "@chordjai/line": "*"
   }
 }

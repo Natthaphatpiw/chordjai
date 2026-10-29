@@ -1,14 +1,16 @@
 import {createHash,randomBytes,timingSafeEqual} from 'node:crypto';
 import {z} from 'zod';
+import {waitUntil} from '@vercel/functions';
 import {withUser,withSystem} from '@chordjai/db';
 import {enqueue} from '@chordjai/queue';
 import {verifyWebhookSignature,replyLine,pushLine,appLink,LineApiError} from '@chordjai/line';
 import {createService,getActor,HttpError,jsonBody,ok,camel,uuid,type ServiceContext} from '@chordjai/service-kit';
 import {buildCalendar} from './calendar.js';
 import {registerFollowupRoutes,processFollowups,followupCommand,processFollowupCommand,captureFollowupReply} from './followup.js';
+import {queueAgentLineEvent} from './agent-channel.js';
 export const app=createService('notification');
 registerFollowupRoutes(app);
-const lineEventSchema=z.object({webhookEventId:z.string().min(1).max(100),type:z.string().max(80),replyToken:z.string().max(200).optional(),source:z.object({type:z.string(),userId:z.string().max(100).optional()}),message:z.object({type:z.string(),text:z.string().max(5000).optional()}).passthrough().optional()}).passthrough();
+const lineEventSchema=z.object({webhookEventId:z.string().min(1).max(100),type:z.string().max(80),replyToken:z.string().max(200).optional(),source:z.object({type:z.string(),userId:z.string().max(100).optional()}),message:z.object({type:z.string(),text:z.string().max(5000).optional()}).passthrough().optional(),postback:z.object({data:z.string().min(1).max(300)}).passthrough().optional()}).passthrough();
 type LineEvent=z.infer<typeof lineEventSchema>;
 const hash=(token:string)=>createHash('sha256').update(token).digest('hex');
 function requireCron(c:ServiceContext){
@@ -21,7 +23,9 @@ app.post('/api/v1/notification/webhooks/line',async c=>{
   const bytes=new Uint8Array(await c.req.raw.arrayBuffer());
   if(!verifyWebhookSignature(bytes,c.req.header('x-line-signature')))throw new HttpError(401,'INVALID_LINE_SIGNATURE','LINE signature is invalid');
   let payload:unknown;try{payload=JSON.parse(new TextDecoder().decode(bytes));}catch{throw new HttpError(400,'INVALID_JSON','Invalid webhook body');}
-  const body=z.object({events:z.array(lineEventSchema).max(100),destination:z.string().optional()}).parse(payload);
+  const parsed=z.object({events:z.array(lineEventSchema).max(100),destination:z.string().optional()}).safeParse(payload);
+  if(!parsed.success)throw new HttpError(400,'INVALID_LINE_EVENT','LINE event body is invalid');
+  const body=parsed.data;
   for(const event of body.events){
     await withSystem(async tx=>{
       const inserted=await tx.query<{id:string}>('insert into notify.webhook_events(event_id,event_type,payload) values($1,$2,$3::jsonb) on conflict(event_id) do nothing returning id',[event.webhookEventId,event.type,JSON.stringify(event)]);
@@ -29,6 +33,7 @@ app.post('/api/v1/notification/webhooks/line',async c=>{
     });
   }
   // LINE verification sends an empty events array and must also return 200.
+  if(process.env.VERCEL&&process.env.LINE_AGENT_ENABLED==='true')waitUntil(Promise.allSettled(body.events.map(event=>processLineEvent(event.webhookEventId))));
   return ok(c,{accepted:true});
 });
 export async function processLineEvent(eventId:string){
@@ -38,6 +43,9 @@ export async function processLineEvent(eventId:string){
   const user=lineUserId?await withSystem(async tx=>(await tx.query<{id:string}>('select id from identity.users where line_user_id=$1 and status=\'active\'',[lineUserId])).rows[0]):null;
   if(user&&(event.type==='follow'||event.type==='unfollow'))await withSystem(tx=>tx.query(`insert into notify.line_accounts(user_id,followed) values($1,$2) on conflict(user_id) do update set followed=excluded.followed,updated_at=now()`,[user.id,event.type==='follow']));
   const command=event.type==='message'&&event.message?.type==='text'?followupCommand(event.message.text??''):null;
+  // PAUSE/RESUME remains deterministic and takes precedence over model routing.
+  // The agent owns clarification/acknowledgement/completion for queued turns.
+  if(user&&!command&&await queueAgentLineEvent(user.id,event))return;
   let specialReply:string|null=null;
   if(user&&event.source.type==='user'&&command){
     const result=await processFollowupCommand(user.id,command);
@@ -57,6 +65,13 @@ export async function processLineEvent(eventId:string){
 }
 app.post('/internal/process-line',async c=>{
   requireCron(c);const body=await jsonBody(c,z.object({eventId:z.string().min(1).max(100)}));await processLineEvent(body.eventId);return ok(c,{processed:true});
+});
+app.post('/internal/agent/capture-followup',async c=>{
+  requireCron(c);
+  const body=await jsonBody(c,z.object({userId:z.uuid(),eventId:z.string().min(1).max(100),text:z.string().min(1).max(5000)}).strict());
+  // Only the classifier's non-action route calls this. Never record a command
+  // as an unrelated follow-up reply before the input has been classified.
+  return ok(c,{captured:await captureFollowupReply(body.userId,body.eventId,body.text)});
 });
 app.get('/api/v1/notification/inbox',async c=>{
   const actor=getActor(c);return ok(c,camel(await withUser(actor.id,async tx=>(await tx.query('select * from notify.inbox where user_id=$1 order by created_at desc limit 100',[actor.id])).rows)));

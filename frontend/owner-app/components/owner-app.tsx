@@ -21,16 +21,19 @@ import { Health } from './health';
 import { Care } from './care';
 import PetId from './petid';
 import { PrivacySettings } from './settings';
+import {agentDestinationPath,agentEntryParams,agentTaskId,type AgentDestinationTab} from './agent-result-model';
 function JournalLoading(){const {t}=useLocale();return <Busy label={t("กำลังเปิดสมุด","Opening your journal")}/>;}
 function AssistantLoading(){const {t}=useLocale();return <Busy label={t("กำลังเปิดผู้ช่วย","Opening your assistant")}/>;}
 const Journal = dynamic(() => import('./journal'), { loading: JournalLoading });
 const Assistant = dynamic(() => import('./assistant'), { loading: AssistantLoading });
+const AgentResult = dynamic(() => import('./agent-result'), { loading: AssistantLoading });
 type Tab = 'home' | 'health' | 'journal' | 'chat' | 'care' | 'settings';
 function useTabs(){const {t}=useLocale();return [{ id: 'home', label: t("หน้าหลัก","Home"), icon: Home }, { id: 'health', label: t("สมุดสุขภาพ","Health journal"), icon: Heart }, { id: 'journal', label: t("ความทรงจำ","Memories"), icon: NotebookPen }, { id: 'chat', label: t("ผู้ช่วยของเรา","Assistant"), icon: MessageCircle }, { id: 'care', label: t("คลินิกและ PetID","Clinics & PetID"), icon: MapPin }, { id: 'settings', label: t("ตั้งค่าของเรา","Settings"), icon: Settings }] as const;}
 function loadDemo<T>(key: string, fallback: T): T { try { return JSON.parse(localStorage.getItem(key) ?? 'null') as T ?? fallback; } catch { return fallback; } }
-export default function OwnerApp() { const {locale,t}=useLocale(); const tabs=useTabs();
+export default function OwnerApp() { const {locale,t,setLocale}=useLocale(); const tabs=useTabs();
   const [mode, setMode] = useState<'choose' | 'demo' | 'live'>('choose');
   const [tab, setTab] = useState<Tab>('home');
+  const [agentTask,setAgentTask]=useState<string|null>(null);
   const [startTriage,setStartTriage]=useState(false);
   const [startOcr,setStartOcr]=useState(false);
   const [startDiary,setStartDiary]=useState(false);
@@ -92,7 +95,7 @@ export default function OwnerApp() { const {locale,t}=useLocale(); const tabs=us
     clearLineSession();
     journalDirty.current = false; careDirty.current=false;petidResearchDirty.current=false;followupDirty.current=false;
     setMode('choose'); setPets([]); setRecords([]); setConsent(false); setServiceAccepted(false); setAiConsent(false);
-    setShowInbox(false); setInbox([]); setShareLink(null);setShareOptions(false);setMemoryDraft(null); setAddingPet(false); setLoading(false); setAuthChecking(false); setError(''); setNotice('');
+    setShowInbox(false); setInbox([]); setShareLink(null);setShareOptions(false);setMemoryDraft(null);setAgentTask(null); setAddingPet(false); setLoading(false); setAuthChecking(false); setError(''); setNotice('');
   }
   useEffect(() => {
     const changed = (event: Event) => { journalDirty.current = Boolean((event as CustomEvent<{dirty:boolean}>).detail?.dirty); };
@@ -110,15 +113,23 @@ export default function OwnerApp() { const {locale,t}=useLocale(); const tabs=us
     followupOpened.current=id;
     void api(`/notification/followup/${encodeURIComponent(id)}/opened`,{method:'POST'}).catch(()=>{});
   },[mode,consent]);
+  useEffect(()=>{
+    if(mode!=='live'||!agentTask)return;
+    const requestedLocale=agentEntryParams(window.location.href).get('lang');
+    // Wait until the authenticated entry has mounted; the provider's initial
+    // locale effect otherwise races a nested LIFF state preference.
+    if((requestedLocale==='th'||requestedLocale==='en')&&requestedLocale!==locale)setLocale(requestedLocale);
+  },[mode,agentTask,setLocale]);
   useEffect(() => { window.scrollTo({ top: 0, left: 0, behavior: 'instant' }); }, [mode]);
   useEffect(()=>{if(demo)setPets(current=>localizeDemoPets(current,locale));},[locale,demo]);
   useEffect(() => {
     mounted.current = true;
     const run = ++asyncEpoch.current;
-    const search = new URLSearchParams(window.location.search);
+    const search = agentEntryParams(window.location.href);
+    setAgentTask(agentTaskId(search.get('agentTaskId')));
     setInvitation(search.get('invite') || '');
     const requested = search.get('tab');
-    if (requested && ['home','health','journal','chat','settings'].includes(requested)) setTab(requested as Tab);
+    if (requested && ['home','health','journal','chat','care','settings'].includes(requested)) setTab(requested as Tab);
     else if (requested === 'triage') { setTab('health'); setStartTriage(true); }
     else if (requested && ['care','clinics','lostfound','petid'].includes(requested)) { setTab('care'); setCareStart(requested === 'clinics' ? 'clinics' : 'lost'); }
     void bootstrap(run);
@@ -137,7 +148,7 @@ export default function OwnerApp() { const {locale,t}=useLocale(); const tabs=us
       api<Pet[]>('/pets'), api<{purpose:string;granted:boolean}[]>('/identity/consents'),
     ]);
     if (!current(run)) return;
-    const requestedPetId=new URLSearchParams(window.location.search).get('petId');
+    const requestedPetId=agentEntryParams(window.location.href).get('petId');
     const selectedPet=data.find(item=>item.id===requestedPetId)??data[0];
     setPets(data); setSelectedId(selectedPet?.id || ''); setMode('live');
     setConsent(!permissions.some(item => item.purpose === 'service' && item.granted));
@@ -164,6 +175,17 @@ export default function OwnerApp() { const {locale,t}=useLocale(); const tabs=us
     try { const data = await api<Pet[]>('/pets'); if (current(run)) { setPets(data); setSelectedId(selected => selected || data[0]?.id || ''); } }
     catch (caught) { if (current(run)) setError(messageOf(caught,localeRef.current)); }
     finally { if (current(run)) setLoading(false); }
+  }
+  function agentContext(context:{petId:string|null;tab:AgentDestinationTab|null}){
+    if(!mayLeaveJournal())return;
+    if(context.petId&&pets.some(item=>item.id===context.petId))setSelectedId(context.petId);
+    if(context.tab)setTab(context.tab);
+  }
+  function openAgentPath(path:string){
+    const safe=agentDestinationPath(path);if(!safe||!mayLeaveJournal())return;
+    // Reload the ordinary resource route so its fresh API reads and normal
+    // access checks apply; task links never become public capability links.
+    window.location.assign(safe);
   }
   async function login() {
     const run = ++asyncEpoch.current;
@@ -218,6 +240,7 @@ export default function OwnerApp() { const {locale,t}=useLocale(); const tabs=us
     </main><footer className="app-footer"><span>{t("ชิดใจ · อยู่ใกล้ใจ ในทุกวันของน้อง","ChordJai · Close at heart, every day")}</span><Link href={localizedHref("/ai-safety",locale)} onClick={event=>{if(!mayLeaveJournal())event.preventDefault();}}>{t("AI เป็นผู้ช่วย ไม่แทนสัตวแพทย์","AI supports you. It does not replace a vet.")}</Link></footer></div>
     <nav className="mobile-nav" aria-label={t("เมนูมือถือ","Mobile navigation")}>{tabs.slice(0,5).map(({ id, label, icon: Icon }) => <button key={id} onClick={() => changeTab(id)} className={tab === id ? 'active' : ''}><Icon size={21}/><span>{id === 'care' ? t("ดูแลน้อง","Care") : label}</span></button>)}</nav>
     {invitation&&mode==='live'?<Modal title={t("ร่วมดูแลน้องไปด้วยกัน","Care for your pet together")} onClose={()=>setInvitation('')}><Notice>{t("รับคำเชิญนี้เพื่อเข้าถึงข้อมูลน้องตามบทบาทที่เจ้าของเลือก หากไม่แน่ใจว่าลิงก์มาจากใคร ให้ปิดหน้าต่างนี้","Accept this invitation for the access the owner selected. Close this window if you don't know who sent the link.")}</Notice><button className="button full" disabled={loading} onClick={async()=>{setLoading(true);try{const data=await api<{petId:string}>(`/invitations/${encodeURIComponent(invitation)}/accept`,{method:'POST'});setInvitation('');await refreshPets();changePet(data.petId);setNotice(t("รับคำเชิญแล้ว คุณดูแลน้องตามสิทธิ์ที่เจ้าของเลือกได้","Invitation accepted. You can now access this pet according to your assigned role."));}catch(error){setError(messageOf(error,locale));}finally{setLoading(false);}}}><Users size={18}/>{t("รับคำเชิญ","Accept invitation")}</button></Modal>:null}
+    {agentTask&&mode==='live'&&!consent?<AgentResult id={agentTask} onClose={()=>setAgentTask(null)} onContext={agentContext} onOpen={openAgentPath}/>:null}
     {addingPet ? <PetForm demo={demo} onClose={() => setAddingPet(false)} onCreated={item => { const next = [...pets, item]; if (demo) persistPets(next); else setPets(next); changePet(item.id); setAddingPet(false); setNotice(t(`เพิ่ม ${item.name} แล้ว เริ่มจากสแกนสมุดวัคซีนได้เลย`,`${item.name} added. You can start by scanning a vaccine booklet.`)); }}/> : null}
     {showInbox ? <Modal title={t("กล่องแจ้งเตือน","Notifications")} onClose={() => setShowInbox(false)}>{inbox.length ? inbox.map(item => <div className="timeline-item" key={item.id}><Bell size={20}/><div><b>{item.title}</b><p>{item.body}</p><small>{dateForLocale(item.createdAt,locale)}</small></div></div>) : <Empty icon={<Bell size={28}/>} title={demo ? t("ไม่มีแจ้งเตือนในพื้นที่ตัวอย่าง","No notifications in the demo") : t("ยังไม่มีการแจ้งเตือน","No notifications yet")} detail={t("เรื่องสำคัญของน้องจะอยู่ตรงนี้","Your pet's important updates will appear here.")}/>}</Modal> : null}
     {consent ? <Modal title={t("เลือกสิ่งที่คุณยินยอม","Choose your permissions")} onClose={() => setConsent(false)}><p>{t("ข้อมูลสุขภาพของน้องจะใช้เพื่อให้บริการ ข้อมูลที่ส่งให้ AI ผ่าน OpenAI อาจประมวลผลนอกประเทศไทย","Your pet's health information is used to provide the service. OpenAI may process AI requests outside Thailand.")}</p><label className="check-field"><input type="checkbox" checked={serviceAccepted} onChange={event => setServiceAccepted(event.target.checked)}/>{t("ยอมรับการใช้ข้อมูลเพื่อให้บริการตาม ","I agree to the use of data to provide the service under the ")}<Link href={localizedHref("/privacy",locale)}>{t("นโยบายความเป็นส่วนตัว","Privacy policy")}</Link></label><label className="check-field"><input type="checkbox" checked={aiConsent} onChange={event => setAiConsent(event.target.checked)}/>{t("อนุญาตใช้ข้อมูลเพื่อพัฒนา AI (ไม่บังคับ)","Allow data to improve AI (optional)")}</label><button className="button full" disabled={!serviceAccepted} onClick={async () => { try { await api('/identity/consents', json('POST', { purpose: 'service', granted: true })); await api('/identity/consents', json('POST', { purpose: 'ai_improvement', granted: aiConsent })); setConsent(false); } catch (error) { setError(messageOf(error,locale)); } }}>{t("บันทึกตัวเลือก ","Save choices")}<Check size={18}/></button></Modal> : null}
