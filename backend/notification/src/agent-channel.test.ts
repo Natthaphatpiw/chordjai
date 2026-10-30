@@ -14,12 +14,12 @@ import {LineApiError} from '@chordjai/line';
 
 const userId='10101010-1010-4010-8010-101010101010';
 const event={webhookEventId:'agent-event',type:'message',replyToken:'fixture-reply-token',source:{type:'user',userId:`U${'a'.repeat(32)}`},message:{type:'text',text:'วันนี้พาน้องถั่วเหลืองไปหยอดหลังคอมา บันทึกไว้ให้หน่อย',markAsReadToken:'fixture-read-token'}};
-let currentEvent:unknown=event,processed=false,accountMatches=true,serviceConsent=true,webhookInserted=true,turnDone=false,threadLanguage='th';
+let currentEvent:unknown=event,processed=false,accountMatches=true,serviceConsent=true,webhookInserted=true,turnDone=false,threadLanguage='th',choiceJobEvent=event.webhookEventId;
 beforeEach(()=>{
  vi.stubEnv('LINE_AGENT_ENABLED','true');vi.stubEnv('CRON_SECRET','private-test-secret-at-least-32-characters');
  vi.stubEnv('VERCEL','');vi.stubEnv('ASSISTANT_INTERNAL_URL','');vi.stubEnv('LINE_CHANNEL_SECRET','private-line-signature-fixture');
  vi.stubGlobal('fetch',vi.fn(()=>{throw new Error('Unexpected live network call');}));
- currentEvent=event;processed=false;accountMatches=true;serviceConsent=true;webhookInserted=true;turnDone=false;threadLanguage='th';mock.order.length=0;mock.pending.length=0;mock.command.mockReturnValue(null);mock.capture.mockResolvedValue(false);
+ currentEvent=event;processed=false;accountMatches=true;serviceConsent=true;webhookInserted=true;turnDone=false;threadLanguage='th';choiceJobEvent=event.webhookEventId;mock.order.length=0;mock.pending.length=0;mock.command.mockReturnValue(null);mock.capture.mockResolvedValue(false);
  mock.reply.mockImplementation(async()=>{mock.order.push('ack');});mock.read.mockImplementation(async()=>{mock.order.push('read');});mock.loading.mockImplementation(async()=>{mock.order.push('loading');});
  mock.enqueue.mockImplementation(async(topic:string)=>{mock.order.push(`enqueue:${topic}`);return'job';});
  mock.waitUntil.mockImplementation((promise:Promise<unknown>)=>{mock.order.push('waitUntil');mock.pending.push(promise);});
@@ -31,6 +31,7 @@ beforeEach(()=>{
    :sql.startsWith('select processed_at from notify.webhook_events')?[{processed_at:processed?new Date():null}]
    :sql.startsWith('select u.id,')?(accountMatches&&serviceConsent?[{id:userId,language:threadLanguage}]:[])
    :sql.startsWith('select state from assistant.agent_turns')?(turnDone?[{state:'done'}]:[])
+   :sql.startsWith("select payload->>'eventId' event_id from ops.jobs")?[{event_id:choiceJobEvent}]
    :sql.startsWith('insert into notify.webhook_events')?(webhookInserted?[{id:'webhook-fixture'}]:[])
    :[];
   return{rows,rowCount:rows.length};
@@ -41,6 +42,23 @@ async function drainBackground(){while(mock.pending.length)await Promise.allSett
 async function signedWebhook(value:unknown=event,valid=true){const body=JSON.stringify({events:Array.isArray(value)?value:[value]});const signature=valid?createHmac('sha256',process.env.LINE_CHANNEL_SECRET!).update(body).digest('base64'):'invalid';return app.request('http://localhost/api/v1/notification/webhooks/line',{method:'POST',headers:{'Content-Type':'application/json','x-line-signature':signature},body});}
 
 describe('private LINE event handoff to durable agent turns',()=>{
+ it('deduplicates repeated taps with new event IDs before queue work, ACKs, or loading',async()=>{
+  const data='agent:choice:20202020-2020-4020-8020-202020202020';
+  const first={...event,type:'postback',message:undefined,postback:{data}};
+  expect(await queueAgentLineEvent(userId,first)).toBe(true);
+  expect(mock.reply).toHaveBeenCalledOnce();expect(mock.loading).toHaveBeenCalledOnce();
+  expect(mock.enqueue).toHaveBeenLastCalledWith('agent.turn',{eventId:event.webhookEventId,userId},`agent-choice:${userId}:20202020-2020-4020-8020-202020202020`,expect.anything());
+  for(let i=0;i<9;i++)expect(await queueAgentLineEvent(userId,{...first,webhookEventId:`new-tap-${i}`})).toBe(true);
+  expect(new Set(mock.enqueue.mock.calls.map(call=>call[2])).size).toBe(1);
+  expect(mock.reply).toHaveBeenCalledOnce();expect(mock.loading).toHaveBeenCalledOnce();
+  expect(mock.query.mock.calls.filter(([sql])=>sql.includes("processed_at=now(),payload='{}'::jsonb"))).toHaveLength(9);
+ });
+ it('keeps the keyboard button reusable across separate tap event IDs',async()=>{
+  for(let i=0;i<2;i++)await queueAgentLineEvent(userId,{...event,webhookEventId:`keyboard-${i}`,type:'postback',message:undefined,postback:{data:'agent:compose:20202020-2020-4020-8020-202020202020'}});
+  expect(mock.enqueue.mock.calls.map(call=>call[2])).toEqual(['agent-turn:keyboard-0','agent-turn:keyboard-1']);
+  expect(mock.query.mock.calls.some(([sql])=>sql.startsWith("select payload->>'eventId' event_id from ops.jobs"))).toBe(false);
+  expect(mock.reply).not.toHaveBeenCalled();expect(mock.loading).not.toHaveBeenCalled();
+ });
  it('does nothing while rollout flag is disabled',async()=>{vi.stubEnv('LINE_AGENT_ENABLED','false');expect(await queueAgentLineEvent(userId,event)).toBe(false);expect(mock.query).not.toHaveBeenCalled();});
  it('rejects group/room, empty, image, missing source and oversized postbacks',()=>{
   expect(isAgentLineEvent(event)).toBe(true);

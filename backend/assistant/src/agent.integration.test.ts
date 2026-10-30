@@ -224,6 +224,56 @@ describe.skipIf(!isolated)('durable LINE Agent with isolated PostgreSQL and mock
   await executeAgentTask(pending.id);await executeAgentTask(pending.id);expect(await entries()).toHaveLength(1);expect(await withSystem(async db=>(await db.query('select count(*)::int n from assistant.agent_tool_calls where task_id=$1',[pending.id])).rows[0].n)).toBe(1);
   await deliverPending();const before=provider.push.mock.calls.length;for(const delivery of await deliveries())await deliverAgentMessage(delivery.id);expect(provider.push).toHaveBeenCalledTimes(before);
  });
+ it('quietly completes nine distinct stale button events without models, new writes, or error cards',async()=>{
+  plans.push(ready([action('care.entries.create',diary())]));await input();const pending=await task();await executeAgentTask(pending.id);await deliverPending();
+  const modelCalls=provider.structured.mock.calls.length,pushes=provider.push.mock.calls.length,before=await deliveries();
+  for(let i=0;i<9;i++)await postback(randomUUID());
+  await deliverPending();
+  expect(await entries()).toHaveLength(1);expect((await task()).status).toBe('succeeded');expect(await deliveries()).toHaveLength(before.length);
+  expect(provider.structured).toHaveBeenCalledTimes(modelCalls);expect(provider.push).toHaveBeenCalledTimes(pushes);
+  const ignored=await withSystem(async db=>(await db.query("select state,normalized->>'control' control from assistant.agent_turns where user_id=$1 and postback_data is not null",[owner])).rows);
+  expect(ignored).toHaveLength(9);expect(ignored.every(row=>row.state==='done'&&row.control==='stale_choice_ignored')).toBe(true);
+  expect(await withSystem(async db=>(await db.query("select count(*)::int n from notify.webhook_events where event_id=any($1::text[]) and payload<>'{}'::jsonb",[events])).rows[0].n)).toBe(0);
+ });
+ it('coalesces nine concurrent taps into one real queue job and one diary entry',async()=>{
+  plans.push(ask('อาการเป็นอย่างไร',[{label:'ยังเกาหู',value:'ยังเกาหู'}]),ready([action('care.entries.create',diary())]));await input();
+  const pending=await task(),answer=(await choices(pending.id)).find(row=>row.action==='answer');
+  const {queueAgentLineEvent}=await import('../../notification/src/agent-channel');
+  const ids=await Promise.all(Array.from({length:9},()=>storeEvent('',owner,{type:'postback',message:undefined,postback:{data:`agent:choice:${answer.id}`},timestamp:Date.now()-120_000})));
+  const modelsBefore=provider.structured.mock.calls.length;
+  await Promise.all(ids.map(async id=>{
+   const raw=await withSystem(async db=>(await db.query('select payload from notify.webhook_events where event_id=$1',[id])).rows[0].payload);
+   expect(await queueAgentLineEvent(owner,raw)).toBe(true);
+  }));
+  expect(provider.structured).toHaveBeenCalledTimes(modelsBefore);
+  const jobs=await withSystem(async db=>(await db.query("select payload from ops.jobs where topic='agent.turn' and dedupe_key=$1",[`agent-choice:${owner}:${answer.id}`])).rows);
+  expect(jobs).toHaveLength(1);await ingestAgentTurn(jobs[0].payload.eventId,owner);await executeAgentTask(pending.id);await executeAgentTask(pending.id);
+  expect(await entries()).toHaveLength(1);expect((await deliveries()).some(row=>row.kind==='error')).toBe(false);
+  expect(await withSystem(async db=>(await db.query("select count(*)::int n from notify.webhook_events where event_id=any($1::text[]) and processed_at is not null and payload='{}'::jsonb",[ids])).rows[0].n)).toBe(9);
+ });
+ it('ignores expired buttons without changing the current task',async()=>{
+  plans.push(ask('อาการเป็นอย่างไร',[{label:'ยังเกาหู',value:'ยังเกาหู'}]));await input();const pending=await task();
+  const answer=await withSystem(async db=>(await db.query("insert into assistant.agent_choices(user_id,task_id,version,action,value,created_at,expires_at) values($1,$2,$3,'answer','ยังเกาหู',now()-interval '2 hours',now()-interval '1 hour') returning id",[owner,pending.id,pending.version])).rows[0]);
+  const before=await deliveries(),modelCalls=provider.structured.mock.calls.length;await postback(answer.id);
+  expect(await deliveries()).toHaveLength(before.length);expect((await task()).question).toEqual(pending.question);expect(provider.structured).toHaveBeenCalledTimes(modelCalls);expect(await entries()).toHaveLength(0);
+ });
+ it('ignores reused and previous-version answers without replacing the current question',async()=>{
+  plans.push(ask('อาการเป็นอย่างไร',[{label:'ยังเกาหู',value:'ยังเกาหู'}]),ask('ไปหาหมอแล้วหรือยัง',[]));await input();
+  const first=await task(),firstChoices=await choices(first.id),answer=firstChoices.find(row=>row.action==='answer'),previous=firstChoices.find(row=>row.action==='cancel');await postback(answer.id);
+  const current=await task(),modelCalls=provider.structured.mock.calls.length,before=await deliveries();
+  await postback(answer.id);await postback(previous.id);
+  expect((await task()).question).toEqual(current.question);expect((await task()).version).toBe(current.version);expect(await deliveries()).toHaveLength(before.length);
+  expect(provider.structured).toHaveBeenCalledTimes(modelCalls);expect(await entries()).toHaveLength(0);
+ });
+ it('does not send pending stale-choice error cards left by an older deployment',async()=>{
+  const id=await input('',owner,{type:'postback',message:undefined,postback:{data:`agent:choice:${randomUUID()}`}});
+  const old=await withSystem(async db=>{
+   const turn=(await db.query('select id from assistant.agent_turns where event_id=$1',[id])).rows[0];
+   return(await db.query("insert into assistant.agent_deliveries(user_id,turn_id,kind,dedupe_key,messages) values($1,$2,'error',$3,'[{\"type\":\"text\",\"text\":\"Obsolete error card\"}]') returning id",[owner,turn.id,`legacy-error-${randomUUID()}`])).rows[0];
+  });
+  await deliverAgentMessage(old.id);await deliverAgentMessage(old.id);
+  expect((await deliveries())[0]).toMatchObject({status:'failed',messages:[],error_code:'AGENT_STALE_CHOICE_SUPPRESSED'});expect(provider.push).not.toHaveBeenCalled();expect(provider.structured).not.toHaveBeenCalled();
+ });
  it('claims one execution lease when duplicate worker jobs race',async()=>{
   plans.push(ready([action('care.entries.create',diary())]));await input();const pending=await task();
   const attempts=await Promise.allSettled([executeAgentTask(pending.id),executeAgentTask(pending.id)]);expect(attempts.some(result=>result.status==='fulfilled')).toBe(true);expect((await task()).status).toBe('succeeded');expect(await entries()).toHaveLength(1);

@@ -69,7 +69,20 @@ export async function queueAgentLineEvent(userId:string,value:unknown):Promise<b
     // is never inferred from text, postback data or an LLM-produced user ID.
     const account=await tx.query("select u.id,(select t.language from assistant.agent_threads t where t.user_id=u.id) as language from identity.users u join identity.consents c on c.user_id=u.id and c.purpose='service' and c.granted where u.id=$1 and u.line_user_id=$2 and u.status='active' for share of u,c",[userId,event.source.userId]);
     if(!account.rowCount)return {handled:false,queued:false};
-    await enqueue('agent.turn',{eventId:event.webhookEventId,userId},`agent-turn:${event.webhookEventId}`,tx);
+    // LINE assigns a different event ID to every button tap. Single-use
+    // choices share one durable job even before the first tap is processed.
+    // compose deliberately stays reusable: opening a keyboard is no answer.
+    const choiceId=event.type==='postback'?event.postback?.data.match(/^agent:choice:(.+)$/)?.[1]:undefined;
+    const singleUseChoice=choiceId&&z.uuid().safeParse(choiceId).success?choiceId.toLowerCase():undefined;
+    const jobId=await enqueue('agent.turn',{eventId:event.webhookEventId,userId},singleUseChoice?`agent-choice:${userId}:${singleUseChoice}`:`agent-turn:${event.webhookEventId}`,tx);
+    if(singleUseChoice){
+      const original=(await tx.query<{event_id:string}>("select payload->>'eventId' event_id from ops.jobs where id=$1",[jobId])).rows[0];
+      if(!original)throw new Error('agent_choice_job_missing');
+      if(original.event_id!==event.webhookEventId){
+        await tx.query("update notify.webhook_events set processed_at=now(),payload='{}'::jsonb where event_id=$1",[event.webhookEventId]);
+        return {handled:true,queued:false};
+      }
+    }
     await tx.query('update notify.webhook_events set processed_at=now() where event_id=$1',[event.webhookEventId]);
     const text=event.message?.text??'';
     const language:'th'|'en'=/[ก-๙]/u.test(text)?'th':/[A-Za-z]/.test(text)?'en':account.rows[0]?.language==='en'?'en':'th';

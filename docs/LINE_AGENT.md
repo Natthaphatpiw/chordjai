@@ -1,5 +1,7 @@
 # LINE Agent — สั่งให้ชิดใจทำงานผ่านแชท
 
+การป้องกันการ์ดเด้งซ้ำจากการกดปุ่มเก่า ดู [LINE_AGENT_STALE_BUTTONS.md](LINE_AGENT_STALE_BUTTONS.md) รวมสาเหตุจาก production วิธีจัดคิว และการทดสอบการกดซ้ำโดยไม่สร้างบันทึกซ้ำ
+
 เอกสารนี้อธิบายพฤติกรรมที่พัฒนาในโค้ด วิธีเปิดใช้งาน และขอบเขตของ Agent ใน LINE OA ของชิดใจ สำหรับผู้ดูแลระบบ นักพัฒนา และทีม Product อ่านคู่กับ [FEATURES.md](FEATURES.md), [PERSONALIZED_FOLLOWUPS.md](PERSONALIZED_FOLLOWUPS.md), [PET_PASSPORT.md](PET_PASSPORT.md) และ [VERIFICATION.md](VERIFICATION.md)
 
 **สถานะล่าสุด:** ผู้ดูแลรัน SQL และตั้ง env จริงเองแล้ว ฐานข้อมูลจริงที่ตรวจแบบ read-only เป็นรุ่น 23 ฟีเจอร์แก้/ลบบันทึกใช้รุ่น 23 เพิ่มจาก LINE Agent รุ่น 22 ไม่มี env ใหม่ ผู้ใช้เลือกทดสอบข้อความจริงกับพีโอนีเอง ผล deploy/fixtures และสิ่งที่ยังไม่ยืนยันในบัญชีจริงอ่านใน [VERIFICATION.md](VERIFICATION.md) และ [RECORD_MUTATIONS.md](RECORD_MUTATIONS.md) ค่าเริ่มต้นใน env example ยังปิด `LINE_AGENT_ENABLED` เพื่อไม่เปิดบริการอัตโนมัติใน environment ใหม่

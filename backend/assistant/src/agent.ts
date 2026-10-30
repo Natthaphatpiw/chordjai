@@ -48,6 +48,11 @@ async function choices(db:PoolClient,task:Task,items:{label:string;action:string
 async function sendDelivery(db:PoolClient,row:Delivery){
  if(row.status!=='pending')return;
  if(!enabled()||row.expires_at<=new Date()) {await db.query("update assistant.agent_deliveries set status='failed',messages='[]'::jsonb,error_code='AGENT_DELIVERY_EXPIRED' where id=$1",[row.id]);return;}
+ // Old deployments queued a separate error for every tap of a consumed or
+ // expired button. Drain those jobs without sending another obsolete card.
+ if(row.kind==='error'&&row.turn_id&&(await db.query("select 1 from assistant.agent_turns where id=$1 and user_id=$2 and normalized->>'errorCode'='AGENT_CHOICE_STALE'",[row.turn_id,row.user_id])).rowCount){
+  await db.query("update assistant.agent_deliveries set status='failed',messages='[]'::jsonb,error_code='AGENT_STALE_CHOICE_SUPPRESSED' where id=$1",[row.id]);return;
+ }
  const actor=await actorFor(row.user_id);
  if(row.task_id){const task=await freshTask(db,row.task_id);const version=Number(row.kind.split(':')[1]);
   if(!task||task.status==='cancelled'||Number.isFinite(version)&&version!==task.version){await db.query("update assistant.agent_deliveries set status='failed',messages='[]'::jsonb,error_code='AGENT_STALE_MESSAGE' where id=$1",[row.id]);return;}}
@@ -66,8 +71,10 @@ export async function deliverAgentMessage(deliveryId:string){
 async function deliverAgentMessageCore(deliveryId:string){
  try{
  const sent=await withSystem(async db=>{
-  const row=(await db.query<Delivery>('select * from assistant.agent_deliveries where id=$1',[deliveryId])).rows[0];if(!row||row.status!=='pending')return;
-  await lockUser(db,row.user_id);await sendDelivery(db,row);
+  const owner=(await db.query<{user_id:string}>('select user_id from assistant.agent_deliveries where id=$1',[deliveryId])).rows[0];if(!owner)return;
+  await lockUser(db,owner.user_id);
+  const row=(await db.query<Delivery>('select * from assistant.agent_deliveries where id=$1 for update',[deliveryId])).rows[0];if(!row||row.status!=='pending')return;
+  await sendDelivery(db,row);
   const current=(await db.query<{status:string;error_code:string|null}>('select status,error_code from assistant.agent_deliveries where id=$1',[deliveryId])).rows[0];
   return current?{turnId:row.turn_id,taskId:row.task_id,deliveryId:row.id,kind:row.kind,status:current.status,errorCode:current.error_code,hasLiff:JSON.stringify(row.messages).includes('https://liff.line.me/')}:undefined;
  });
@@ -233,7 +240,7 @@ export async function ingestAgentTurn(eventId:string,userId:string){
    const trace=await withSystem(async db=>(await db.query<{id:string;route:string|null;state:string;task_id:string|null;task_status:string|null;has_question:boolean;control:string|null;error_code:string|null}>(`select t.id,t.route,t.state,k.id task_id,k.status task_status,k.question is not null has_question,t.normalized->>'control' control,t.normalized->>'errorCode' error_code from assistant.agent_turns t join assistant.agent_threads th on th.id=t.thread_id left join assistant.agent_tasks k on k.id=th.current_task_id where t.event_id=$1 and t.user_id=$2`,[eventId,userId])).rows[0]);
    if(trace){
     const refs={turnId:trace.id,taskId:trace.route==='agent'?trace.task_id:null};
-    agentStage(trace.error_code?'turn_failed':trace.control==='compose'?'keyboard_requested':'normalized',refs,{route:trace.route,status:trace.state,errorCode:trace.error_code});
+    agentStage(trace.control==='stale_choice_ignored'?'stale_choice_ignored':trace.error_code?'turn_failed':trace.control==='compose'?'keyboard_requested':'normalized',refs,{route:trace.route,status:trace.state,errorCode:trace.error_code});
     if(trace.route==='agent'&&trace.task_id&&trace.control!=='compose'){
      const stage=trace.task_status==='collecting'&&trace.has_question?'question_queued':trace.task_status==='awaiting_confirmation'?'confirmation_queued':trace.task_status==='queued'?'task_queued':null;
      if(stage)agentStage(stage,refs,{status:trace.task_status});
@@ -274,6 +281,8 @@ async function ingestAgentTurnCore(eventId:string,userId:string){
     const choice=match?(await db.query<{id:string;task_id:string;version:number;action:string;value:string}>(`select * from assistant.agent_choices where id=$1 and user_id=$2 and consumed_at is null and expires_at>now()`,[match[2],userId])).rows[0]:undefined;
     if(!choice||!task||task.id!==choice.task_id||task.version!==choice.version)throw new HttpError(409,'AGENT_CHOICE_STALE','ตัวเลือกนี้หมดอายุหรือข้อมูลเปลี่ยนแล้ว กรุณาพิมพ์คำขอใหม่');
     if((match?.[1]==='compose')!==(choice.action==='compose'))throw new HttpError(409,'AGENT_CHOICE_STALE','ตัวเลือกไม่ตรงกับการทำงาน กรุณาใช้การ์ดล่าสุด');
+    const allowed=choice.action==='retry'?task.status==='failed':choice.action==='confirm'||choice.action==='edit'?task.status==='awaiting_confirmation':choice.action==='cancel'?!terminal.has(task.status):['answer','pet','compose'].includes(choice.action)&&task.status==='collecting';
+    if(!allowed)throw new HttpError(409,'AGENT_CHOICE_STALE','กรุณาใช้การ์ดล่าสุด');
     if(choice.action==='compose'){
      if(task.status!=='collecting')throw new HttpError(409,'AGENT_CHOICE_STALE','กรุณาใช้คำถามล่าสุด');
      await assertTaskAccess(actor,task);
@@ -330,6 +339,12 @@ async function ingestAgentTurnCore(eventId:string,userId:string){
   }catch(error){
    if(!(error instanceof HttpError)&&!(error instanceof z.ZodError))throw error;
    const code=error instanceof HttpError?error.code:'AGENT_INVALID_PLAN';
+   if(code==='AGENT_CHOICE_STALE'){
+    // A button is single-use, but every tap has a new LINE event ID. An old
+    // tap is an acknowledged no-op, never a new failure notification or task.
+    await db.query("update assistant.agent_turns set normalized=coalesce(normalized,'{}'::jsonb)||jsonb_build_object('control','stale_choice_ignored','errorCode',$2::text) where id=$1",[turn.id,code]);
+    await finish();return{handled:true};
+   }
    await outbox(db,userId,null,turn.id,'error',`turn:${turn.id}:error`,[agentCard(t(language,'ยังทำรายการนี้ไม่ได้','I could not complete this request'),t(language,'ยังไม่มีการทำรายการใหม่จากข้อความนี้ครับ กรุณาพิมพ์รายละเอียดเพิ่มเติมหรือตรวจในแอป','No new action was performed for this message. Please add details or review it in the app.'),[],`${process.env.APP_ORIGIN??'https://www.chordjai.life'}/app?lang=${language}`,language)]);
    await db.query('update assistant.agent_turns set normalized=coalesce(normalized,\'{}\'::jsonb)||jsonb_build_object(\'errorCode\',$2::text) where id=$1',[turn.id,code]);await finish();return{handled:true};
   }
