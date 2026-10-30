@@ -73,7 +73,7 @@ Overview adds hourly protection counters with the selected date/user filter. The
 
 Activation order:
 
-1. Run the current `supabase/upgrade.sql` against the already-upgraded schema 25. Do not use bootstrap.sql for the existing project.
+1. For a database already at schema 25, use the compact `supabase/upgrade-25-to-26.sql` in a **new** Supabase SQL Editor query. Paste the entire file and Run, without selecting only part of it. It verifies 25→26 and also safely verifies an existing 26. The complete `supabase/upgrade.sql` remains available for other verified earlier versions. Do not use bootstrap.sql for the existing project.
 2. Existing dashboard/login env from version 25 stays valid. No new secret is required. The per-user AI budget now defaults to $0.50/day; if an older environment explicitly sets `AI_USER_DAILY_BUDGET_USD=0`, set it to `0.50` (or your intended cap) to enable that protection. Other optional limits are in `backend/.env.example`.
 3. Deploy this code together after SQL. If the API key's model policy does not permit Luna, grant it in the existing OpenAI project; the gate will otherwise fail closed and will not switch models.
 4. Confirm valid pet care, pending numeric/name answers, unrelated topics, duplicate messages, diary result links and the `input.classify` cost rows on staging, then a controlled production check. Do not broadcast tests to users.

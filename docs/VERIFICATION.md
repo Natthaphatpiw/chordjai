@@ -1,3 +1,10 @@
+# Compact SQL upgrade verification — 2026-10-30
+
+- The reported `42601` at the end of the full upgrade was not reproduced using the complete local file. Sending the whole file in one `pg.Client.query()` succeeded twice, including 25→26 and an already-applied 26.
+- Added generated `supabase/upgrade-25-to-26.sql`: 233 lines, verified source checksums unchanged. Both tracked and untracked exact schema 25 upgrade to 26, rerun, and agree with the full bundle. Sentinel owner, pet, care entry and dated 414.00 THB expense remain intact.
+- The compact file also passes as one PostgreSQL query, rejects schema 24, schema drift and conflicting checksums before DDL, and serializes correctly when raced against the full packet. An intentionally incomplete outer block is rejected without mutating schema 25.
+- Existing full upgrade/security gate regression checks pass. No production SQL or deployment was performed.
+
 # Input protection verification — 2026-10-30
 
 Implementation: GPT-6 Luna LLM0, silent off-topic LINE filtering before ACK/Agent handoff, exact per-owner/context classification cache with distributed leases, signed-source duplicate/burst/day limits, authenticated API quotas, hard DB insert/storage quotas, limited uploads, bounded JSON and sampled 4xx logs. Main model remains GPT-6.1 Sol.

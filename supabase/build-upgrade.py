@@ -143,6 +143,7 @@ begin
     raise exception 'Existing migration tracker has an incompatible shape. No changes applied.';
   end if;
 """
+upgrade_prelude = upgrade
 for i, (expected, path) in enumerate(zip(manifest, files)):
     version = expected["version"]
     checksum = expected["checksum"]
@@ -177,7 +178,7 @@ $migration_{version}$;
     upgrade += f"""
   insert into ops.schema_migrations(version,checksum) values('{version}','{checksum}') on conflict(version) do nothing;
 """
-upgrade += """
+upgrade_footer = """
   if exists(select 1 from ops.schema_migrations m where m.version not in (""" + ",".join("'"+entry["version"]+"'" for entry in manifest) + """)) then
     raise exception 'Migration tracker contains a version unknown to this checkout. No changes applied.';
   end if;
@@ -187,12 +188,73 @@ upgrade += """
   if actual_state<> '""" + manifest[-1]["fingerprint"] + """' then
     raise exception 'Final schema verification failed (%). No changes applied.',actual_state;
   end if;
-end $upgrade$;
+end;
+$upgrade$;
 commit;
 select 'ChordJai schema verified and upgraded; existing user rows preserved' as result,
  count(*) as recorded_migrations from ops.schema_migrations;
 """
-outputs = {"diagnostic.sql": diagnostic, "upgrade.sql": upgrade}
+upgrade += upgrade_footer
+
+# A small, self-contained packet for the operator whose live database is at 25.
+# Keep the same fingerprint, role, tracker-shape and transaction gates as the
+# complete upgrade. Never rewrite a released migration or its checksum.
+previous = next(i for i, item in enumerate(manifest) if item["version"] == "202610300025")
+target = next(i for i, item in enumerate(manifest) if item["version"] == "202610300026")
+compact_values = ",\n".join(
+    f" ({i+1},'{manifest[i]['version']}','{manifest[i]['file']}','{manifest[i]['fingerprint']}')"
+    for i in (previous, target)
+)
+compact = upgrade_prelude.replace(values, compact_values, 1).replace(
+    "if known_count is null then",
+    f"if known_count is null or known_count not in ({previous+1},{target+1}) then", 1
+).replace(
+    "Unrecognized or partial ChordJai schema",
+    "This packet requires verified ChordJai schema 25 or 26; unrecognized or partial schema", 1
+)
+checksums = ",\n".join(f" ('{item['version']}','{item['checksum']}')" for item in manifest[:target+1])
+source = files[target].read_text().strip()
+wrapper = re.match(r"(?:\s|--[^\n]*\n)*begin;", source)
+if not wrapper or not source.endswith("commit;"):
+    raise SystemExit("Unexpected migration 26 transaction wrapper")
+body = source[wrapper.end():-len("commit;")].strip()
+compact += """
+  if exists(select 1 from ops.schema_migrations m left join (values
+""" + checksums + """
+  ) expected(version,checksum) on expected.version=m.version
+    where expected.version is null or expected.checksum<>m.checksum) then
+    raise exception 'Checksum mismatch or unknown migration version. No changes applied.';
+  end if;
+  if known_count=25 then
+    if exists(select 1 from ops.schema_migrations where version='202610300026') then
+      raise exception 'Tracker claims unapplied migration 26. No changes applied.';
+    end if;
+    execute $migration_202610300026$
+""" + body + """
+$migration_202610300026$;
+  end if;
+  insert into ops.schema_migrations(version,checksum) values
+""" + checksums + """
+  on conflict(version) do nothing;
+  select s.state->>'fingerprint' into actual_state from (
+""" + projection + """
+  ) s;
+  if actual_state<>'""" + manifest[target]["fingerprint"] + """' then
+    raise exception 'Final schema 26 verification failed (%). No changes applied.',actual_state;
+  end if;
+end;
+$upgrade$;
+commit;
+select 'ChordJai schema 26 verified; existing user rows preserved' as result,
+ count(*) as recorded_migrations from ops.schema_migrations;
+"""
+compact = compact.replace(
+    "-- Generated safe existing-ChordJai upgrade; use bootstrap.sql only for a fresh DB.",
+    "-- GENERATED: only verified schema 25 -> 26, or verify an existing 26.\n"
+    "-- Supabase SQL Editor: open a NEW query and paste this ENTIRE file, then Run.\n"
+    "-- Do not paste it inside another DO block or select only part of this file.", 1
+)
+outputs = {"diagnostic.sql": diagnostic, "upgrade.sql": upgrade, "upgrade-25-to-26.sql": compact}
 if sys.argv[1:] == ["--check"]:
     for name, content in outputs.items():
         if (root / name).read_text() != content:

@@ -2403,7 +2403,8 @@ select jsonb_build_object('fingerprint',md5(details::text),'details',details) as
   if actual_state<> '0dc0475b0ea973d0c9250b37565d64aa' then
     raise exception 'Final schema verification failed (%). No changes applied.',actual_state;
   end if;
-end $upgrade$;
+end;
+$upgrade$;
 commit;
 select 'ChordJai schema verified and upgraded; existing user rows preserved' as result,
  count(*) as recorded_migrations from ops.schema_migrations;
