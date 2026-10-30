@@ -154,5 +154,11 @@
     "file": "202610300026_input_guard.sql",
     "checksum": "e9cb4057542b5900f332d28364849bb5cb1a6c9a805295497aad6b7fbb8da8af",
     "fingerprint": "0dc0475b0ea973d0c9250b37565d64aa"
+  },
+  {
+    "version": "202610310027",
+    "file": "202610310027_owner_sessions.sql",
+    "checksum": "4b58a32f7331ac24f5ed83944a7b1e7907f73d3a736d8baa3a561bf908b21f0a",
+    "fingerprint": "9720c27f20983692910505835aaf6e6f"
   }
 ]

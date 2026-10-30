@@ -1,28 +1,51 @@
 import { z } from 'zod';
+import {waitUntil} from '@vercel/functions';
 import { withSystem, withUser } from '@chordjai/db';
 import { signSession, type Actor } from '@chordjai/auth';
 import { verifyLineIdToken,verifyLineFriendship } from '@chordjai/line';
 import { createService, getActor, HttpError, jsonBody, ok, camel } from '@chordjai/service-kit';
+import {ownerBootstrap,issueOwnerSession,restoreOwnerSession,endOwnerSession,requireOwnerOrigin} from './owner-session';
 
 export const app = createService('identity');
 app.post('/api/v1/identity/line', async c => {
-  const body = await jsonBody(c, z.object({ idToken: z.string().min(1).max(10000),accessToken:z.string().min(1).max(10000).optional() }));
+  const body = await jsonBody(c, z.object({ idToken: z.string().min(1).max(10000),accessToken:z.string().min(1).max(10000).optional(),remember:z.boolean().default(false),loginAttemptId:z.uuid().optional(),includeBootstrap:z.boolean().default(false) }).refine(value=>!value.remember||Boolean(value.loginAttemptId),{message:'Login attempt ID required'}));
+  if(body.remember)requireOwnerOrigin(c);
   let profile: Awaited<ReturnType<typeof verifyLineIdToken>>;
   try { profile = await verifyLineIdToken(body.idToken); }
   catch(error) { if(error instanceof HttpError)throw error;throw new HttpError(401, 'LINE_LOGIN_FAILED', 'ยืนยันตัวตน LINE ไม่สำเร็จ กรุณาเข้าสู่ระบบใหม่'); }
   const friendshipCheckedAt=new Date();
-  const friendship=body.accessToken?await verifyLineFriendship(body.accessToken,profile.lineUserId):null;
   const user = await withSystem(async tx => {
     const { rows } = await tx.query(`insert into identity.users(line_user_id,display_name,avatar_url) values($1,$2,$3)
       on conflict(line_user_id) do update set display_name=excluded.display_name,avatar_url=excluded.avatar_url,updated_at=now() returning id,display_name,avatar_url,role,status`, [profile.lineUserId, profile.displayName.slice(0,120), profile.pictureUrl]);
     const signedUser=rows[0]!;
-    if(signedUser.status==='active'&&friendship!==null)await tx.query(`insert into notify.line_accounts(user_id,followed) values($1,$2)
-      on conflict(user_id) do update set followed=excluded.followed,updated_at=now()
-      where notify.line_accounts.updated_at<=$3`,[signedUser.id,friendship,friendshipCheckedAt]);
     return signedUser;
   });
   if (user.status !== 'active') throw new HttpError(403, 'ACCOUNT_INACTIVE', 'บัญชีนี้ยังไม่พร้อมใช้งาน');
-  return ok(c, { token: await signSession({ id: user.id, role: user.role } as Actor), expiresIn: 3600, user: camel(user) });
+  const actor={id:user.id,role:user.role} as Actor;
+  const session=body.remember?await issueOwnerSession(c,actor,body.loginAttemptId!):{token:await signSession(actor),persistent:false};
+  const bootstrap=body.includeBootstrap?await ownerBootstrap(user.id):undefined;
+  // Friendship verification uses up to three LINE requests. It is useful for
+  // later follow-ups, but must not block the owner's first usable screen.
+  if(body.accessToken){
+    const sync=Promise.resolve().then(async()=>{
+      const friendship=await verifyLineFriendship(body.accessToken!,profile.lineUserId);
+      if(friendship!==null)await withSystem(tx=>tx.query(`insert into notify.line_accounts(user_id,followed) values($1,$2)
+       on conflict(user_id) do update set followed=excluded.followed,updated_at=now()
+       where notify.line_accounts.updated_at<=$3`,[user.id,friendship,friendshipCheckedAt]));
+    }).catch(()=>console.warn(JSON.stringify({event:'line_friendship_sync_deferred_failed'})));
+    if(process.env.VERCEL)waitUntil(sync);else await sync;
+  }
+  return ok(c, { ...session, expiresIn: 3600, user: camel(user),...(bootstrap?{bootstrap}:{}) });
+});
+app.get('/api/v1/identity/bootstrap',async c=>ok(c,await ownerBootstrap(getActor(c).id)));
+app.post('/api/v1/identity/session/restore',async c=>{
+  const body=await jsonBody(c,z.object({includeBootstrap:z.boolean().default(false)}));
+  const restored=await restoreOwnerSession(c),{userId,...session}=restored;
+  return ok(c,{...session,...(body.includeBootstrap?{bootstrap:await ownerBootstrap(userId)}:{})});
+});
+app.post('/api/v1/identity/session/logout',async c=>{
+  const body=await jsonBody(c,z.object({loginAttemptId:z.uuid().optional(),allDevices:z.boolean().default(false)}));
+  return ok(c,await endOwnerSession(c,body.loginAttemptId,body.allDevices?getActor(c).id:undefined));
 });
 app.get('/api/v1/identity/me', async c => {
   const actor = getActor(c);

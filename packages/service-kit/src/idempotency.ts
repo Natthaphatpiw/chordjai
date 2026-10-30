@@ -15,6 +15,7 @@ export const idempotency:MiddlewareHandler<ServiceEnv>=async(c,next)=>{
   // Agent retry can recover after deletion; all other Passport routes recheck.
   const passportDeletion=c.req.method==='DELETE'&&/^\/api\/v1\/health\/passport\/sessions\/[^/]+$/.test(c.req.path);
   const currentPermissionRoute=/^\/api\/v1\/biometric\/pets\/[^/]+\/research\/consent$/.test(c.req.path)
+    || /^\/api\/v1\/health\/care\/entries\/[^/]+\/organize$/.test(c.req.path)
     || /^\/api\/v1\/biometric\/review\//.test(c.req.path)
     || /^\/api\/v1\/biometric\/pets\/[^/]+\/research\/sessions\/[^/]+\/checks$/.test(c.req.path)
     || /^\/api\/v1\/notification\/followup\/(?:preferences|preview)$/.test(c.req.path)

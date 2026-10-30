@@ -9,6 +9,7 @@ import {buildCalendar} from './calendar.js';
 import {registerFollowupRoutes,processFollowups,followupCommand,processFollowupCommand,captureFollowupReply} from './followup.js';
 import {queueAgentLineEvent,markAcceptedLineEventRead} from './agent-channel.js';
 import {admitLineEvent,gateLineEvent,quickInputDecision} from './input-guard';
+import {greetLineEvent,welcomeMessages} from './welcome';
 export const app=createService('notification');
 registerFollowupRoutes(app);
 const lineEventSchema=z.object({webhookEventId:z.string().min(1).max(100),type:z.string().max(80),replyToken:z.string().max(200).optional(),timestamp:z.number().optional(),deliveryContext:z.object({isRedelivery:z.boolean().optional()}).optional(),source:z.object({type:z.string().max(20),userId:z.string().max(100).optional()}),message:z.object({type:z.string().max(30),text:z.string().max(5000).optional(),markAsReadToken:z.string().max(4096).optional()}).optional(),postback:z.object({data:z.string().min(1).max(300)}).optional()});
@@ -28,7 +29,10 @@ app.post('/api/v1/notification/webhooks/line',async c=>{
   if(!parsed.success)throw new HttpError(400,'INVALID_LINE_EVENT','LINE event body is invalid');
   const body=parsed.data,newEvents:LineEvent[]=[];
   for(const event of body.events){
-    if(event.message?.type==='text'&&quickInputDecision(event.message.text??''))continue;
+    if(event.message?.type==='text'){
+      const quick=quickInputDecision(event.message.text??'');
+      if(quick){if(quick.reason==='greeting')await greetLineEvent(event,quick.language);continue;}
+    }
     if(!['message','postback','follow','unfollow'].includes(event.type))continue;
     const inserted=await withSystem(async tx=>{
       if(!await admitLineEvent(tx,event,followupCommand(event.message?.text??'')==='pause'))return false;
@@ -73,7 +77,7 @@ export async function processLineEvent(eventId:string){
     // Quick navigation replies contain no health facts or private user data.
     // Expired reply tokens are not replaced with paid, duplicate push messages.
     const text=event.message?.text??'',path=/วัคซีน|สมุด|บันทึก/.test(text)?'/app?tab=health':/หาย|พบ/.test(text)?'/app?tab=care':/อาการ|ป่วย/.test(text)?'/app?tab=triage':/คุย|ai/i.test(text)?'/app?tab=chat':'/app';
-    try{await replyLine(event.replyToken,[{type:'text',text:specialReply?`${specialReply}\n${appLink('/app?tab=settings')}`:`ดูแลน้องไปด้วยกันกับ ChordJai\nเปิดแอป: ${appLink(path)}\nหากน้องหายใจลำบาก ชัก หมดสติ หรือปัสสาวะไม่ออก ให้ไปโรงพยาบาลสัตว์ทันที`}]);}
+    try{await replyLine(event.replyToken,event.type==='follow'?welcomeMessages('th'):[{type:'text',text:specialReply?`${specialReply}\n${appLink('/app?tab=settings')}`:`ดูแลน้องไปด้วยกันกับ ChordJai\nเปิดแอป: ${appLink(path)}\nหากน้องหายใจลำบาก ชัก หมดสติ หรือปัสสาวะไม่ออก ให้ไปโรงพยาบาลสัตว์ทันที`}]);}
     catch(error){if(!(error instanceof LineApiError)||error.status!==400)throw error;/* invalid/expired reply token; do not replace with paid push */}
   }
   await withSystem(tx=>tx.query('update notify.webhook_events set processed_at=now(),payload=\'{}\'::jsonb where event_id=$1',[eventId]));

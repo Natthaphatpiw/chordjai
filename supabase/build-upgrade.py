@@ -73,6 +73,7 @@ markers = [
     "exists(select 1 from pg_attribute where attrelid=to_regclass('health.care_costs') and attname='expense_date' and not attisdropped)",
     "to_regclass('ops.dashboard_sessions') is not null and exists(select 1 from pg_attribute where attrelid=to_regclass('ai_ops.requests') and attname='cost_basis' and not attisdropped)",
     "to_regclass('ops.input_cache') is not null and to_regclass('ops.guard_metrics') is not null and to_regprocedure('ops.guard_owner_insert()') is not null",
+    "to_regclass('identity.web_sessions') is not null and to_regprocedure('identity.web_session_active(uuid,uuid)') is not null",
 ]
 marker_case = "case k.ordinal\n" + "\n".join(f" when {i+1} then ({marker})" for i, marker in enumerate(markers)) + "\n end"
 diagnostic = """-- READ ONLY: one JSON result contains every diagnostic section; no user data.
@@ -196,65 +197,65 @@ select 'ChordJai schema verified and upgraded; existing user rows preserved' as 
 """
 upgrade += upgrade_footer
 
-# A small, self-contained packet for the operator whose live database is at 25.
-# Keep the same fingerprint, role, tracker-shape and transaction gates as the
-# complete upgrade. Never rewrite a released migration or its checksum.
-previous = next(i for i, item in enumerate(manifest) if item["version"] == "202610300025")
-target = next(i for i, item in enumerate(manifest) if item["version"] == "202610300026")
-compact_values = ",\n".join(
-    f" ({i+1},'{manifest[i]['version']}','{manifest[i]['file']}','{manifest[i]['fingerprint']}')"
-    for i in (previous, target)
-)
-compact = upgrade_prelude.replace(values, compact_values, 1).replace(
-    "if known_count is null then",
-    f"if known_count is null or known_count not in ({previous+1},{target+1}) then", 1
-).replace(
-    "Unrecognized or partial ChordJai schema",
-    "This packet requires verified ChordJai schema 25 or 26; unrecognized or partial schema", 1
-)
-checksums = ",\n".join(f" ('{item['version']}','{item['checksum']}')" for item in manifest[:target+1])
-source = files[target].read_text().strip()
-wrapper = re.match(r"(?:\s|--[^\n]*\n)*begin;", source)
-if not wrapper or not source.endswith("commit;"):
-    raise SystemExit("Unexpected migration 26 transaction wrapper")
-body = source[wrapper.end():-len("commit;")].strip()
-compact += """
+# Small, independently verifiable packets for the operator's current version.
+def compact_packet(previous_version: str, target_version: str) -> str:
+    previous = next(i for i, item in enumerate(manifest) if item["version"] == previous_version)
+    target = next(i for i, item in enumerate(manifest) if item["version"] == target_version)
+    base, final = previous + 1, target + 1
+    assert target == previous + 1
+    known_values = ",\n".join(
+        f" ({i+1},'{manifest[i]['version']}','{manifest[i]['file']}','{manifest[i]['fingerprint']}')"
+        for i in (previous, target)
+    )
+    packet = upgrade_prelude.replace(values, known_values, 1).replace(
+        "if known_count is null then", f"if known_count is null or known_count not in ({base},{final}) then", 1
+    ).replace("Unrecognized or partial ChordJai schema",
+              f"This packet requires verified ChordJai schema {base} or {final}; unrecognized or partial schema", 1)
+    checksums = ",\n".join(f" ('{item['version']}','{item['checksum']}')" for item in manifest[:target+1])
+    source = files[target].read_text().strip()
+    wrapper = re.match(r"(?:\s|--[^\n]*\n)*begin;", source)
+    if not wrapper or not source.endswith("commit;"):
+        raise SystemExit(f"Unexpected migration {final} transaction wrapper")
+    body = source[wrapper.end():-len("commit;")].strip()
+    packet += f"""
   if exists(select 1 from ops.schema_migrations m left join (values
-""" + checksums + """
+{checksums}
   ) expected(version,checksum) on expected.version=m.version
     where expected.version is null or expected.checksum<>m.checksum) then
     raise exception 'Checksum mismatch or unknown migration version. No changes applied.';
   end if;
-  if known_count=25 then
-    if exists(select 1 from ops.schema_migrations where version='202610300026') then
-      raise exception 'Tracker claims unapplied migration 26. No changes applied.';
+  if known_count={base} then
+    if exists(select 1 from ops.schema_migrations where version='{target_version}') then
+      raise exception 'Tracker claims unapplied migration {final}. No changes applied.';
     end if;
-    execute $migration_202610300026$
-""" + body + """
-$migration_202610300026$;
+    execute $migration_{target_version}$
+{body}
+$migration_{target_version}$;
   end if;
   insert into ops.schema_migrations(version,checksum) values
-""" + checksums + """
+{checksums}
   on conflict(version) do nothing;
   select s.state->>'fingerprint' into actual_state from (
-""" + projection + """
+{projection}
   ) s;
-  if actual_state<>'""" + manifest[target]["fingerprint"] + """' then
-    raise exception 'Final schema 26 verification failed (%). No changes applied.',actual_state;
+  if actual_state<>'{manifest[target]['fingerprint']}' then
+    raise exception 'Final schema {final} verification failed (%). No changes applied.',actual_state;
   end if;
 end;
 $upgrade$;
 commit;
-select 'ChordJai schema 26 verified; existing user rows preserved' as result,
+select 'ChordJai schema {final} verified; existing user rows preserved' as result,
  count(*) as recorded_migrations from ops.schema_migrations;
 """
-compact = compact.replace(
-    "-- Generated safe existing-ChordJai upgrade; use bootstrap.sql only for a fresh DB.",
-    "-- GENERATED: only verified schema 25 -> 26, or verify an existing 26.\n"
-    "-- Supabase SQL Editor: open a NEW query and paste this ENTIRE file, then Run.\n"
-    "-- Do not paste it inside another DO block or select only part of this file.", 1
-)
-outputs = {"diagnostic.sql": diagnostic, "upgrade.sql": upgrade, "upgrade-25-to-26.sql": compact}
+    return packet.replace(
+        "-- Generated safe existing-ChordJai upgrade; use bootstrap.sql only for a fresh DB.",
+        f"-- GENERATED: only verified schema {base} -> {final}, or verify an existing {final}.\n"
+        "-- Supabase SQL Editor: open a NEW query and paste this ENTIRE file, then Run.\n"
+        "-- Do not paste it inside another DO block or select only part of this file.", 1)
+
+outputs = {"diagnostic.sql": diagnostic, "upgrade.sql": upgrade,
+           "upgrade-25-to-26.sql": compact_packet("202610300025", "202610300026"),
+           "upgrade-26-to-27.sql": compact_packet("202610300026", "202610310027")}
 if sys.argv[1:] == ["--check"]:
     for name, content in outputs.items():
         if (root / name).read_text() != content:

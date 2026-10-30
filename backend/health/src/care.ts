@@ -7,6 +7,8 @@ import {mediaUrl} from '@chordjai/media';
 import {getActor,ok,jsonBody,uuid,HttpError,type ServiceEnv} from '@chordjai/service-kit';
 import {requireRecordMutations,optionalDeleteGuard} from './mutations';
 import {replaceCareCosts,expenseDateHashInput} from './expense-dates';
+import {runStructured} from '@chordjai/ai';
+import {careOrganizationSchema,CARE_ORGANIZE_INSTRUCTIONS,verifiedOrganization} from './care-organize';
 
 const base='/api/v1/health/care';
 const digest=(body:unknown)=>createHash('sha256').update(JSON.stringify(expenseDateHashInput(body))).digest('hex');
@@ -77,6 +79,22 @@ export function registerCareRoutes(app:Hono<ServiceEnv>){
   app.get(`${base}/entries/:id`,async c=>{
     const actor=getActor(c),entry=await withUser(actor.id,db=>getEntry(db,uuid(c.req.param('id'))));
     if(!entry)throw new HttpError(404,'CARE_ENTRY_NOT_FOUND','ไม่พบบันทึกการดูแล');return ok(c,await hydrate(entry));
+  });
+  app.post(`${base}/entries/:id/organize`,async c=>{
+    const actor=getActor(c),id=uuid(c.req.param('id')),body=await jsonBody(c,z.object({version:z.number().int().positive()}).strict());
+    const read=()=>withUser(actor.id,async db=>{
+      const entry=await getEntry(db,id);
+      if(!entry)throw new HttpError(404,'CARE_ENTRY_NOT_FOUND','ไม่พบบันทึกการดูแล');
+      if(!entry.can_edit)throw new HttpError(403,'CARE_EDIT_REQUIRED','เฉพาะผู้เขียนหรือเจ้าของน้องที่มีสิทธิ์แก้ไขเท่านั้น');
+      if(entry.version!==body.version)throw new HttpError(409,'VERSION_CONFLICT','บันทึกนี้เปลี่ยนแล้ว กรุณาเปิดฉบับล่าสุด');
+      const consent=await db.query("select 1 from identity.consents where user_id=$1 and purpose='service' and granted",[actor.id]);
+      if(!consent.rowCount)throw new HttpError(403,'SERVICE_CONSENT_REQUIRED','กรุณายินยอมใช้งานบริการก่อนใช้ผู้ช่วย');
+      return entry;
+    });
+    const entry=await read();
+    const proposal=await runStructured({userId:actor.id,feature:'care.organize',schema:careOrganizationSchema,instructions:CARE_ORGANIZE_INSTRUCTIONS,input:{narrative:entry.narrative},maxOutputTokens:1800});
+    await read(); // Access, consent and version may change while AI is running.
+    return ok(c,{entryId:id,version:body.version,...verifiedOrganization(entry.narrative,proposal)});
   });
   app.post(`${base}/entries`,async c=>{
     const actor=getActor(c),body=await jsonBody(c,careEntryCreateSchema);validateCareDates(body);

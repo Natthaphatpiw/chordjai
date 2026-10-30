@@ -1,5 +1,7 @@
 # Deployment ของ ChordJai
 
+อัปเดตใน checkout วันที่ 31 ตุลาคม 2026: เริ่มใช้ด้วยเมนู **วันนี้ / บันทึก / น้องของฉัน**, บันทึกเรื่องสั้นก่อนค่อยเติมรายละเอียด และ session ของเจ้าของสูงสุด 30 วัน อ่านขั้นตอน SQL 26→27 และขอบเขตจริงใน [ONBOARDING_AND_SESSIONS.md](ONBOARDING_AND_SESSIONS.md) สถานะ production ต้องตรวจแยกจากโค้ดใน checkout
+
 ## LINE Agent และแก้ไข/ลบบันทึก — ฐานข้อมูล 23 วันที่ 29 ตุลาคม 2026
 
 **ฐานข้อมูลจริงตรวจแล้วถึงรุ่น 23:** ผู้ดูแลรัน SQL และตั้ง env เอง Read-only diagnostic ยืนยัน fingerprint `171c466a888ddd5fd7df4ab1f5055527` รุ่น Agent ก่อนเพิ่มแก้/ลบ commit `8cc23e7` ขึ้น READY ทั้งสี่ project แล้ว สถานะ release ของโค้ดแก้/ลบดู [VERIFICATION.md](VERIFICATION.md) รอบนี้ไม่เพิ่ม env และไม่ส่ง LINE หรือสร้างบันทึกพีโอนีจริง ผู้ใช้เลือกทดสอบบทสนทนาจริงเองตาม [RECORD_MUTATIONS.md](RECORD_MUTATIONS.md)

@@ -5,9 +5,9 @@ import { createService, getActor, ok, jsonBody, uuid, HttpError } from '@chordja
 import { petSchema } from '@chordjai/contracts';
 const app=createService('pet');
 const base='/api/v1/pets';
-app.get(base,async c=>ok(c,await withUser(getActor(c).id,async db=>(await db.query('SELECT * FROM pet.pets ORDER BY created_at DESC LIMIT 100')).rows)));
+app.get(base,async c=>ok(c,await withUser(getActor(c).id,async db=>(await db.query('SELECT p.*,public.can_write_pet(p.id) AS can_edit FROM pet.pets p ORDER BY p.created_at DESC LIMIT 100')).rows)));
 app.get(`${base}/:id`,async c=>{
-  const rows=await withUser(getActor(c).id,async db=>(await db.query('SELECT * FROM pet.pets WHERE id=$1',[uuid(c.req.param('id'))])).rows);
+  const rows=await withUser(getActor(c).id,async db=>(await db.query('SELECT p.*,public.can_write_pet(p.id) AS can_edit FROM pet.pets p WHERE p.id=$1',[uuid(c.req.param('id'))])).rows);
   if(!rows[0])throw new HttpError(404,'PET_NOT_FOUND','ไม่พบโปรไฟล์น้อง');return ok(c,rows[0]);
 });
 app.post(base,async c=>{

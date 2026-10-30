@@ -61,7 +61,8 @@ select jsonb_build_object('fingerprint',md5(details::text),'details',details) as
  (23,'202610290023','202610290023_record_mutations.sql','171c466a888ddd5fd7df4ab1f5055527'),
  (24,'202610290024','202610290024_expense_dates.sql','920e7c3673511ed3914d17fc6f094a71'),
  (25,'202610300025','202610300025_admin_dashboard.sql','b21cf2e633f061af2d9c496de7af4038'),
- (26,'202610300026','202610300026_input_guard.sql','0dc0475b0ea973d0c9250b37565d64aa')
+ (26,'202610300026','202610300026_input_guard.sql','0dc0475b0ea973d0c9250b37565d64aa'),
+ (27,'202610310027','202610310027_owner_sessions.sql','9720c27f20983692910505835aaf6e6f')
   ) k(ordinal,version,file,fingerprint) where k.fingerprint=current_state->>'fingerprint';
   if known_count is null then
     raise exception 'Unrecognized or partial ChordJai schema (%). No changes applied. Run supabase/diagnostic.sql and review the full JSON; use bootstrap only on a fresh project.',current_state->>'fingerprint';
@@ -2368,7 +2369,58 @@ $migration_202610300026$;
 
   insert into ops.schema_migrations(version,checksum) values('202610300026','e9cb4057542b5900f332d28364849bb5cb1a6c9a805295497aad6b7fbb8da8af') on conflict(version) do nothing;
 
-  if exists(select 1 from ops.schema_migrations m where m.version not in ('202610100001','202610100002','202610100003','202610100004','202610100005','202610100006','202610100007','202610100008','202610100009','202610100010','202610100011','202610100012','202610100013','202610100014','202610110015','202610120016','202610120017','202610120018','202610120019','202610120020','202610130021','202610290022','202610290023','202610290024','202610300025','202610300026')) then
+  select m.checksum into checksum from ops.schema_migrations m where m.version='202610310027';
+  if checksum is not null and checksum<>'4b58a32f7331ac24f5ed83944a7b1e7907f73d3a736d8baa3a561bf908b21f0a' then
+    raise exception 'Checksum mismatch for migration 202610310027. No changes applied.';
+  end if;
+
+  if known_count<27 then
+    if checksum is not null then raise exception 'Tracker claims unapplied migration 202610310027. No changes applied.'; end if;
+    execute $migration_202610310027$
+-- Opaque browser sessions; the browser receives the secret, only its hash is
+-- retained here. Revoked login-attempt tombstones prevent a late login response
+-- from restoring access after the owner has already signed out.
+create table identity.web_sessions (
+ id uuid primary key default gen_random_uuid(),
+ attempt_id uuid not null unique,
+ user_id uuid references identity.users(id) on delete cascade,
+ token_hash text unique check(token_hash is null or token_hash ~ '^[a-f0-9]{64}$'),
+ created_at timestamptz not null default now(),
+ expires_at timestamptz not null default now()+interval '30 days',
+ last_used_at timestamptz not null default now(),
+ revoked_at timestamptz,
+ check((user_id is not null and token_hash is not null) or revoked_at is not null),
+ check(expires_at>created_at and expires_at<=created_at+interval '30 days')
+);
+create index web_sessions_owner_idx on identity.web_sessions(user_id,created_at desc);
+create index web_sessions_expiry_idx on identity.web_sessions(expires_at);
+alter table identity.web_sessions enable row level security;
+alter table identity.web_sessions force row level security;
+revoke all on identity.web_sessions from public,chordjai_app;
+grant select,insert,update,delete on identity.web_sessions to chordjai_worker;
+create policy web_sessions_worker on identity.web_sessions for all to chordjai_worker using(true) with check(true);
+
+-- Access JWTs carry the session ID, so logout also revokes an already-issued
+-- short bearer. The caller cannot use this function to inspect another owner.
+create function identity.web_session_active(p_session uuid,p_user uuid) returns boolean
+language sql stable security definer set search_path='' as $$
+ select p_user=public.current_user_id() and exists(
+  select 1 from identity.web_sessions s join identity.users u on u.id=s.user_id
+  where s.id=p_session and s.user_id=p_user and s.revoked_at is null
+   and s.expires_at>now() and u.status='active' and u.role='owner'
+ );
+$$;
+revoke all on function identity.web_session_active(uuid,uuid) from public;
+grant execute on function identity.web_session_active(uuid,uuid) to chordjai_app;
+$migration_202610310027$;
+    raise notice 'Applied 202610310027_owner_sessions.sql';
+  else
+    raise notice 'Verified existing 202610310027_owner_sessions.sql';
+  end if;
+
+  insert into ops.schema_migrations(version,checksum) values('202610310027','4b58a32f7331ac24f5ed83944a7b1e7907f73d3a736d8baa3a561bf908b21f0a') on conflict(version) do nothing;
+
+  if exists(select 1 from ops.schema_migrations m where m.version not in ('202610100001','202610100002','202610100003','202610100004','202610100005','202610100006','202610100007','202610100008','202610100009','202610100010','202610100011','202610100012','202610100013','202610100014','202610110015','202610120016','202610120017','202610120018','202610120019','202610120020','202610130021','202610290022','202610290023','202610290024','202610300025','202610300026','202610310027')) then
     raise exception 'Migration tracker contains a version unknown to this checkout. No changes applied.';
   end if;
   select s.state->>'fingerprint' into actual_state from (
@@ -2400,7 +2452,7 @@ with service_schemas(name) as (
 )
 select jsonb_build_object('fingerprint',md5(details::text),'details',details) as state from catalog
   ) s;
-  if actual_state<> '0dc0475b0ea973d0c9250b37565d64aa' then
+  if actual_state<> '9720c27f20983692910505835aaf6e6f' then
     raise exception 'Final schema verification failed (%). No changes applied.',actual_state;
   end if;
 end;

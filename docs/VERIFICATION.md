@@ -1,3 +1,19 @@
+# Owner onboarding and persistent sessions — 2026-10-31
+
+Implementation in the current checkout, not yet a production release:
+
+- Three primary owner views: Today, Records and My pet. Adding a pet needs a name and an explicit species choice. The first story composer starts with narrative, optional photos and today's editable date; the existing medical, cost, reflection and sharing fields are disclosed on request.
+- Optional `care.organize` returns exact-text suggestions without writing records or sending private reflections/photos. Owner review, source/version checks, payment-status selection, budget accounting and explicit final save remain required.
+- Owner sessions use an opaque HttpOnly cookie for up to 30 days. SID-bound one-hour JWTs are revoked with the session. Concurrent restore requests avoid LINE SDK/verification; initial login returns scoped bootstrap and defers friendship checks. No required new env vars.
+- `npm run check` passed: all workspace TypeScript checks, **354 unit tests**, and production builds for Owner, Clinic and Admin. DB-dependent tests are intentionally skipped by that command and verified separately.
+- Disposable PostgreSQL `run-local.sh --http` passed security/consent/erasure/queue/rate-limit SQL, concurrency, known-prefix and compact 26→27→27 upgrade preservation, plus **268 API/DB tests across 23 suites** at that run. After additional session cap, Secure-cookie and privileged-role coverage, the changed integration suites passed **48 tests across 4 suites**. These counts overlap; do not add them as separate unique test totals.
+- A real local HTTP check through Next's API rewrite restored a synthetic owner with scoped bootstrap (200, private/no-store), rejected a foreign Origin (403), cleared the cookie on logout (200), and rejected the previously issued bearer (401). One warm localhost restore sample was 58 ms, not a production or mobile performance benchmark.
+- Computer Use QA exercised a new demo pet → first story → save, optional photo → memory-page draft → save, English UI, Passport entry, ten-page booklet collector, direct PetID entry, and responsive layouts at 320/390/1280 px. Empty required date fields inside a closed disclosure are revealed and focused by native validation. No horizontal overflow at the checked widths and no console errors after the final fresh load. Session/API tests used mock LINE proofs and disposable data; browser checks used local demo. Actual LINE device timings remain to be measured.
+- Ignored evidence: `.verification/onboarding-build/` and `.verification/onboarding-20261031/`, including Thai mobile composer `05-compose-th.png`, Today `04-today-th.png`, English Today `03-today-en.png` and desktop `06-desktop.png`.
+- Production diagnostic was read-only and still matched **schema 26**, fingerprint `0dc0475b0ea973d0c9250b37565d64aa`. Schema 27's expected fingerprint is `9720c27f20983692910505835aaf6e6f`. No production migration, owner health-record write, LINE message, push or deployment was performed for this change. The owner is running SQL themselves; use `supabase/upgrade-26-to-27.sql`, not bootstrap, before releasing persistent login.
+
+Details and release steps: [ONBOARDING_AND_SESSIONS.md](ONBOARDING_AND_SESSIONS.md).
+
 # Compact SQL upgrade verification — 2026-10-30
 
 - The reported `42601` at the end of the full upgrade was not reproduced using the complete local file. Sending the whole file in one `pg.Client.query()` succeeded twice, including 25→26 and an already-applied 26.

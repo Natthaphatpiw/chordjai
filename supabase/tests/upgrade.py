@@ -34,7 +34,7 @@ def fresh(prefix: int) -> str:
     return name
 
 try:
-    for prefix in (1, 4, 9, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, len(sources)):
+    for prefix in (1, 4, 9, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, len(sources)):
         db = fresh(prefix)
         sql(db, "insert into identity.users(id,line_user_id,display_name) values('e0000000-0000-0000-0000-000000000001','upgrade-preservation-fixture','SYNTHETIC SENTINEL');")
         if prefix >= 16:
@@ -72,6 +72,19 @@ try:
         sql(db, upgrade)  # Both packets keep the same tracker and fingerprint.
         print(f"PASS: compact 25 -> 26 -> 26 preserves data; existing tracker={tracked}; full packet agrees")
 
+    for tracked in (False, True):
+        db = fresh(26)
+        sql(db, "insert into identity.users(id,line_user_id,display_name) values('e2000000-0000-4000-8000-000000000001','session-upgrade-sentinel','SYNTHETIC SESSION OWNER');")
+        if tracked:
+            sql(db, compact)
+        packet27 = (root / "upgrade-26-to-27.sql").read_text()
+        sql(db, packet27)
+        sql(db, packet27)
+        assert json.loads(sql(db, diagnostic).stdout.strip())["verified_migration_count"] == 27
+        assert sql(db, "select count(*) from identity.users where line_user_id='session-upgrade-sentinel';").stdout.strip() == "1"
+        sql(db, upgrade)
+        print(f"PASS: compact 26 -> 27 -> 27 preserves the owner; tracker={tracked}")
+
     wrong_base = fresh(24)
     sql(wrong_base, compact, success=False)
     assert sql(wrong_base, "select to_regclass('ops.input_cache') is null;").stdout.strip() == "t"
@@ -95,12 +108,12 @@ try:
     assert sql(compact_drift, "select to_regclass('ops.input_cache') is null;").stdout.strip() == "t"
     print("PASS: compact packet rejects drift rather than hiding it with IF NOT EXISTS")
 
-    racing = fresh(25)
+    racing = fresh(26)
     with ThreadPoolExecutor(max_workers=2) as pool:
         for result in pool.map(lambda packet: sql(racing, packet), (compact, upgrade)):
             assert result.returncode == 0
-    assert json.loads(sql(racing, diagnostic).stdout.strip())["verified_migration_count"] == 26
-    print("PASS: racing compact/full packets serialize and leave one verified schema 26")
+    assert json.loads(sql(racing, diagnostic).stdout.strip())["verified_migration_count"] == len(sources)
+    print("PASS: racing latest compact/full packets serialize and leave one verified latest schema")
 
     foreign = fresh(0)
     sql(foreign, "create schema identity; create table identity.users(id integer primary key,secret text); insert into identity.users values(1,'SYNTHETIC PRESERVE');")

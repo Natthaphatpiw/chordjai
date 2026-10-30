@@ -33,6 +33,7 @@ const handlers:Record<string,(payload:Record<string,unknown>,job:Job)=>Promise<v
 };
 export async function cleanupExpiredData(){
   return withSystem(async db=>{
+    if((await db.query("select to_regclass('identity.web_sessions') is not null available")).rows[0]?.available)await db.query("delete from identity.web_sessions where id in(select id from identity.web_sessions where expires_at<=now() order by expires_at limit 1000)");
     const completedJobs=await db.query("delete from ops.jobs where id in(select id from ops.jobs where status='completed' and updated_at<now()-interval '30 days' order by updated_at limit 1000)");
     const cache=await db.query('delete from ops.input_cache where ctid in(select ctid from ops.input_cache where expires_at<=now() limit 1000)');
     const metrics=await db.query("delete from ops.guard_metrics where ctid in(select ctid from ops.guard_metrics where bucket<now()-interval '30 days' limit 1000)");

@@ -28,6 +28,7 @@ beforeEach(() => {
   sdk.getAccessToken.mockReturnValue('test-line-access-token');
   vi.stubGlobal('window', { location: { href: 'https://www.chordjai.life/app' }, sessionStorage: storage });
   vi.stubGlobal('sessionStorage', storage);
+  vi.stubGlobal('navigator',{userAgent:'Mozilla/5.0 Line/15.0.0 LIFF'});
   vi.stubGlobal('document', { cookie: '', documentElement: { lang: 'en' } });
   fetchMock = vi.fn().mockImplementation(exchangeReply);
   vi.stubGlobal('fetch', fetchMock);
@@ -45,7 +46,7 @@ describe('LINE LIFF automatic sign-in with mocked SDK and API only', () => {
     expect(fetchMock).toHaveBeenCalledTimes(1);
     const [path, init] = fetchMock.mock.calls[0]!;
     expect(path).toBe('/api/v1/identity/line');
-    expect(JSON.parse(init.body)).toEqual({ idToken: 'test-line-id-token', accessToken: 'test-line-access-token' });
+    expect(JSON.parse(init.body)).toMatchObject({ idToken: 'test-line-id-token', accessToken: 'test-line-access-token',remember:true,includeBootstrap:true,loginAttemptId:expect.any(String) });
     expect(new Headers(init.headers).has('Authorization')).toBe(false);
     expect(storage.getItem('chordjai.session')).toBe('test-refreshed-session');
   });

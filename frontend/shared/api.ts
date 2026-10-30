@@ -101,11 +101,50 @@ let authSuppressed = false;
 type LoginAttempt<T> = { liffId: string; generation: number; promise: Promise<T> };
 let automaticLogin: LoginAttempt<boolean> | undefined;
 let sessionExchange: LoginAttempt<string> | undefined;
+let persistentRestore:Promise<boolean>|undefined;
+let pendingLoginAttempt:string|undefined;
+let bootstrapSnapshot:{generation:number;data:unknown}|undefined;
+const persistentHint='chordjai.owner-session.v1',signedOutHint='chordjai.explicit-signout.v1';
+function localHint(key:string,value?:string|null):string|null{
+  try{if(typeof window==='undefined'||!window.localStorage)return null;if(value===null)window.localStorage.removeItem(key);else if(value!==undefined)window.localStorage.setItem(key,value);return window.localStorage.getItem(key);}catch{return null;}
+}
+export function takeOwnerBootstrap<T>():T|null{
+  const cached=bootstrapSnapshot;bootstrapSnapshot=undefined;
+  return cached?.generation===authGeneration&&!authSuppressed?cached.data as T:null;
+}
+function rememberSession(session:{token:string;persistent?:boolean;bootstrap?:unknown},generation:number){
+  assertAuthGeneration(generation);
+  window.sessionStorage.setItem('chordjai.session',session.token);
+  if(session.persistent)localHint(persistentHint,'1');else if(session.persistent===false)localHint(persistentHint,null);
+  if(session.bootstrap)bootstrapSnapshot={generation,data:session.bootstrap};
+}
+export async function restoreAppSession():Promise<boolean>{
+  if(authSuppressed||localHint(signedOutHint)==='1'||localHint(persistentHint)!=='1')return false;
+  if(persistentRestore)return persistentRestore;
+  const generation=authGeneration;
+  const pending=(async()=>{
+    const response=await fetch('/api/v1/identity/session/restore',{...json('POST',{includeBootstrap:true}),headers:{'Content-Type':'application/json'},credentials:'same-origin',cache:'no-store',signal:AbortSignal.timeout(12_000)});
+    assertAuthGeneration(generation);
+    if(response.status===401){localHint(persistentHint,null);return false;}
+    const envelope=await response.json();
+    if(!response.ok)throw new ApiError(envelope.error?.code??'SESSION_RESTORE_FAILED',envelope.error?.message??'Please try again.',response.status);
+    if(!envelope.data?.token)throw new ApiError('INVALID_RESPONSE','Sign-in could not be completed.',502);
+    rememberSession(envelope.data,generation);return true;
+  })().finally(()=>{if(persistentRestore===pending)persistentRestore=undefined;});
+  persistentRestore=pending;return pending;
+}
+export async function endAppSession():Promise<void>{
+  const loginAttemptId=pendingLoginAttempt;
+  clearLineSession();localHint(persistentHint,null);localHint(signedOutHint,'1');
+  const response=await fetch('/api/v1/identity/session/logout',{...json('POST',{...(loginAttemptId?{loginAttemptId}:{})}),headers:{'Content-Type':'application/json'},credentials:'same-origin',cache:'no-store',keepalive:true,signal:AbortSignal.timeout(12_000)});
+  if(!response.ok)throw new ApiError('SESSION_LOGOUT_FAILED',translate(browserLocale(),'ยังออกจากระบบบนเซิร์ฟเวอร์ไม่สำเร็จ กรุณาลองอีกครั้ง','Server sign-out did not finish. Please try again.'),response.status);
+}
 export function clearLineSession(): void {
   authGeneration++;
   authSuppressed = true;
   automaticLogin = undefined;
   sessionExchange = undefined;
+  persistentRestore=undefined;bootstrapSnapshot=undefined;
   if (typeof window !== 'undefined') window.sessionStorage.removeItem('chordjai.session');
 }
 function assertAuthGeneration(generation: number): void {
@@ -126,7 +165,7 @@ export async function api<T>(path: string, init: RequestInit = {}, publicRequest
     // time this response arrives. Reuse it rather than exchanging LINE twice.
     const fresh = typeof window !== 'undefined' ? window.sessionStorage.getItem('chordjai.session') : null;
     if (fresh && fresh !== token) return api<T>(path, init, publicRequest, false, generation);
-    if (await autoLineLogin(process.env.NEXT_PUBLIC_LIFF_ID || '')) {
+    if (await restoreAppSession() || await autoLineLogin(process.env.NEXT_PUBLIC_LIFF_ID || '')) {
       assertAuthGeneration(generation);
       return api<T>(path, init, publicRequest, false, generation);
     }
@@ -158,10 +197,12 @@ async function exchangeLineSession(liffId: string, generation: number): Promise<
     const liff = await initializedLiff(liffId);
     assertAuthGeneration(generation);
     const accessToken = liff.getAccessToken();
-    const session = await api<{ token: string }>('/identity/line', json('POST', { idToken, ...(accessToken ? { accessToken } : {}) }), true);
+    const loginAttemptId=crypto.randomUUID();pendingLoginAttempt=loginAttemptId;
+    const session = await api<{ token: string;persistent?:boolean;bootstrap?:unknown }>('/identity/line', {...json('POST', { idToken, ...(accessToken ? { accessToken } : {}),remember:true,loginAttemptId,includeBootstrap:true }),signal:AbortSignal.timeout(20_000)}, true);
     assertAuthGeneration(generation);
     if (!session.token) throw new Error(translate(browserLocale(), 'ไม่ได้รับ session จากบริการยืนยันตัวตน', 'Sign-in could not be completed. Please try again.'));
-    window.sessionStorage.setItem('chordjai.session', session.token);
+    rememberSession(session,generation);
+    if(pendingLoginAttempt===loginAttemptId)pendingLoginAttempt=undefined;
     return session.token;
   })().finally(() => { if (sessionExchange === attempt) sessionExchange = undefined; });
   sessionExchange = attempt;
@@ -170,9 +211,11 @@ async function exchangeLineSession(liffId: string, generation: number): Promise<
 export async function lineLogin(liffId: string): Promise<string> {
   // Explicit sign-in is the only action that re-enables auth after local logout.
   authSuppressed = false;
+  localHint(signedOutHint,null);
   return exchangeLineSession(liffId, authGeneration);
 }
 export async function autoLineLogin(liffId: string): Promise<boolean> {
+  if(localHint(signedOutHint)==='1')return false;
   if (authSuppressed) return false;
   const generation = authGeneration;
   if (automaticLogin?.liffId === liffId && automaticLogin.generation === generation) return automaticLogin.promise;

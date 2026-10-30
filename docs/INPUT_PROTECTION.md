@@ -1,5 +1,7 @@
 # Input screening, caching and abuse controls
 
+อัปเดต UX วันที่ 31 ตุลาคม 2026: คำทักทายที่รู้จักตอบด้วย welcome card แบบไม่ใช้ LLM สูงสุดหนึ่งครั้งต่อ 5 นาทีต่อผู้ส่ง และไม่เก็บเป็นบทสนทนา/งาน Agent ส่วนคำถามนอกเรื่องยังถูกกรองเงียบเหมือนเดิม ดู [ONBOARDING_AND_SESSIONS.md](ONBOARDING_AND_SESSIONS.md)
+
 Implemented 2026-10-30. Apply `supabase/upgrade.sql` **schema 26** before deploying. The operator has already applied schema 25. No production database, environment, deployment or LINE messages were changed for this work.
 
 ## Product behaviour

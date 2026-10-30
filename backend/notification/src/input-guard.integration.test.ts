@@ -53,10 +53,10 @@ describe.skipIf(!isolated)('real DB input admission, cached LLM0 and bounded wri
  afterEach(async()=>{await clean();vi.unstubAllGlobals();});
  afterAll(async()=>{await clean();await withSystem(db=>db.query('delete from identity.users where id=any($1::uuid[])',[users]));await closeDatabase();vi.unstubAllEnvs();});
 
- it('ignores greetings/off-topic examples before event rows, jobs, feedback or AI',async()=>{
-  for(const message of ['สวัสดี','นายกชื่ออะไร','หุ้นตัวไหนดี'])expect((await webhook(message)).response.status).toBe(200);
+ it('welcomes greetings once without AI and ignores unrelated examples',async()=>{
+  for(const message of ['สวัสดี','สวัสดี','นายกชื่ออะไร','หุ้นตัวไหนดี'])expect((await webhook(message)).response.status).toBe(200);
   expect(await count('select count(*) n from notify.webhook_events where event_id=any($1::text[])',[events])).toBe(0);
-  expect(provider.parse).not.toHaveBeenCalled();expect(provider.reply).not.toHaveBeenCalled();expect(provider.read).not.toHaveBeenCalled();
+  expect(provider.parse).not.toHaveBeenCalled();expect(provider.reply).toHaveBeenCalledOnce();expect(provider.reply.mock.calls[0][1][0]).toMatchObject({type:'flex'});
  });
  it('rejects forged signatures before any durable admission',async()=>{
   expect((await webhook(text,users[0],false)).response.status).toBe(401);

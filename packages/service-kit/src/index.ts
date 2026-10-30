@@ -2,7 +2,7 @@ import { Hono, type Context } from 'hono';
 import { cors } from 'hono/cors';
 import { secureHeaders } from 'hono/secure-headers';
 import { bodyLimit } from 'hono/body-limit';
-import { verifySession } from '@chordjai/auth';
+import { verifySession,type Actor } from '@chordjai/auth';
 import { withUser } from '@chordjai/db';
 import { z } from 'zod';
 import { idempotency } from './idempotency';
@@ -15,7 +15,7 @@ export { responseLocale } from './locale';
 export function requestLocale(c: ServiceContext) { return responseLocale(c.req.header('Accept-Language')); }
 export function localeText(c: ServiceContext, thai: string, english: string) { return requestLocale(c) === 'en' ? english : thai; }
 export function aiLanguage(c: ServiceContext) { return requestLocale(c) === 'en' ? 'English' : 'Thai'; }
-export type Actor={id:string;role:'owner'|'admin'|'vet'};
+export type {Actor} from '@chordjai/auth';
 export type ServiceEnv={Variables:{actor:Actor|undefined;requestId:string}};
 export type ServiceContext=Context<ServiceEnv>;
 export class HttpError extends Error {
@@ -55,9 +55,9 @@ export function createService(name:string){
     if(auth&&!c.req.path.startsWith('/internal/')){
       if(!auth.startsWith('Bearer '))throw new HttpError(401,'INVALID_TOKEN','Token ไม่ถูกต้อง');
       let actor:Actor;try{actor=await verifySession(auth.slice(7));}catch{throw new HttpError(401,'INVALID_TOKEN','เซสชันหมดอายุ กรุณาเข้าสู่ระบบอีกครั้ง');}
-      const current=await withUser(actor.id,async db=>(await db.query('SELECT id,role,status FROM identity.users WHERE id=$1',[actor.id])).rows[0]);
+      const current=await withUser(actor.id,async db=>(await db.query(`SELECT id,role,status FROM identity.users WHERE id=$1${actor.sessionId?' AND identity.web_session_active($2::uuid,$1::uuid)':''}`,[actor.id,...(actor.sessionId?[actor.sessionId]:[])])).rows[0]);
       if(!current||current.status!=='active')throw new HttpError(401,'ACCOUNT_INACTIVE','บัญชีไม่พร้อมใช้งาน');
-      c.set('actor',{id:current.id,role:current.role});
+      c.set('actor',{id:current.id,role:current.role,...(actor.sessionId?{sessionId:actor.sessionId}:{})});
     }
     await protectApi(c,name);
     await next();

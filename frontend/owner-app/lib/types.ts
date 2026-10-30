@@ -1,4 +1,4 @@
-export interface Pet { id: string; name: string; species: 'cat' | 'dog'; sex: 'male' | 'female' | 'unknown'; birthDate?: string; neutered: boolean | null; weightKg?: number; photoUrl?: string; }
+export interface Pet { canEdit?:boolean;id: string; name: string; species: 'cat' | 'dog'; sex: 'male' | 'female' | 'unknown'; birthDate?: string; neutered: boolean | null; weightKg?: number; photoUrl?: string; }
 export interface HealthRecord { id: string; petId: string; kind: 'vaccine' | 'weight' | 'medication' | 'parasite' | 'checkin' | 'note'; title: string; recordedAt: string; nextDueAt?: string | null; notes?: string; value?: number | null; revision?: string; canEdit?: boolean; canDelete?: boolean; }
 export interface JournalElement { id: string; type: 'text' | 'sticker' | 'photo'; x: number; y: number; width: number; height: number; rotation: number; content: string; color?: string; }
 export interface JournalTheme { background: string; font: string; accent: string; }
