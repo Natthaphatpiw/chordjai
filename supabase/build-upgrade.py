@@ -71,6 +71,7 @@ markers = [
     "to_regclass('assistant.agent_tasks') is not null and to_regclass('assistant.agent_deliveries') is not null",
     "to_regprocedure('health.sync_record_mutation()') is not null and to_regprocedure('health.invalidate_care_mutation()') is not null",
     "exists(select 1 from pg_attribute where attrelid=to_regclass('health.care_costs') and attname='expense_date' and not attisdropped)",
+    "to_regclass('ops.dashboard_sessions') is not null and exists(select 1 from pg_attribute where attrelid=to_regclass('ai_ops.requests') and attname='cost_basis' and not attisdropped)",
 ]
 marker_case = "case k.ordinal\n" + "\n".join(f" when {i+1} then ({marker})" for i, marker in enumerate(markers)) + "\n end"
 diagnostic = """-- READ ONLY: one JSON result contains every diagnostic section; no user data.

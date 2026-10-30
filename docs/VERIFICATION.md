@@ -1,3 +1,9 @@
+# Dashboard รุ่น 25 — 2026-10-30
+
+334 unit + 233 isolated database/API checks ผ่าน พร้อม SQL security/concurrency และอัปเกรด 24→25→25 เก็บข้อมูลเดิม ทั้ง 3 frontend build และ workspace TypeScript ผ่าน ตรวจ browser ด้วยบัญชีทดสอบแยก ครบ login → ข้อมูล → filter/search → รายละเอียด → logout รายงานหลักฐานและขอบเขตที่ [ADMIN_DASHBOARD_QA.md](ADMIN_DASHBOARD_QA.md) การเปิดใช้งานจริงรอผู้ใช้รัน SQL และตั้ง backend env ตาม [ADMIN_DASHBOARD.md](ADMIN_DASHBOARD.md)
+
+---
+
 # ผลตรวจระบบ — อัปเดต 29 ตุลาคม 2026
 
 ## วันที่ค่าใช้จ่ายแบบไม่บังคับ — 29 ตุลาคม 2026

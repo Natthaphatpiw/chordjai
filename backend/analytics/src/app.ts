@@ -1,3 +1,4 @@
+import {mountDashboard} from './dashboard';
 import { z } from 'zod';
 import { withUser,withSystem } from '@chordjai/db';
 import { createService,getActor,requireRole,ok,jsonBody,uuid,HttpError } from '@chordjai/service-kit';
@@ -13,6 +14,7 @@ function metricNumberKeys(data:Record<string,unknown>){
   return data;
 }
 const app=createService('analytics');
+mountDashboard(app);
 app.post('/api/v1/analytics/events',async c=>{
   const actor=getActor(c),b=await jsonBody(c,z.object({name:z.enum(['app.opened','clinic.called','clinic.directions','journal.saved','survey.very_disappointed']),petId:z.uuid().optional(),properties:z.object({ref:z.string().max(100).optional()}).optional()}));
   await withUser(actor.id,db=>db.query('INSERT INTO analytics.events(user_id,pet_id,name,properties) VALUES($1,$2,$3,$4::jsonb)',[actor.id,b.petId??null,b.name,JSON.stringify(b.properties??{})]));return ok(c,{recorded:true},201);

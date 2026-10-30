@@ -4,5 +4,5 @@ import { getTranslator } from '../../shared/locale-server';
 
 export default async function Page() {
   const { locale } = await getTranslator();
-  redirect(localizedHref('/app', locale));
+  redirect(localizedHref('/dashboard', locale));
 }

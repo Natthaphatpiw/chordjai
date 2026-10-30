@@ -121,6 +121,7 @@ export default function OwnerApp() { const {locale,t,setLocale}=useLocale(); con
     if((requestedLocale==='th'||requestedLocale==='en')&&requestedLocale!==locale)setLocale(requestedLocale);
   },[mode,agentTask,setLocale]);
   useEffect(() => { window.scrollTo({ top: 0, left: 0, behavior: 'instant' }); }, [mode]);
+  useEffect(()=>{if(mode!=='live'||consent)return;void api('/analytics/events',json('POST',{name:'app.opened'})).catch(()=>{});},[mode,consent]);
   useEffect(()=>{if(demo)setPets(current=>localizeDemoPets(current,locale));},[locale,demo]);
   useEffect(() => {
     mounted.current = true;

@@ -191,3 +191,7 @@ scriptตรวจrouteด้วยLINE-signedempty-eventก่อนเปล�
 รันtypecheck/unit/DBintegration/build และตรวจบัญชีอื่นเข้าhealth/journal/memoryไม่ได้ ใช้SQL testsในDockerชั่วคราวไม่queryDBผู้ใช้ UIตัวอย่างไม่ยืนยันความพร้อมAIจริง ตรวจOCRกับสมุดจริง/ปีพ.ศ./วันEXP, LINEบนiOSAndroid, ปฏิทิน.ics, domain/DNS, Blobprivate/erasurejob, retryและcron ส่วนclinicaleval/ข้อมูลคลินิกจริงและprivacywordingยังต้องตรวจรับตามFEATURES.md
 
 แหล่งอ้างอิง: [Vercel Services (Beta)](https://vercel.com/docs/services), [Services config](https://vercel.com/docs/services/config-reference), [Hono deployment](https://vercel.com/docs/frameworks/backend/hono), [LIFF Server API](https://developers.line.biz/en/reference/liff-server/), [LINE webhook signature](https://developers.line.biz/en/docs/messaging-api/verify-webhook-signature/), [GPT-6.1 Sol](https://developers.openai.com/api/docs/models/gpt-6.1-sol)
+
+## Dashboard รุ่น 25 (2026-10-30)
+
+ผู้ใช้เป็นผู้รัน `supabase/upgrade.sql` เอง แล้วคัดลอกค่า backend จากไฟล์ส่วนตัว `local-secrets/dashboard-backend.env` เข้า Production ของ chordjai-backend และ redeploy เปิดที่ https://admin.chordjai.life/dashboard ไม่เพิ่ม repo หรือ Vercel project ใหม่ ไม่ใส่รหัสผ่านหรือ hash ใน NEXT_PUBLIC และไม่ต้องเปลี่ยน Supabase HTTPS URL/anon key ระบบ admin เดิมยังอยู่ `/app` ดูขั้นตอนและรหัสเข้าใช้ในไฟล์ส่วนตัวตาม [ADMIN_DASHBOARD.md](ADMIN_DASHBOARD.md)

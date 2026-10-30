@@ -142,5 +142,11 @@
     "file": "202610290024_expense_dates.sql",
     "checksum": "f471a0d7d7c466909fc2bea881acdb509006a5f45aa2d395b45d964bcdd63dca",
     "fingerprint": "920e7c3673511ed3914d17fc6f094a71"
+  },
+  {
+    "version": "202610300025",
+    "file": "202610300025_admin_dashboard.sql",
+    "checksum": "4468727d5de82cbc2aba3673576d189dfdd49d6ffc5e9449d367fd86cd9a7fd0",
+    "fingerprint": "b21cf2e633f061af2d9c496de7af4038"
   }
 ]

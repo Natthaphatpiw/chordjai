@@ -198,3 +198,7 @@ Git repository, Vercel project และ service เป็นคนละสิ�
 ## วันที่ค่าใช้จ่าย
 
 ค่าใช้จ่ายในไดอารี่และผลหลังพบหมอเพิ่มวันที่รายการแยกจากวันบันทึกแบบไม่บังคับ แก้หรือล้างได้ ไม่เติมวันให้ข้อมูลเก่าเอง ใช้ SQL รุ่น 24 และ env เดิม ดู [EXPENSE_DATES.md](EXPENSE_DATES.md) และผลตรวจใน VERIFICATION ก่อนเปิดใช้จริง
+
+## Operations dashboard — migration 25
+
+หน้า `/dashboard` ที่ admin.chordjai.life แยก login ด้วย username/password สำหรับผู้ดูแล แสดงผู้ใช้ใหม่/active/เปิดแอป รายชื่อสัตว์และสถานะ PetID, AI token ledger รวมและรายผู้ใช้/ฟีเจอร์ พร้อมวัน/เดือน/ปีตามเวลาไทย ต้นทุนเป็น token-based estimates พร้อม cache read/write และ reasoning ที่ไม่คิดซ้ำ แยก legacy/unknown/reserved จากยอดคำนวณ มีเพดานงบผ่าน backend env และ CSV เฉพาะหน้าที่แสดง รายละเอียดการตั้งค่า SQL/env และข้อจำกัดอยู่ที่ [ADMIN_DASHBOARD.md](ADMIN_DASHBOARD.md)

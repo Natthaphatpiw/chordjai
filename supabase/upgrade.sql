@@ -59,7 +59,8 @@ select jsonb_build_object('fingerprint',md5(details::text),'details',details) as
  (21,'202610130021','202610130021_pet_passport.sql','5ff3a6478e28e83e84c4ffb6d5f74478'),
  (22,'202610290022','202610290022_line_agent.sql','1fa6dec40eefeeea2f053758c500131c'),
  (23,'202610290023','202610290023_record_mutations.sql','171c466a888ddd5fd7df4ab1f5055527'),
- (24,'202610290024','202610290024_expense_dates.sql','920e7c3673511ed3914d17fc6f094a71')
+ (24,'202610290024','202610290024_expense_dates.sql','920e7c3673511ed3914d17fc6f094a71'),
+ (25,'202610300025','202610300025_admin_dashboard.sql','b21cf2e633f061af2d9c496de7af4038')
   ) k(ordinal,version,file,fingerprint) where k.fingerprint=current_state->>'fingerprint';
   if known_count is null then
     raise exception 'Unrecognized or partial ChordJai schema (%). No changes applied. Run supabase/diagnostic.sql and review the full JSON; use bootstrap only on a fresh project.',current_state->>'fingerprint';
@@ -2234,7 +2235,55 @@ $migration_202610290024$;
 
   insert into ops.schema_migrations(version,checksum) values('202610290024','f471a0d7d7c466909fc2bea881acdb509006a5f45aa2d395b45d964bcdd63dca') on conflict(version) do nothing;
 
-  if exists(select 1 from ops.schema_migrations m where m.version not in ('202610100001','202610100002','202610100003','202610100004','202610100005','202610100006','202610100007','202610100008','202610100009','202610100010','202610100011','202610100012','202610100013','202610100014','202610110015','202610120016','202610120017','202610120018','202610120019','202610120020','202610130021','202610290022','202610290023','202610290024')) then
+  select m.checksum into checksum from ops.schema_migrations m where m.version='202610300025';
+  if checksum is not null and checksum<>'4468727d5de82cbc2aba3673576d189dfdd49d6ffc5e9449d367fd86cd9a7fd0' then
+    raise exception 'Checksum mismatch for migration 202610300025. No changes applied.';
+  end if;
+
+  if known_count<25 then
+    if checksum is not null then raise exception 'Tracker claims unapplied migration 202610300025. No changes applied.'; end if;
+    execute $migration_202610300025$
+alter table ai_ops.requests
+ add column cached_input_tokens integer not null default 0 check(cached_input_tokens>=0),
+ add column cache_write_tokens integer not null default 0 check(cache_write_tokens>=0),
+ add column reasoning_tokens integer not null default 0 check(reasoning_tokens>=0),
+ add column total_tokens integer not null default 0 check(total_tokens>=0),
+ add column usage_reported boolean not null default false,
+ add column estimated_cost_usd numeric(16,8) check(estimated_cost_usd>=0),
+ add column reserved_cost_usd numeric(16,8) check(reserved_cost_usd>=0),
+ add column cost_basis text not null default 'legacy_estimate' check(cost_basis in('legacy_estimate','token_estimate','reserved','unknown','unpriced','not_sent')),
+ add column price_snapshot jsonb,
+ add column provider_response_id text,
+ add column provider_request_id text,
+ add column service_tier text,
+ add column completed_at timestamptz;
+-- Old rows did not capture cache tokens or price snapshots; keep them visibly separate.
+update ai_ops.requests set total_tokens=input_tokens+output_tokens,
+ cost_basis=case when status='budget_blocked' then 'not_sent' when status='reserved' then 'reserved' else 'legacy_estimate' end,
+ reserved_cost_usd=case when status='reserved' then cost_usd end;
+alter table ai_ops.requests add constraint requests_token_breakdown_check check(cached_input_tokens+cache_write_tokens<=input_tokens and reasoning_tokens<=output_tokens);
+create index requests_time_feature_user_idx on ai_ops.requests(created_at,feature,user_id);
+create index analytics_user_time_idx on analytics.events(user_id,created_at desc);
+create table ops.dashboard_sessions(
+ token_hash text primary key check(length(token_hash)=64),
+ credential_version text not null check(length(credential_version)=64),
+ username text not null,
+ created_at timestamptz not null default now(),
+ expires_at timestamptz not null
+);
+create index dashboard_sessions_expiry_idx on ops.dashboard_sessions(expires_at);
+alter table ops.dashboard_sessions enable row level security;
+create policy dashboard_sessions_worker on ops.dashboard_sessions for all to chordjai_worker using(true) with check(true);
+grant select,insert,delete on ops.dashboard_sessions to chordjai_worker;
+$migration_202610300025$;
+    raise notice 'Applied 202610300025_admin_dashboard.sql';
+  else
+    raise notice 'Verified existing 202610300025_admin_dashboard.sql';
+  end if;
+
+  insert into ops.schema_migrations(version,checksum) values('202610300025','4468727d5de82cbc2aba3673576d189dfdd49d6ffc5e9449d367fd86cd9a7fd0') on conflict(version) do nothing;
+
+  if exists(select 1 from ops.schema_migrations m where m.version not in ('202610100001','202610100002','202610100003','202610100004','202610100005','202610100006','202610100007','202610100008','202610100009','202610100010','202610100011','202610100012','202610100013','202610100014','202610110015','202610120016','202610120017','202610120018','202610120019','202610120020','202610130021','202610290022','202610290023','202610290024','202610300025')) then
     raise exception 'Migration tracker contains a version unknown to this checkout. No changes applied.';
   end if;
   select s.state->>'fingerprint' into actual_state from (
@@ -2266,7 +2315,7 @@ with service_schemas(name) as (
 )
 select jsonb_build_object('fingerprint',md5(details::text),'details',details) as state from catalog
   ) s;
-  if actual_state<> '920e7c3673511ed3914d17fc6f094a71' then
+  if actual_state<> 'b21cf2e633f061af2d9c496de7af4038' then
     raise exception 'Final schema verification failed (%). No changes applied.',actual_state;
   end if;
 end $upgrade$;
