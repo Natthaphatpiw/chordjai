@@ -3,7 +3,7 @@ import {z} from 'zod';
 import {waitUntil} from '@vercel/functions';
 import {withSystem,withUser,type PoolClient} from '@chordjai/db';
 import {signSession,type Actor} from '@chordjai/auth';
-import {runStructured,hasUnsafeMedicalAdvice} from '@chordjai/ai';
+import {inputDecisionSchema,runStructured,hasUnsafeMedicalAdvice} from '@chordjai/ai';
 import {passportEmergency} from '@chordjai/contracts';
 import {enqueue} from '@chordjai/queue';
 import {pushLine,type LineMessage} from '@chordjai/line';
@@ -159,8 +159,8 @@ async function cancelTask(db:PoolClient,task:Task,turn:Turn){
 async function chatFromLine(actor:Actor,threadId:string,turn:Turn,text:string,language:'th'|'en'){
  // The stable conversation/request IDs survive a lost worker response.
  await withUser(actor.id,async db=>{await db.query(`insert into assistant.conversations(id,user_id,title) values($1,$2,'LINE OA') on conflict(id) do nothing`,[threadId,actor.id]);});
- const app=(await import('./app')).default;
- const response=await app.fetch(new Request('https://agent.internal/api/v1/assistant/chat',{method:'POST',headers:{Authorization:`Bearer ${await signSession(actor)}`,'Content-Type':'application/json','Accept-Language':language,'Idempotency-Key':turn.request_id},body:JSON.stringify({message:text,conversationId:threadId,requestId:turn.request_id})}));
+ const {chatAfterLineClassification}=await import('./app');
+ const response=await chatAfterLineClassification(new Request('https://agent.internal/api/v1/assistant/chat',{method:'POST',headers:{Authorization:`Bearer ${await signSession(actor)}`,'Content-Type':'application/json','Accept-Language':language,'Idempotency-Key':turn.request_id},body:JSON.stringify({message:text,conversationId:threadId,requestId:turn.request_id})}));
  const payload=await response.json() as {data?:{reply:string};error?:{code:string}};
  if(!response.ok||!payload.data)throw new HttpError(response.status,payload.error?.code??'AGENT_CHAT_FAILED','Chat is unavailable');return payload.data.reply;
 }
@@ -247,7 +247,7 @@ export async function ingestAgentTurn(eventId:string,userId:string){
 async function ingestAgentTurnCore(eventId:string,userId:string){
  if(!enabled())throw new HttpError(503,'AGENT_DISABLED','LINE Agent is disabled');
  const actor=await actorFor(userId);
- const raw=await withSystem(async db=>(await db.query<{payload:Record<string,unknown>;received_at:Date}>('select payload,received_at from notify.webhook_events where event_id=$1',[eventId])).rows[0]);
+ const raw=await withSystem(async db=>(await db.query<{payload:Record<string,unknown>;received_at:Date;ingress_decision:unknown}>('select payload,received_at,ingress_decision from notify.webhook_events where event_id=$1',[eventId])).rows[0]);
  const existing=await withUser(userId,async db=>(await db.query<Turn>('select * from assistant.agent_turns where event_id=$1',[eventId])).rows[0]);
  if(existing?.state==='done')return {handled:true};
  const event=z.object({type:z.enum(['message','postback']),source:z.object({type:z.literal('user'),userId:z.literal(actor.lineUserId)}),message:z.object({type:z.literal('text'),text:z.string().min(1).max(5000)}).optional(),postback:z.object({data:z.string().max(300)}).optional()}).refine(e=>e.type==='message'?Boolean(e.message):Boolean(e.postback)).safeParse(raw?.payload);
@@ -302,8 +302,10 @@ async function ingestAgentTurnCore(eventId:string,userId:string){
    if(task?.status==='failed'&&retryText(text)){await queueTask(db,task,turn,task.confirmed_version===task.version);await finish();return{handled:true};}
    if(task&&['queued','running'].includes(task.status)){await outbox(db,userId,null,turn.id,'busy',`turn:${turn.id}:busy`,[agentCard(t(language,'กำลังทำงานก่อนหน้า','Your task is in progress'),t(language,'กรุณารอผลของงานก่อนหน้าสักครู่ แล้วส่งคำขอใหม่ได้เลย','Please wait for the current task to finish before starting another.'))]);await finish();return{handled:true};}
    const emergency=passportEmergency(text,{},language);
-   const normalized=emergency.urgent?normalizeAgentInputSchema.parse({route:'emergency',language,normalizedText:text,intentSummary:'Urgent reported sign',petMentions:[]}):await runStructured({userId,feature:'agent.normalize',schema:normalizeAgentInputSchema,instructions:NORMALIZE_INSTRUCTIONS,input:{now:bangkokAgentNow(raw.received_at),language:thread.language,text,pendingTask:task&&!terminal.has(task.status)?{title:task.title,request:task.request_text,question:task.question}:null},maxOutputTokens:1800});
+   const gated=inputDecisionSchema.safeParse(raw.ingress_decision);
+   const normalized=gated.success?normalizeAgentInputSchema.parse({route:gated.data.route,language:gated.data.language,normalizedText:text,intentSummary:'Owner pet-care request',petMentions:[]}):emergency.urgent?normalizeAgentInputSchema.parse({route:'emergency',language,normalizedText:text,intentSummary:'Urgent reported sign',petMentions:[]}):await runStructured({userId,feature:'agent.normalize',schema:normalizeAgentInputSchema,instructions:NORMALIZE_INSTRUCTIONS,input:{now:bangkokAgentNow(raw.received_at),language:thread.language,text,pendingTask:task&&!terminal.has(task.status)?{title:task.title,request:task.request_text,question:task.question}:null},maxOutputTokens:1800});
    language=normalized.language;await db.query('update assistant.agent_turns set normalized=$2::jsonb,route=$3 where id=$1',[turn.id,JSON.stringify({...normalized,sourceReceivedAt:raw.received_at}),normalized.route]);await db.query('update assistant.agent_threads set language=$2 where id=$1',[turn.thread_id,language]);
+   if(normalized.route==='unsupported'){await finish();return{handled:true};}
    if(normalized.route==='emergency'){
     await outbox(db,userId,null,turn.id,'emergency',`turn:${turn.id}:emergency`,[agentCard(t(language,'ติดต่อสัตวแพทย์ทันที','Contact an emergency vet now'),t(language,'หากมีอาการฉุกเฉิน ไม่ต้องรอให้ Agent ทำงานครบ กรุณาติดต่อโรงพยาบาลสัตว์ทันที','Do not wait for this agent if urgent signs are present. Contact an emergency veterinary hospital now.'),[],`${process.env.APP_ORIGIN??'https://www.chordjai.life'}/emergency?lang=${language}`,language)]);
    }else if(normalized.route==='chat'||normalized.route==='followup_reply'){
@@ -311,7 +313,7 @@ async function ingestAgentTurnCore(eventId:string,userId:string){
     const reply=normalized.route==='followup_reply'&&captured?t(language,'เก็บคำตอบติดตามไว้เป็นส่วนตัวแล้วครับ หากต้องการลงไดอารี่ พิมพ์ว่า “บันทึกเรื่องนี้” ได้เลย','Your check-in reply is kept privately. Say “record this” if you want it added to your diary.'):await chatFromLine(actor,turn.thread_id,turn,text,language);
     if(normalized.route==='chat'||!captured)await db.query('update assistant.agent_threads set conversation_id=id where id=$1',[turn.thread_id]);
     await outbox(db,userId,null,turn.id,'chat',`turn:${turn.id}:chat`,[{type:'text',text:reply.slice(0,5000)}]);
-   }else if(normalized.route==='help'||normalized.route==='unsupported'){
+   }else if(normalized.route==='help'){
     const message=t(language,'พิมพ์ขอให้จดไดอารี่ บันทึกน้ำหนัก/วัคซีน ตั้งเตือน ดูประวัติ แต่งสมุด หรือเตรียมพบหมอได้ เช่น “วันนี้พาถั่วเหลืองไปพบหมอ บันทึกให้หน่อย” งานเปิดสิทธิ์ ความยินยอม และการตรวจยืนยันข้อมูลสำคัญยังทำในแอปครับ','Ask me to record a diary entry, weight or vaccination, set reminders, read records, manage a memory book or prepare for a vet visit. Permission, consent and full sensitive-data reviews remain in the app.');
     await outbox(db,userId,null,turn.id,'help',`turn:${turn.id}:help`,[agentCard('ChordJai Agent',message,[],`${process.env.APP_ORIGIN??'https://www.chordjai.life'}/app?lang=${language}`,language)]);
    }else{

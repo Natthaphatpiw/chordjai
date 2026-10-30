@@ -8,9 +8,10 @@ import {createService,getActor,HttpError,jsonBody,ok,camel,uuid,type ServiceCont
 import {buildCalendar} from './calendar.js';
 import {registerFollowupRoutes,processFollowups,followupCommand,processFollowupCommand,captureFollowupReply} from './followup.js';
 import {queueAgentLineEvent,markAcceptedLineEventRead} from './agent-channel.js';
+import {admitLineEvent,gateLineEvent,quickInputDecision} from './input-guard';
 export const app=createService('notification');
 registerFollowupRoutes(app);
-const lineEventSchema=z.object({webhookEventId:z.string().min(1).max(100),type:z.string().max(80),replyToken:z.string().max(200).optional(),source:z.object({type:z.string(),userId:z.string().max(100).optional()}),message:z.object({type:z.string(),text:z.string().max(5000).optional()}).passthrough().optional(),postback:z.object({data:z.string().min(1).max(300)}).passthrough().optional()}).passthrough();
+const lineEventSchema=z.object({webhookEventId:z.string().min(1).max(100),type:z.string().max(80),replyToken:z.string().max(200).optional(),timestamp:z.number().optional(),deliveryContext:z.object({isRedelivery:z.boolean().optional()}).optional(),source:z.object({type:z.string().max(20),userId:z.string().max(100).optional()}),message:z.object({type:z.string().max(30),text:z.string().max(5000).optional(),markAsReadToken:z.string().max(4096).optional()}).optional(),postback:z.object({data:z.string().min(1).max(300)}).optional()});
 type LineEvent=z.infer<typeof lineEventSchema>;
 const hash=(token:string)=>createHash('sha256').update(token).digest('hex');
 function requireCron(c:ServiceContext){
@@ -27,7 +28,10 @@ app.post('/api/v1/notification/webhooks/line',async c=>{
   if(!parsed.success)throw new HttpError(400,'INVALID_LINE_EVENT','LINE event body is invalid');
   const body=parsed.data,newEvents:LineEvent[]=[];
   for(const event of body.events){
+    if(event.message?.type==='text'&&quickInputDecision(event.message.text??''))continue;
+    if(!['message','postback','follow','unfollow'].includes(event.type))continue;
     const inserted=await withSystem(async tx=>{
+      if(!await admitLineEvent(tx,event,followupCommand(event.message?.text??'')==='pause'))return false;
       const inserted=await tx.query<{id:string}>('insert into notify.webhook_events(event_id,event_type,payload) values($1,$2,$3::jsonb) on conflict(event_id) do nothing returning id',[event.webhookEventId,event.type,JSON.stringify(event)]);
       if(inserted.rowCount)await enqueue('line.event',{eventId:event.webhookEventId},`line:${event.webhookEventId}`,tx);
       return Boolean(inserted.rowCount);
@@ -52,6 +56,10 @@ export async function processLineEvent(eventId:string){
   const command=event.type==='message'&&event.message?.type==='text'?followupCommand(event.message.text??''):null;
   // PAUSE/RESUME remains deterministic and takes precedence over model routing.
   // The agent owns clarification/acknowledgement/completion for queued turns.
+  if(user&&!command&&event.type==='message'&&event.message?.type==='text'&&process.env.LINE_AGENT_ENABLED==='true'){
+    const consent=await withSystem(async tx=>(await tx.query("select granted from identity.consents where user_id=$1 and purpose='service' and granted",[user.id])).rowCount);
+    if(consent&&!await gateLineEvent(user.id,eventId,event.message.text??''))return;
+  }
   if(user&&!command&&await queueAgentLineEvent(user.id,event))return;
   let specialReply:string|null=null;
   if(user&&event.source.type==='user'&&command){

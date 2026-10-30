@@ -33,6 +33,9 @@ const handlers:Record<string,(payload:Record<string,unknown>,job:Job)=>Promise<v
 };
 export async function cleanupExpiredData(){
   return withSystem(async db=>{
+    const completedJobs=await db.query("delete from ops.jobs where id in(select id from ops.jobs where status='completed' and updated_at<now()-interval '30 days' order by updated_at limit 1000)");
+    const cache=await db.query('delete from ops.input_cache where ctid in(select ctid from ops.input_cache where expires_at<=now() limit 1000)');
+    const metrics=await db.query("delete from ops.guard_metrics where ctid in(select ctid from ops.guard_metrics where bucket<now()-interval '30 days' limit 1000)");
     const rates=await db.query('DELETE FROM ops.rate_limits WHERE ctid IN (SELECT ctid FROM ops.rate_limits WHERE expires_at<now() LIMIT 1000)');
     const requests=await db.query('DELETE FROM ops.idempotency WHERE ctid IN (SELECT ctid FROM ops.idempotency WHERE expires_at<now() LIMIT 1000)');
     const events=await db.query("DELETE FROM notify.webhook_events WHERE event_id IN (SELECT event_id FROM notify.webhook_events WHERE received_at<now()-interval '7 days' LIMIT 1000)");
@@ -45,7 +48,7 @@ export async function cleanupExpiredData(){
       agentTasks=(await db.query("delete from assistant.agent_tasks where id in(select id from assistant.agent_tasks where created_at<now()-interval '30 days' limit 500)")).rowCount??0;
       agentTurns=(await db.query("delete from assistant.agent_turns where id in(select id from assistant.agent_turns where created_at<now()-interval '30 days' limit 1000)")).rowCount??0;
     }
-    return {expiredRateLimits:rates.rowCount,expiredRequests:requests.rowCount,expiredWebhooks:events.rowCount,expiredFollowups:followups.rowCount,expiredAgentTasks:agentTasks,expiredAgentTurns:agentTurns};
+    return {expiredCompletedJobs:completedJobs.rowCount,expiredInputCache:cache.rowCount,expiredGuardMetrics:metrics.rowCount,expiredRateLimits:rates.rowCount,expiredRequests:requests.rowCount,expiredWebhooks:events.rowCount,expiredFollowups:followups.rowCount,expiredAgentTasks:agentTasks,expiredAgentTurns:agentTurns};
   });
 }
 app.get('/internal/cron/jobs',async c=>{

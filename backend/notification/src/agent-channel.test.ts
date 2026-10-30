@@ -6,6 +6,8 @@ vi.mock('@chordjai/queue',()=>({enqueue:mock.enqueue}));
 vi.mock('@vercel/functions',()=>({waitUntil:mock.waitUntil}));
 vi.mock('@chordjai/line',async()=>({...await vi.importActual<object>('@chordjai/line'),replyLine:mock.reply,markLineMessagesRead:mock.read,startLineLoading:mock.loading}));
 vi.mock('./followup.js',()=>({registerFollowupRoutes:()=>{},processFollowups:vi.fn(),followupCommand:mock.command,processFollowupCommand:mock.processCommand,captureFollowupReply:mock.capture}));
+// Feedback tests isolate the ingress gate; real admission is covered in input-guard.integration.test.ts.
+vi.mock('./input-guard',async original=>({...await original<typeof import('./input-guard')>(),admitLineEvent:vi.fn(async()=>true),gateLineEvent:vi.fn(async()=>true)}));
 import {isAgentLineEvent,queueAgentLineEvent} from './agent-channel.js';
 import app,{processLineEvent} from './app.js';
 import {LineApiError} from '@chordjai/line';

@@ -202,3 +202,7 @@ Git repository, Vercel project และ service เป็นคนละสิ�
 ## Operations dashboard — migration 25
 
 หน้า `/dashboard` ที่ admin.chordjai.life แยก login ด้วย username/password สำหรับผู้ดูแล แสดงผู้ใช้ใหม่/active/เปิดแอป รายชื่อสัตว์และสถานะ PetID, AI token ledger รวมและรายผู้ใช้/ฟีเจอร์ พร้อมวัน/เดือน/ปีตามเวลาไทย ต้นทุนเป็น token-based estimates พร้อม cache read/write และ reasoning ที่ไม่คิดซ้ำ แยก legacy/unknown/reserved จากยอดคำนวณ มีเพดานงบผ่าน backend env และ CSV เฉพาะหน้าที่แสดง รายละเอียดการตั้งค่า SQL/env และข้อจำกัดอยู่ที่ [ADMIN_DASHBOARD.md](ADMIN_DASHBOARD.md)
+
+## Input protection (schema 26)
+
+GPT-6 Luna performs bounded LINE/LIFF text screening before the main model. Closed greetings and obvious repeats avoid model calls; unsupported LINE input is silent. Exact per-owner/context classification caching, distributed leases, signed-source/API/AI quotas, DB row/storage ceilings, oversized-JSON rejection and operational protection counters are implemented. See [INPUT_PROTECTION.md](INPUT_PROTECTION.md).

@@ -9,11 +9,11 @@ export function tokenUsage(usage:unknown):TokenUsage|null{
  return {input,output,cached,cacheWrite,reasoning,total:input+output};
 }
 export function priceTokens(model:string,usage:TokenUsage,tier='default'){
- const embedding=model==='text-embedding-3-small';
- const known=embedding||/^gpt-6\.1-sol(?:-\d{4}-\d{2}-\d{2})?$/.test(model);
+ const embedding=model==='text-embedding-3-small',luna=/^gpt-6-luna(?:-\d{4}-\d{2}-\d{2})?$/.test(model);
+ const known=embedding||luna||/^gpt-6\.1-sol(?:-\d{4}-\d{2}-\d{2})?$/.test(model);
  if(!known||!['default','standard'].includes(tier))return null;
  const rate=(key:string,fallback:number)=>{const n=Number(process.env[key]??fallback);return Number.isFinite(n)&&n>=0?n:NaN;};
- const rates=embedding?{input:rate('AI_EMBEDDING_USD_PER_MILLION',0.02),cached:0,cacheWrite:0,output:0}:{input:rate('AI_INPUT_USD_PER_MILLION',2),cached:rate('AI_CACHED_INPUT_USD_PER_MILLION',0.1),cacheWrite:rate('AI_CACHE_WRITE_USD_PER_MILLION',2.5),output:rate('AI_OUTPUT_USD_PER_MILLION',10)};
+ const rates=embedding?{input:rate('AI_EMBEDDING_USD_PER_MILLION',0.02),cached:0,cacheWrite:0,output:0}:luna?{input:rate('AI_LUNA_INPUT_USD_PER_MILLION',0.10),cached:rate('AI_LUNA_CACHED_INPUT_USD_PER_MILLION',0.01),cacheWrite:rate('AI_LUNA_CACHE_WRITE_USD_PER_MILLION',0.125),output:rate('AI_LUNA_OUTPUT_USD_PER_MILLION',0.50)}:{input:rate('AI_INPUT_USD_PER_MILLION',2),cached:rate('AI_CACHED_INPUT_USD_PER_MILLION',0.1),cacheWrite:rate('AI_CACHE_WRITE_USD_PER_MILLION',2.5),output:rate('AI_OUTPUT_USD_PER_MILLION',10)};
  const multiplier=rate('AI_PRICE_MULTIPLIER',1),long=!embedding&&usage.input>272000;
  if(!Object.values(rates).every(Number.isFinite)||!Number.isFinite(multiplier)||multiplier<=0)return null;
  const usd=((usage.input-usage.cached-usage.cacheWrite)*rates.input+usage.cached*rates.cached+usage.cacheWrite*rates.cacheWrite)*(long?2:1)/1e6+usage.output*rates.output*(long?1.5:1)/1e6;

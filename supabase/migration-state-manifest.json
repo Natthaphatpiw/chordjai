@@ -148,5 +148,11 @@
     "file": "202610300025_admin_dashboard.sql",
     "checksum": "4468727d5de82cbc2aba3673576d189dfdd49d6ffc5e9449d367fd86cd9a7fd0",
     "fingerprint": "b21cf2e633f061af2d9c496de7af4038"
+  },
+  {
+    "version": "202610300026",
+    "file": "202610300026_input_guard.sql",
+    "checksum": "e9cb4057542b5900f332d28364849bb5cb1a6c9a805295497aad6b7fbb8da8af",
+    "fingerprint": "0dc0475b0ea973d0c9250b37565d64aa"
   }
 ]

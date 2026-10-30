@@ -8,7 +8,7 @@ describe('LINE identity friendship reconciliation',()=>{
     vi.stubEnv('APP_JWT_SECRET','unit-test-session-secret-at-least-32-characters');
     mocks.idToken.mockResolvedValue({lineUserId:'Uverified',displayName:'ผู้ดูแล',pictureUrl:null});
     mocks.friendship.mockResolvedValue(null);
-    mocks.query.mockResolvedValue({rows:[{id:'11111111-1111-4111-8111-111111111111',display_name:'ผู้ดูแล',role:'owner',status:'active'}],rowCount:1});
+    mocks.query.mockImplementation(async(sql:string)=>sql.includes('ops.take_rate_limit')?{rows:[{allowed:true}],rowCount:1}:({rows:[{id:'11111111-1111-4111-8111-111111111111',display_name:'ผู้ดูแล',role:'owner',status:'active'}],rowCount:1}));
   });
   afterEach(()=>{vi.unstubAllEnvs();vi.clearAllMocks();});
   const login=(body:unknown)=>app.request('/api/v1/identity/line',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});

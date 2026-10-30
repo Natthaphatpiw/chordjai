@@ -25,6 +25,7 @@ beforeEach(() => {
   vi.clearAllMocks();mocks.writable = true;mocks.matchingPhotos = true;
   vi.stubGlobal('fetch', vi.fn(() => { throw new Error('Live provider requests are forbidden in booklet tests'); }));
   mocks.query.mockImplementation(async (sql: string, parameters: unknown[] = []) => {
+    if(sql.includes('ops.take_rate_limit'))return{rows:[{allowed:true}],rowCount:1};
     if (sql.includes('FROM identity.users')) return { rowCount: 1, rows: [{ id: ownerId, role: 'owner', status: 'active' }] };
     if (sql.includes('FROM pet.pets')) return { rowCount: mocks.writable ? 1 : 0, rows: mocks.writable ? [{ id: petId }] : [] };
     if (sql.includes('FROM media.objects')) return { rowCount: mocks.matchingPhotos ? (parameters[0] as string[]).length : 0, rows: mocks.matchingPhotos ? (parameters[0] as string[]).map(id=>({id})) : [] };

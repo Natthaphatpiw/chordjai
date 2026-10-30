@@ -3,8 +3,8 @@ import { buildClinicalCareContext } from './care-context';
 const ownerId='00000000-0000-4000-8000-000000000001',petId='00000000-0000-4000-8000-000000000002',conversationId='00000000-0000-4000-8000-000000000003';
 const mocks=vi.hoisted(()=>({query:vi.fn(),summary:vi.fn(),ai:vi.fn(),unsafe:vi.fn(),petVisible:true}));
 vi.mock('@chordjai/auth',()=>({verifySession:vi.fn(async()=>({id:'00000000-0000-4000-8000-000000000001',role:'owner'}))}));
-vi.mock('@chordjai/db',()=>({withUser:vi.fn(async(_id,fn)=>fn({query:mocks.query})),careSummary:mocks.summary}));
-vi.mock('@chordjai/ai',()=>({runText:mocks.ai,hasUnsafeMedicalAdvice:mocks.unsafe}));
+vi.mock('@chordjai/db',()=>({withUser:vi.fn(async(_id,fn)=>fn({query:mocks.query})),withSystem:vi.fn(async fn=>fn({query:mocks.query})),careSummary:mocks.summary}));
+vi.mock('@chordjai/ai',()=>({classifyInput:vi.fn(async()=>({route:'chat',language:'en',reason:'continuation'})),runText:mocks.ai,hasUnsafeMedicalAdvice:mocks.unsafe}));
 import app from './app';
 const clinicalEntry=()=>({kind:'visit',title:'Follow-up at the vet',observed_at:'2026-10-12T09:00:00+07:00',clinical_note:'Vomited twice, then kept water down.',provenance:'clinician_confirmed',narrative:'PRIVATE_NARRATIVE',reflection:'PRIVATE_REFLECTION',media:[{id:'PRIVATE_PHOTO'}],costs:[{amountMinor:123456,label:'PRIVATE_BILL'}],observations:{symptoms:['vomiting'],severity:'mild',appetite:'reduced',energy:'normal',trend:'better',water:'normal',toilet:'normal',onsetAt:'2026-10-11T20:00:00+07:00',frequency:'twice',secret:'PRIVATE_OBSERVATION_EXTRA'},visit:{clinicName:'PRIVATE_CLINIC',reason:'Vomiting',vetReportedFindings:'Owner reports the vet advised monitoring.',treatment:'Owner reports fluids were given.',nextFollowupAt:'2026-10-14T09:00:00+07:00',invoice:'PRIVATE_INVOICE'},episode:{id:'PRIVATE_EPISODE_ID',title:'Vomiting this week',status:'improving',startedAt:'2026-10-11T20:00:00+07:00',resolvedAt:null,reflection:'PRIVATE_EPISODE_REFLECTION'}});
 beforeEach(()=>{
@@ -12,6 +12,7 @@ beforeEach(()=>{
   vi.stubGlobal('fetch',vi.fn(()=>{throw new Error('Live provider requests are forbidden in assistant care tests');}));
   mocks.summary.mockResolvedValue({entries:[clinicalEntry()],generatedAt:new Date().toISOString()});mocks.ai.mockResolvedValue('The saved updates report some improvement. Ask your vet about any continuing concerns.');
   mocks.query.mockImplementation(async(sql:string)=>{
+    if(sql.includes('ops.take_rate_limit'))return{rows:[{allowed:true}],rowCount:1};
     if(sql.includes('FROM identity.users'))return{rowCount:1,rows:[{id:ownerId,role:'owner',status:'active'}]};
     if(sql.includes('insert into assistant.conversations'))return{rowCount:1,rows:[{id:conversationId}]};
     if(sql.includes('update assistant.conversations set processing_token=$3'))return{rowCount:1,rows:[{id:conversationId,pet_id:petId}]};

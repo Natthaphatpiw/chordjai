@@ -3,15 +3,19 @@ import { zodTextFormat } from 'openai/helpers/zod';
 import type { ResponseInput } from 'openai/resources/responses/responses';
 import { z } from 'zod';
 import { withSystem } from '@chordjai/db';
-import { HttpError } from '@chordjai/service-kit';
+import {cachedInputDecision,inputDecisionSchema,GATE_INSTRUCTIONS,type InputDecision} from './ingress';
+export {quickInputDecision,inputDecisionSchema,canonicalInput} from './ingress';
+export type {InputDecision} from './ingress';
+import { HttpError,takeLimits,guardLimit } from '@chordjai/service-kit';
 import {tokenUsage,priceTokens,type TokenUsage} from './pricing';
 
 export const GENERATIVE_MODEL = 'gpt-6.1-sol';
+export const INPUT_MODEL = 'gpt-6-luna';
 export const EMBEDDING_MODEL = 'text-embedding-3-small';
-export const PROMPT_VERSION = '2026-10-29.4';
-export type AiFeature = 'agent.normalize' | 'agent.plan' | 'agent.answer' | 'passport.question' | 'notification.followup' | 'assistant.chat' | 'journal.decorate' | 'triage.assess' | 'vision.photo_check' | 'ocr.vaccine_book' | 'ocr.microchip' | 'petid.signature' | 'petid.verify_pair' | 'petid.capture_review' | 'embed.petid';
-const limits: Record<AiFeature, number> = { 'agent.answer': 80, 'agent.normalize': 80, 'agent.plan': 120, 'passport.question': 40, 'notification.followup': 2, 'assistant.chat': 50, 'journal.decorate': 10, 'triage.assess': 10, 'vision.photo_check': 10, 'ocr.vaccine_book': 5, 'ocr.microchip': 10, 'petid.signature': 10, 'petid.verify_pair': 10, 'petid.capture_review': 10, 'embed.petid': 20 };
-const deadlines:Record<AiFeature,number>={'agent.answer':15000,'agent.normalize':15000,'agent.plan':25000,'passport.question':15000,'notification.followup':20000,'assistant.chat':45000,'journal.decorate':45000,'triage.assess':15000,'vision.photo_check':30000,'ocr.vaccine_book':45000,'ocr.microchip':20000,'petid.signature':30000,'petid.verify_pair':20000,'petid.capture_review':30000,'embed.petid':10000};
+export const PROMPT_VERSION = '2026-10-30.1';
+export type AiFeature = 'input.classify' | 'agent.normalize' | 'agent.plan' | 'agent.answer' | 'passport.question' | 'notification.followup' | 'assistant.chat' | 'journal.decorate' | 'triage.assess' | 'vision.photo_check' | 'ocr.vaccine_book' | 'ocr.microchip' | 'petid.signature' | 'petid.verify_pair' | 'petid.capture_review' | 'embed.petid';
+const limits: Record<AiFeature, number> = { 'input.classify': 150, 'agent.answer': 80, 'agent.normalize': 80, 'agent.plan': 120, 'passport.question': 40, 'notification.followup': 2, 'assistant.chat': 50, 'journal.decorate': 10, 'triage.assess': 10, 'vision.photo_check': 10, 'ocr.vaccine_book': 5, 'ocr.microchip': 10, 'petid.signature': 10, 'petid.verify_pair': 10, 'petid.capture_review': 10, 'embed.petid': 20 };
+const deadlines:Record<AiFeature,number>={'input.classify':8000,'agent.answer':15000,'agent.normalize':15000,'agent.plan':25000,'passport.question':15000,'notification.followup':20000,'assistant.chat':45000,'journal.decorate':45000,'triage.assess':15000,'vision.photo_check':30000,'ocr.vaccine_book':45000,'ocr.microchip':20000,'petid.signature':30000,'petid.verify_pair':20000,'petid.capture_review':30000,'embed.petid':10000};
 let client: OpenAI | undefined;
 function openai() {
   if ((process.env.OPENAI_MODEL ?? GENERATIVE_MODEL) !== GENERATIVE_MODEL) throw new HttpError(503, 'MODEL_CONFIG_INVALID', 'OPENAI_MODEL must be gpt-6.1-sol');
@@ -29,6 +33,7 @@ async function hasUsageSchema(){
 async function reserve(userId: string, feature: AiFeature, model: string, reserveUsd: number) {
   const budget = Number(process.env.AI_DAILY_BUDGET_USD ?? '5');
   if (!Number.isFinite(budget) || budget <= 0) throw new HttpError(503, 'AI_BUDGET_INVALID', 'AI daily budget is invalid');
+  if(!await takeLimits(userId,[{scope:'ai-user-minute',key:userId,seconds:60,limit:guardLimit('AI_CALLS_PER_MINUTE',20)},{scope:'ai-global-minute',key:'global',seconds:60,limit:guardLimit('AI_GLOBAL_CALLS_PER_MINUTE',300)}],'ai.limited'))throw new HttpError(429,'AI_RATE_LIMIT','เรียก AI ถี่เกินไป กรุณารอสักครู่');
   const usageReady=await hasUsageSchema();
   return withSystem(async (tx) => {
     // One transaction lock serializes admission across all Vercel instances.
@@ -37,11 +42,13 @@ async function reserve(userId: string, feature: AiFeature, model: string, reserv
       `select count(*) filter (where user_id = $1 and feature = $2 and status<>'budget_blocked')::text calls,
         coalesce(sum(cost_usd),0)::text total from ai_ops.requests where created_at >= date_trunc('day',now() at time zone 'Asia/Bangkok') at time zone 'Asia/Bangkok'`, [userId, feature]);
     const usage = result.rows[0]!;
-    const userBudget=Number(process.env.AI_USER_DAILY_BUDGET_USD??0),monthlyBudget=Number(process.env.AI_MONTHLY_BUDGET_USD??0);
+    const userBudget=Number(process.env.AI_USER_DAILY_BUDGET_USD??0.50),monthlyBudget=Number(process.env.AI_MONTHLY_BUDGET_USD??0);
     if(![userBudget,monthlyBudget].every(n=>Number.isFinite(n)&&n>=0))throw new HttpError(503,'AI_BUDGET_INVALID','AI budget is invalid');
     const extra=(await tx.query("select coalesce(sum(cost_usd) filter(where user_id=$1 and created_at >= date_trunc('day',now() at time zone 'Asia/Bangkok') at time zone 'Asia/Bangkok'),0)::float user_total, coalesce(sum(cost_usd),0)::float month_total from ai_ops.requests where created_at >= date_trunc('month',now() at time zone 'Asia/Bangkok') at time zone 'Asia/Bangkok'",[userId])).rows[0]??{user_total:0,month_total:0};
     const blocked=userBudget>0&&Number(extra.user_total)+reserveUsd>userBudget?'AI_USER_BUDGET_LIMIT':monthlyBudget>0&&Number(extra.month_total)+reserveUsd>monthlyBudget?'AI_MONTHLY_BUDGET_LIMIT':Number(usage.calls)>=limits[feature]?'AI_RATE_LIMIT':Number(usage.total)+reserveUsd>budget?'AI_BUDGET_LIMIT':null;
     if(blocked){
+      const logged=(await tx.query("select id from ai_ops.requests where user_id=$1 and feature=$2 and status='budget_blocked' and created_at>now()-interval '1 minute' limit 1",[userId,feature])).rowCount;
+      if(logged)return {blocked};
       if(usageReady)await tx.query(`insert into ai_ops.requests(user_id,feature,model,prompt_version,status,cost_usd,error_code,cost_basis) values($1,$2,$3,$4,'budget_blocked',0,$5,'not_sent')`,[userId,feature,model,PROMPT_VERSION,blocked]);
       else await tx.query(`insert into ai_ops.requests(user_id,feature,model,prompt_version,status,cost_usd,error_code) values($1,$2,$3,$4,'budget_blocked',0,$5)`,[userId,feature,model,PROMPT_VERSION,blocked]);
       return {blocked};
@@ -80,7 +87,9 @@ function inputFor(options: Options): ResponseInput {
 export async function runStructured<T>(options: Options & { schema: z.ZodType<T> }): Promise<T> {
   const api = openai();
   const maxTokens = Math.min(options.maxOutputTokens ?? 4000, 8000);
-  const inputRate=Math.max(Number(process.env.AI_INPUT_USD_PER_MILLION??2),Number(process.env.AI_CACHE_WRITE_USD_PER_MILLION??2.5)),outputRate=Number(process.env.AI_OUTPUT_USD_PER_MILLION??10),priceMultiplier=Number(process.env.AI_PRICE_MULTIPLIER??1);
+  const model=['input.classify','agent.normalize'].includes(options.feature)?INPUT_MODEL:GENERATIVE_MODEL;
+  const sample=priceTokens(model,{input:1000000,output:0,cached:0,cacheWrite:0,reasoning:0,total:1000000});
+  const inputRate=Math.max(sample?.snapshot.input??NaN,sample?.snapshot.cacheWrite??NaN),outputRate=sample?.snapshot.output??NaN,priceMultiplier=Number(process.env.AI_PRICE_MULTIPLIER??1);
   if(![inputRate,outputRate,priceMultiplier].every(n=>Number.isFinite(n)&&n>0))throw new HttpError(503,'AI_PRICING_INVALID','AI price configuration is invalid');
   const inputText = options.instructions+JSON.stringify(options.input ?? '') + JSON.stringify(options.messages ?? []);
   const bytes=Buffer.byteLength(inputText,'utf8');
@@ -89,13 +98,14 @@ export async function runStructured<T>(options: Options & { schema: z.ZodType<T>
   // Text byte count is a conservative token upper bound. Gallery images are
   // resized by the media service before provider input; reserve 6000 per image.
   const reserveUsd = (maxTokens*outputRate+(bytes+(options.images?.length??0)*6000)*inputRate)*priceMultiplier/1_000_000;
-  const requestId = await reserve(options.userId, options.feature, GENERATIVE_MODEL, reserveUsd);
+  const requestId = await reserve(options.userId, options.feature, model, reserveUsd);
   const started = Date.now();
   let providerUsage: { model:string;input:number;output:number;usage:TokenUsage|null;responseId?:string;providerRequestId?:string;tier?:string } | undefined;
   try {
-    const response = await api.responses.parse({ model: GENERATIVE_MODEL, store: false, service_tier:'default',
+    const response = await api.responses.parse({ model, store: false, service_tier:'default',
+      ...(model===INPUT_MODEL?{prompt_cache_key:'chordjai-input-gate-2026-10-30',prompt_cache_retention:'in_memory' as const}:{}),
       instructions: options.instructions, input: inputFor(options),
-      reasoning: { effort: options.feature === 'triage.assess' ? 'high' : 'low' },
+      reasoning: { effort: model===INPUT_MODEL?'none':options.feature === 'triage.assess' ? 'high' : 'low' },
       max_output_tokens: maxTokens, text: { format: zodTextFormat(options.schema, options.feature.replaceAll('.', '_')) },
     },{timeout:deadlines[options.feature]});
     providerUsage = { model:response.model,input:response.usage?.input_tokens??0,output:response.usage?.output_tokens??0,usage:tokenUsage(response.usage),responseId:response.id,providerRequestId:response._request_id??undefined,tier:response.service_tier??'default' };
@@ -106,10 +116,15 @@ export async function runStructured<T>(options: Options & { schema: z.ZodType<T>
   } catch (error) {
     // No prompt, image or answer is persisted in the audit table. Preserve reserved
     // spend if the transport fails: the provider may still have billed the call.
-    await finish(requestId, { ...providerUsage, model: providerUsage?.model ?? GENERATIVE_MODEL, input: providerUsage?.input ?? 0, output: providerUsage?.output ?? 0, latency: Date.now() - started, status: 'error', error: error instanceof HttpError ? error.code : 'PROVIDER_ERROR', ...(!providerUsage ? { cost: reserveUsd } : {}) });
+    await finish(requestId, { ...providerUsage, model: providerUsage?.model ?? model, input: providerUsage?.input ?? 0, output: providerUsage?.output ?? 0, latency: Date.now() - started, status: 'error', error: error instanceof HttpError ? error.code : 'PROVIDER_ERROR', ...(!providerUsage ? { cost: reserveUsd } : {}) });
     if (error instanceof HttpError) throw error;
     throw new HttpError(503, 'AI_UNAVAILABLE', 'AI ยังไม่พร้อมใช้งาน กรุณาลองใหม่ภายหลัง');
   }
+}
+export async function classifyInput(options:{userId:string;text:string;channel:'line'|'liff';context?:unknown}):Promise<InputDecision>{
+ const permitted=await withSystem(async db=>(await db.query("select u.id from identity.users u join identity.consents c on c.user_id=u.id and c.purpose='service' and c.granted where u.id=$1 and u.status='active'",[options.userId])).rowCount);
+ if(!permitted)throw new HttpError(403,'SERVICE_CONSENT_REQUIRED','กรุณายินยอมใช้งานบริการก่อนใช้ผู้ช่วย');
+ return cachedInputDecision(options,input=>runStructured({userId:options.userId,feature:'input.classify',schema:inputDecisionSchema,instructions:GATE_INSTRUCTIONS,input,maxOutputTokens:300}));
 }
 const textSchema = z.object({ reply: z.string().min(1).max(6000) });
 export async function runText(options: Options) { return (await runStructured({ ...options, schema: textSchema })).reply; }

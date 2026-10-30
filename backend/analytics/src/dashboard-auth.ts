@@ -30,7 +30,8 @@ export async function loginDashboard(c:ServiceContext,username:string,password:s
  requireDashboardOrigin(c);const config=dashboardConfig();
  const allowed=await withSystem(async db=>{
   const global=(await db.query("select ops.take_rate_limit('dashboard-login','global',900,100) allowed")).rows[0].allowed;
-  const account=(await db.query("select ops.take_rate_limit('dashboard-login',$1,900,10) allowed",[digest(username.toLowerCase())])).rows[0].allowed;
+  if(!global)return false;
+  const account=(await db.query("select ops.take_rate_limit('dashboard-login',$1,900,10) allowed",[digest(username===config.username?config.username:'unknown-account')])).rows[0].allowed;
   return global&&account;
  });
  if(!allowed)throw new HttpError(429,'DASHBOARD_LOGIN_LIMIT','เข้าสู่ระบบถี่เกินไป กรุณารอ 15 นาที');

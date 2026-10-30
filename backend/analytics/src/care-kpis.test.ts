@@ -6,6 +6,7 @@ import app from './app';
 beforeEach(()=>{
   vi.clearAllMocks();mocks.role='admin';
   mocks.query.mockImplementation(async(sql:string)=>{
+    if(sql.includes('ops.take_rate_limit'))return{rows:[{allowed:true}],rowCount:1};
     if(sql.includes('FROM identity.users WHERE'))return{rowCount:1,rows:[{id:'00000000-0000-4000-8000-000000000001',role:mocks.role,status:'active'}]};
     if(sql.startsWith('SELECT (SELECT count(*) FROM identity.users)'))return{rowCount:1,rows:[{users:12,pets:15}]};
     if(sql.includes('WITH recent AS'))return{rowCount:1,rows:[{diary_authors:8,diary_entries:45,episodes:6,episodes_with_followup:3,visits:7,visits_with_recorded_costs:5,visits_with_attachments:4,repeat_week_pets_last_30_days:4}]};
@@ -32,6 +33,6 @@ describe('admin care product analytics',()=>{
     expect(mocks.query.mock.calls.some(([sql])=>sql.includes('WITH recent AS'))).toBe(false);
   });
   it('requires login without exposing any aggregate information',async()=>{
-    expect((await app.request('/api/v1/analytics/kpis')).status).toBe(401);expect(mocks.query).not.toHaveBeenCalled();
+    expect((await app.request('/api/v1/analytics/kpis')).status).toBe(401);expect(mocks.query.mock.calls.every(([sql])=>sql.includes('ops.take_rate_limit'))).toBe(true);
   });
 });

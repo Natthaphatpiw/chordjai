@@ -27,7 +27,7 @@ Rows from older releases retain `legacy_estimate`: their cache breakdown and ori
 
 ## Activation: the owner applies SQL and env
 
-1. Run the current **supabase/upgrade.sql** in Supabase SQL Editor as the database owner. It recognises schema 24, adds migration 25 in a transaction and preserves existing rows. Re-running verifies the schema instead of recreating tables. Do not run bootstrap.sql against the existing project. The standalone source is supabase/migrations/202610300025_admin_dashboard.sql, but prefer the generated upgrade bundle so the tracker stays consistent.
+1. Run the current **supabase/upgrade.sql** in Supabase SQL Editor as the database owner. It recognises verified existing schema versions, including 25, applies through schema 26 in one transaction and preserves existing rows. Re-running verifies the schema instead of recreating tables. Do not run bootstrap.sql against the existing project. The standalone source is supabase/migrations/202610300025_admin_dashboard.sql, but prefer the generated upgrade bundle so the tracker stays consistent.
 2. Open the locally generated **local-secrets/dashboard-login.md** for the username and unique password. Both local-secrets files are Git-ignored with file mode 0600. No shared/default production password is committed.
 3. Copy the three variables from **local-secrets/dashboard-backend.env** into the **chordjai-backend** Vercel project, Production environment:
 
@@ -44,10 +44,10 @@ To generate credentials on a fresh checkout: `node scripts/create-dashboard-logi
 
 ## Budget controls
 
-Existing AI_DAILY_BUDGET_USD remains the global daily cap (default $5). These optional **backend-only** settings add caps:
+Existing AI_DAILY_BUDGET_USD remains the global daily cap (default $5). These **backend-only** settings add caps (the input-protection release defaults the per-user cap to $0.50):
 
 ```dotenv
-AI_USER_DAILY_BUDGET_USD=0
+AI_USER_DAILY_BUDGET_USD=0.50
 AI_MONTHLY_BUDGET_USD=0
 AI_CACHED_INPUT_USD_PER_MILLION=0.10
 AI_CACHE_WRITE_USD_PER_MILLION=2.50
@@ -68,3 +68,7 @@ Single named operator credential, scrypt salted hash, 256-bit opaque random sess
 - Isolated dashboard API tests: unauthenticated denial, Origin checks, password failures, HttpOnly session, rate limit, Bangkok-midnight/date buckets, distinct activity, pet search and scoped ledger, private-text exclusion, audit path and logout revocation.
 - Existing SQL security/concurrency and schema upgrade tests, including 24→25→25 preservation.
 - Browser verification uses synthetic accounts in disposable local PostgreSQL, never the user's live account data. Evidence: ignored .verification/dashboard/.
+
+## Input protection release (schema 26)
+
+See [INPUT_PROTECTION.md](INPUT_PROTECTION.md) for Luna screening, exact per-owner decision caching, ingress/API/DB quotas, upload storage ceilings and the added protection counters. `input.classify` is a distinct AI cost feature. The existing dashboard credentials remain valid. Apply the current upgrade bundle for schema 26 before deploying this release.

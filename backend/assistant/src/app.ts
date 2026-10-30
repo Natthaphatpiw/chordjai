@@ -1,14 +1,20 @@
 import { randomUUID } from 'node:crypto';
 import { z } from 'zod';
 import { withUser, careSummary } from '@chordjai/db';
-import { runText, hasUnsafeMedicalAdvice } from '@chordjai/ai';
+import { runText, hasUnsafeMedicalAdvice, classifyInput } from '@chordjai/ai';
 import { createService, getActor, HttpError, jsonBody, ok, camel, uuid, aiLanguage } from '@chordjai/service-kit';
 import { buildMemoryContext, boundedRecentMessages, type Preferences, type Memory } from './memory.js';
 import { buildClinicalCareContext } from './care-context.js';
 import {blockedChatReply} from './chat-safety.js';
+import {passportEmergency} from '@chordjai/contracts';
 import {registerAgentRoutes} from './agent';
 
+const classifiedLineCapability=Symbol('server-classified-line-input');
 export const app = createService('assistant');
+/** Server-only handoff: no client header/body parameter can skip input screening. */
+export async function chatAfterLineClassification(request:Request){
+ return app.fetch(request,{lineInputCapability:classifiedLineCapability});
+}
 registerAgentRoutes(app);
 const defaultPreferences: Preferences = { assistant_name: 'ChordJai', tone: 'warm', about_user: '', memory_enabled: false };
 const preferenceSchema = z.object({ assistantName: z.string().trim().min(1).max(80).default('ChordJai'), tone: z.enum(['warm','concise','playful','professional']).default('warm'), aboutUser: z.string().max(2000).default(''), memoryEnabled: z.boolean().default(false) });
@@ -85,6 +91,20 @@ app.delete('/api/v1/assistant/conversations/:id',async c=>{
 const chatSchema=z.object({ message:z.string().trim().min(1).max(6000),conversationId:z.string().uuid().optional(),petId:z.string().uuid().nullable().default(null),requestId:z.string().uuid().optional() });
 app.post('/api/v1/assistant/chat',async c=>{
   const actor=getActor(c),body=await jsonBody(c,chatSchema),requestId=body.requestId??randomUUID(),lockToken=randomUUID();
+  const replay=body.requestId?await withUser(actor.id,async tx=>(await tx.query("select cv.id conversation_id,m.content,(select content from assistant.messages u where u.conversation_id=cv.id and u.request_id=m.request_id and u.role='user') original from assistant.messages m join assistant.conversations cv on cv.id=m.conversation_id where cv.user_id=$1 and m.request_id=$2 and m.role='assistant' and ($3::uuid is null or cv.id=$3) limit 1",[actor.id,body.requestId,body.conversationId??null])).rows[0]):null;
+  if(replay){if(replay.original!==body.message)throw new HttpError(409,'IDEMPOTENCY_CONFLICT','คำขอซ้ำมีข้อความต่างจากเดิม');return ok(c,{reply:replay.content,conversationId:replay.conversation_id,requestId});}
+  const gateContext=await withUser(actor.id,async tx=>{
+    if(body.petId&&!(await tx.query('select id from pet.pets where id=$1',[body.petId])).rowCount)throw new HttpError(404,'PET_NOT_FOUND','ไม่พบสัตว์เลี้ยง');
+    if(!body.conversationId)return null;
+    const conversation=(await tx.query('select id,updated_at from assistant.conversations where id=$1 and user_id=$2',[body.conversationId,actor.id])).rows[0];
+    if(!conversation)throw new HttpError(404,'CONVERSATION_NOT_FOUND','ไม่พบบทสนทนา');
+    const recent=(await tx.query("select left(content,500) content from assistant.messages where conversation_id=$1 and role in('user','assistant') order by created_at desc limit 2",[conversation.id])).rows;
+    return {conversationId:conversation.id,revision:conversation.updated_at,recentContext:recent};
+  });
+  const urgent=passportEmergency(body.message,{},aiLanguage(c)==='English'?'en':'th');
+  if(urgent.urgent)return ok(c,{reply:urgent.message,conversationId:body.conversationId??null,requestId,emergency:true});
+  const gate=(c.env as {lineInputCapability?:symbol}|undefined)?.lineInputCapability===classifiedLineCapability?{route:'chat',language:aiLanguage(c)==='English'?'en':'th'}:await classifyInput({userId:actor.id,text:body.message,channel:'liff',context:gateContext});
+  if(gate.route==='unsupported')return ok(c,{reply:gate.language==='en'?'I can help with your pets and ChordJai. Tell me what is happening with your pet.':'ชิดใจช่วยเรื่องน้อง ๆ และการใช้งานระบบครับ เล่าเรื่องของน้องให้ฟังได้เลย',conversationId:body.conversationId??null,requestId,filtered:true});
   const state=await withUser(actor.id,async tx=>{
     let conversationId=body.conversationId;
     if (!conversationId){

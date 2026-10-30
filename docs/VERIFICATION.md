@@ -1,3 +1,16 @@
+# Input protection verification — 2026-10-30
+
+Implementation: GPT-6 Luna LLM0, silent off-topic LINE filtering before ACK/Agent handoff, exact per-owner/context classification cache with distributed leases, signed-source duplicate/burst/day limits, authenticated API quotas, hard DB insert/storage quotas, limited uploads, bounded JSON and sampled 4xx logs. Main model remains GPT-6.1 Sol.
+
+- 340 unit tests passed.
+- 252 HTTP/database integration tests passed across 21 suites on disposable PostgreSQL, including 19 dedicated input-protection cases. Together with the 340 unit tests, 592 automated cases passed. PAUSE with an exhausted daily quota and oversized JSON are covered.
+- Upgrade/security/concurrency suites passed, including 25→26→26 preservation and drift/checksum rejection. Generated SQL files pass consistency checks.
+- TypeScript across all workspaces and production admin build passed.
+- Browser: real local analytics API and isolated PostgreSQL, synthetic owners only. Thai dashboard shows the classification cache counter and the added input.classify filter. Screenshot: ignored `.verification/dashboard/input-protection-th.png`.
+- OpenAI and LINE providers are mocked in integration checks. No paid API request, production SQL/env/deployment, real user message or Firewall change was made. Semantic classifier accuracy and production load are not inferred from these tests.
+
+Prior release verification follows.
+
 # Dashboard รุ่น 25 — 2026-10-30
 
 334 unit + 233 isolated database/API checks ผ่าน พร้อม SQL security/concurrency และอัปเกรด 24→25→25 เก็บข้อมูลเดิม ทั้ง 3 frontend build และ workspace TypeScript ผ่าน ตรวจ browser ด้วยบัญชีทดสอบแยก ครบ login → ข้อมูล → filter/search → รายละเอียด → logout รายงานหลักฐานและขอบเขตที่ [ADMIN_DASHBOARD_QA.md](ADMIN_DASHBOARD_QA.md) การเปิดใช้งานจริงรอผู้ใช้รัน SQL และตั้ง backend env ตาม [ADMIN_DASHBOARD.md](ADMIN_DASHBOARD.md)

@@ -12,6 +12,7 @@ async function request(path:string,method='GET',body?:unknown){const response=aw
 beforeEach(()=>{
   vi.clearAllMocks();mocks.book=null;mocks.pages=[];vi.stubGlobal('fetch',vi.fn(()=>{throw new Error('Live provider calls are forbidden in memory book tests');}));
   mocks.query.mockImplementation(async(sql:string,args:unknown[]=[])=>{
+    if(sql.includes('ops.take_rate_limit'))return{rows:[{allowed:true}],rowCount:1};
     if(sql.includes('FROM identity.users'))return{rowCount:1,rows:[{id:owner,role:'owner',status:'active'}]};
     if(sql.startsWith('select id from pet.pets'))return{rowCount:1,rows:[{id:pet}]};
     if(sql.startsWith('insert into journal.books')){if(mocks.book)return{rowCount:0,rows:[]};mocks.book={id:bookId,pet_id:pet,owner_id:owner,title:args[2],cover_theme:JSON.parse(args[3] as string),cover_elements:JSON.parse(args[4] as string),version:1};return{rowCount:1,rows:[mocks.book]};}

@@ -7,7 +7,7 @@ import {runStructured,embedTexts,hasUnsafeMedicalAdvice,GENERATIVE_MODEL} from '
 describe('single-provider Responses API and bounded audit',()=>{
   beforeEach(()=>{
     vi.stubEnv('OPENAI_API_KEY','unit-test-placeholder-no-live-key');vi.stubEnv('OPENAI_MODEL',GENERATIVE_MODEL);vi.stubEnv('AI_DAILY_BUDGET_USD','5');
-    mocks.query.mockImplementation(async(sql:string)=>({rows:sql.includes('select count(*)')?[{calls:'0',total:'0'}]:sql.includes('returning id')?[{id:'audit-1'}]:[],rowCount:1}));
+    mocks.query.mockImplementation(async(sql:string)=>({rows:sql.includes('ops.take_rate_limit')?[{allowed:true}]:sql.includes('select count(*)')?[{calls:'0',total:'0'}]:sql.includes('returning id')?[{id:'audit-1'}]:[],rowCount:sql.startsWith('select id from ai_ops.requests')?0:1}));
     mocks.parse.mockResolvedValue({status:'completed',model:GENERATIVE_MODEL,output_parsed:{answer:'ทดสอบ'},usage:{input_tokens:100,output_tokens:30}});
   });
   afterEach(()=>{vi.unstubAllEnvs();vi.clearAllMocks();});
@@ -31,7 +31,7 @@ describe('single-provider Responses API and bounded audit',()=>{
     expect(JSON.stringify(mocks.query.mock.calls)).not.toContain('secret diagnostic');
   });
   it('blocks the budget before API request and logs only metadata',async()=>{
-    mocks.query.mockImplementation(async(sql:string)=>({rows:sql.includes('select count(*)')?[{calls:'0',total:'5'}]:[],rowCount:1}));
+    mocks.query.mockImplementation(async(sql:string)=>({rows:sql.includes('ops.take_rate_limit')?[{allowed:true}]:sql.includes('select count(*)')?[{calls:'0',total:'5'}]:[],rowCount:sql.startsWith('select id from ai_ops.requests')?0:1}));
     await expect(runStructured({userId:'test-owner',feature:'assistant.chat',instructions:'test',schema:z.object({answer:z.string()})})).rejects.toMatchObject({code:'AI_BUDGET_LIMIT'});
     expect(mocks.parse).not.toHaveBeenCalled();
     expect(JSON.stringify(mocks.query.mock.calls)).toContain('budget_blocked');

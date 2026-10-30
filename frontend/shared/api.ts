@@ -2,6 +2,13 @@ import { browserLocale, translate, type Locale } from './locale-core';
 import { automaticLiff, initializedLiff } from './liff-session';
 
 const englishErrors: Record<string, string> = {
+  SERVICE_CONSENT_REQUIRED: 'Please consent to the service before using the assistant.',
+  JSON_TOO_LARGE: 'This request is too large. Please split it into smaller entries.',
+  REQUEST_RATE_LIMIT: 'Too many requests. Please wait a moment before trying again.',
+  DATA_WRITE_LIMIT: 'Your data or storage quota has been reached. Please try later or contact support.',
+  INPUT_CLASSIFY_BUSY: 'This message is being checked. Please wait a moment.',
+  INPUT_CLASSIFY_LIMIT: 'The input screening limit has been reached. Please try later.',
+  GUARD_CONFIG_INVALID: 'Input protection is not configured correctly. Please contact support.',
   EXPENSE_DATES_UPGRADE_REQUIRED: 'Expense dates are not available yet. Your draft has been kept. Please try again later.',
   PASSPORT_OWNER_REQUIRED: 'Only the pet owner with active service consent can manage this Passport.',
   PASSPORT_NOT_FOUND: 'This Pet Passport is unavailable or you cannot access it.',

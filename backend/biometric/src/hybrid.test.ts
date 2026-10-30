@@ -19,6 +19,7 @@ describe('PetID vector retrieval + vision verification with mocked providers',()
     mocks.embed.mockResolvedValue([vector]);
     mocks.ai.mockImplementation(async(options:{feature:string})=>options.feature==='petid.signature'?visual:{verdict:'possible',observations:['ลักษณะขนใกล้เคียง'],limitations:'ต้องให้เจ้าของยืนยัน'});
     mocks.query.mockImplementation(async(sql:string,params:unknown[]=[])=>{
+    if(sql.includes('ops.take_rate_limit'))return{rows:[{allowed:true}],rowCount:1};
       if(sql.includes('SELECT id,role,status FROM identity.users'))return{rows:[{id:params[0],role:'owner',status:'active'}],rowCount:1};
       if(sql.includes('from pg_extension'))return{rows:[{extversion:'0.8.7',indexed:mocks.hasIndex}],rowCount:1};
       if(sql===INDEXED_GALLERY_SQL)return{rows:mocks.indexed,rowCount:mocks.indexed.length};

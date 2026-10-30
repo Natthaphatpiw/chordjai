@@ -9,6 +9,8 @@ import { idempotency } from './idempotency';
 import { errorDiagnosticCode } from './error-diagnostic';
 import type { ContentfulStatusCode } from 'hono/utils/http-status';
 import { responseLocale } from './locale';
+import {protectApi,warmAdmission,remoteBucket,guardLimit} from './abuse';
+export {fingerprint,guardLimit,guardMetric,takeLimits,warmAdmission} from './abuse';
 export { responseLocale } from './locale';
 export function requestLocale(c: ServiceContext) { return responseLocale(c.req.header('Accept-Language')); }
 export function localeText(c: ServiceContext, thai: string, english: string) { return requestLocale(c) === 'en' ? english : thai; }
@@ -32,18 +34,23 @@ export function getActor(c:ServiceContext):Actor {
 export function requireRole(c:ServiceContext,roles:Actor['role'][]){const actor=getActor(c);if(!roles.includes(actor.role))throw new HttpError(403,'FORBIDDEN','คุณไม่มีสิทธิ์ใช้ส่วนนี้');return actor;}
 export async function jsonBody<T extends z.ZodType>(c:ServiceContext,schema:T):Promise<z.infer<T>> {
   let body:unknown;try{body=await c.req.json();}catch{throw new HttpError(400,'INVALID_JSON','ข้อมูล JSON ไม่ถูกต้อง');}
+  if(Buffer.byteLength(JSON.stringify(body),'utf8')>128*1024)throw new HttpError(413,'JSON_TOO_LARGE','ข้อมูลข้อความใหญ่เกินไป กรุณาแบ่งเป็นรายการย่อย');
   const parsed=schema.safeParse(body);if(!parsed.success)throw new HttpError(400,'VALIDATION_ERROR',parsed.error.issues.map(i=>`${i.path.join('.')}: ${i.message}`).join('; '));return parsed.data;
 }
 export function uuid(value:string|undefined){const parsed=z.uuid().safeParse(value);if(!parsed.success)throw new HttpError(400,'INVALID_ID','ID ไม่ถูกต้อง');return parsed.data;}
 export function createService(name:string){
   const app=new Hono<ServiceEnv>();
   app.use('*',secureHeaders());
+  app.use('*',async(c,next)=>{
+    const requestId=crypto.randomUUID();c.set('requestId',requestId);c.header('X-Request-Id',requestId);c.header('Cache-Control','private, no-store');
+    if(c.req.path!=='/healthz'&&!warmAdmission(`${name}:${remoteBucket(c)}`,guardLimit('ABUSE_WARM_PER_10_SECONDS',120))){c.header('Retry-After','10');throw new HttpError(429,'REQUEST_RATE_LIMIT','ส่งคำขอถี่เกินไป กรุณารอสักครู่');}
+    await next();
+  });
   app.use('*',bodyLimit({maxSize:4*1024*1024,onError:c=>c.json({error:{code:'BODY_TOO_LARGE',message:'ไฟล์ต้องมีขนาดต่ำกว่า 4 MB'}},413)}));
   app.use('*',cors({origin:(origin)=>{
     const allowed=(process.env.ALLOWED_ORIGINS??'http://localhost:3000,http://localhost:3001,http://localhost:3002').split(',');return allowed.includes(origin)?origin:'';
   },allowHeaders:['Content-Type','Authorization','Idempotency-Key','Accept-Language'],exposeHeaders:['X-Request-Id'],maxAge:600}));
   app.use('*',async(c,next)=>{
-    const requestId=crypto.randomUUID();c.set('requestId',requestId);c.header('X-Request-Id',requestId);c.header('Cache-Control','private, no-store');
     const auth=c.req.header('Authorization');
     if(auth&&!c.req.path.startsWith('/internal/')){
       if(!auth.startsWith('Bearer '))throw new HttpError(401,'INVALID_TOKEN','Token ไม่ถูกต้อง');
@@ -52,6 +59,7 @@ export function createService(name:string){
       if(!current||current.status!=='active')throw new HttpError(401,'ACCOUNT_INACTIVE','บัญชีไม่พร้อมใช้งาน');
       c.set('actor',{id:current.id,role:current.role});
     }
+    await protectApi(c,name);
     await next();
   });
   app.use('*',idempotency);
@@ -62,9 +70,10 @@ export function createService(name:string){
     let code=error instanceof HttpError?error.code:'INTERNAL_ERROR';
     let message=error instanceof HttpError?error.message:'ระบบไม่พร้อมใช้งาน กรุณาลองใหม่อีกครั้ง';
     if(dbError.code==='42501'){status=403;code='FORBIDDEN';message='คุณไม่มีสิทธิ์เข้าถึงข้อมูลนี้';}
+    if(dbError.code==='P0429'){status=429;code='DATA_WRITE_LIMIT';message='บันทึกข้อมูลถึงเพดานแล้ว กรุณารอสักครู่';}
     if(dbError.code==='23505'){status=409;code='CONFLICT';message='ข้อมูลนี้มีอยู่แล้ว';}
     if(dbError.code==='23503'||dbError.code==='23514'){status=400;code='INVALID_REFERENCE';message='ข้อมูลอ้างอิงไม่ถูกต้อง';}
-    console.error(JSON.stringify({event:'request_error',service:name,requestId:c.get('requestId'),status,code,causeCode:errorDiagnosticCode(error)}));
+    if(status>=500||warmAdmission(`error-log:${name}:${status}`,5))console.error(JSON.stringify({event:'request_error',service:name,requestId:c.get('requestId'),status,code,causeCode:errorDiagnosticCode(error)}));
     return c.json({error:{code,message},type:`https://api.chordjai.life/problems/${code.toLowerCase()}`,title:code,status,detail:message,requestId:c.get('requestId')},status as ContentfulStatusCode);
   });
   app.notFound(c=>c.json({error:{code:'NOT_FOUND',message:'ไม่พบ endpoint นี้'}},404));

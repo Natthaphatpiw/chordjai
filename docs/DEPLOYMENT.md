@@ -195,3 +195,7 @@ scriptตรวจrouteด้วยLINE-signedempty-eventก่อนเปล�
 ## Dashboard รุ่น 25 (2026-10-30)
 
 ผู้ใช้เป็นผู้รัน `supabase/upgrade.sql` เอง แล้วคัดลอกค่า backend จากไฟล์ส่วนตัว `local-secrets/dashboard-backend.env` เข้า Production ของ chordjai-backend และ redeploy เปิดที่ https://admin.chordjai.life/dashboard ไม่เพิ่ม repo หรือ Vercel project ใหม่ ไม่ใส่รหัสผ่านหรือ hash ใน NEXT_PUBLIC และไม่ต้องเปลี่ยน Supabase HTTPS URL/anon key ระบบ admin เดิมยังอยู่ `/app` ดูขั้นตอนและรหัสเข้าใช้ในไฟล์ส่วนตัวตาม [ADMIN_DASHBOARD.md](ADMIN_DASHBOARD.md)
+
+## Input protection release — schema 26
+
+Apply the current `supabase/upgrade.sql` after schema 25 **before** deploying the input guard. Existing dashboard credentials/env stay valid. GPT-6 Luna uses the existing OpenAI key; no extra secret or Redis is required. If `AI_USER_DAILY_BUDGET_USD` was explicitly set to `0`, set it to `0.50` or the intended per-user cap to enable that protection. Optional overrides are in `backend/.env.example`; rollout, limits and Firewall considerations are in [INPUT_PROTECTION.md](INPUT_PROTECTION.md). This release was prepared locally at the owner’s request; do not push to the auto-deploy branch until database setup is complete.
