@@ -1,3 +1,12 @@
+# Schema 27 production rollout — 2026-10-31
+
+- The owner ran the compact SQL packet. Read-only production diagnostic verified exact schema **27**, fingerprint `9720c27f20983692910505835aaf6e6f`; no production SQL was applied by the agent.
+- Implementation commit `a80b3c37e917363a343c6c245446adb5d8261a75` was pushed to `main`; Vercel initially reported all four production projects READY with that exact SHA and the expected domain aliases.
+- Production smoke checks through `https://www.chordjai.life/api/v1/identity/session/` returned `401 OWNER_SESSION_REQUIRED` without a cookie, `403 SESSION_ORIGIN_REJECTED` for a foreign Origin, and `200` for anonymous logout. Cookie deletion used `__Host-chordjai_owner`, Secure, HttpOnly, SameSite=Strict, Path=/ and Max-Age=0. Responses were private/no-store. These checks did not create a session, write health records, call an LLM or send LINE messages.
+- CI correctly caught a missing identity workspace declaration for `@vercel/functions`. Root installation and Vercel's build had masked it. The follow-up patch declares the already-used dependency, updates only its workspace lock entry, and adds both runtime checks to the standard `npm run check` command. Local declaration verification passed for **187 source files**; a production-only isolated installation imported all **14 services** and returned healthz 200 without root dependencies or provider credentials. The patch triggers a new CI/deployment run; do not treat the failed first CI check as a passing result.
+- Browser inspection on the production domain confirmed the new entry copy and three primary views using demo data. Actual LINE sign-in and return-open timing require a user/device check after the new release; synthetic/local session tests remain separate from that measurement.
+- Per-release evidence is stored locally under `.verification/onboarding-release-20261031/`. Earlier pre-deploy findings below are historical. Current CI status: [GitHub Actions](https://github.com/Natthaphatpiw/chordjai/actions).
+
 # Owner onboarding and persistent sessions — 2026-10-31
 
 Implementation in the current checkout, not yet a production release:

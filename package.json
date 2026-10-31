@@ -20,7 +20,7 @@
     "typecheck": "tsc --noEmit && npm run typecheck --workspaces --if-present",
     "test": "vitest run",
     "build": "npm run build --workspace=@chordjai/owner-app && npm run build --workspace=@chordjai/clinic-portal && npm run build --workspace=@chordjai/admin-console",
-    "check": "npm run typecheck && npm test && npm run build",
+    "check": "node scripts/check-runtime-dependencies.mjs && node scripts/test-runtime-startup.mjs && npm run typecheck && npm test && npm run build",
     "setup:line": "node --env-file=backend/.env.local scripts/setup-line.mjs",
     "test:db": "node scripts/test-db.mjs",
     "test:ui": "node scripts/test-ui.mjs",

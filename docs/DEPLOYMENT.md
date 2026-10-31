@@ -1,5 +1,7 @@
 # Deployment ของ ChordJai
 
+**สถานะ 31 ตุลาคม 2026:** ผู้ดูแลรัน SQL 27 แล้ว ตรวจแบบ read-only ได้ fingerprint `9720c27f20983692910505835aaf6e6f` ตรงกับ manifest การเปิดใช้เมนูใหม่และ persistent owner session ใช้ environment/LIFF/webhook เดิม ดู [ONBOARDING_AND_SESSIONS.md](ONBOARDING_AND_SESSIONS.md) และผลตรวจ deployment ใน [VERIFICATION.md](VERIFICATION.md)
+
 อัปเดตใน checkout วันที่ 31 ตุลาคม 2026: เริ่มใช้ด้วยเมนู **วันนี้ / บันทึก / น้องของฉัน**, บันทึกเรื่องสั้นก่อนค่อยเติมรายละเอียด และ session ของเจ้าของสูงสุด 30 วัน อ่านขั้นตอน SQL 26→27 และขอบเขตจริงใน [ONBOARDING_AND_SESSIONS.md](ONBOARDING_AND_SESSIONS.md) สถานะ production ต้องตรวจแยกจากโค้ดใน checkout
 
 ## LINE Agent และแก้ไข/ลบบันทึก — ฐานข้อมูล 23 วันที่ 29 ตุลาคม 2026

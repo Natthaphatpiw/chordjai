@@ -17,6 +17,7 @@
     "zod": "^4.0.0",
     "@chordjai/line": "*",
     "@chordjai/auth": "*",
-    "@chordjai/queue": "*"
+    "@chordjai/queue": "*",
+    "@vercel/functions": "^3.4.0"
   }
 }
