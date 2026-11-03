@@ -56,7 +56,8 @@ select jsonb_build_object('fingerprint',md5(details::text),'details',details) as
  (24,'202610290024','202610290024_expense_dates.sql','920e7c3673511ed3914d17fc6f094a71'),
  (25,'202610300025','202610300025_admin_dashboard.sql','b21cf2e633f061af2d9c496de7af4038'),
  (26,'202610300026','202610300026_input_guard.sql','0dc0475b0ea973d0c9250b37565d64aa'),
- (27,'202610310027','202610310027_owner_sessions.sql','9720c27f20983692910505835aaf6e6f')
+ (27,'202610310027','202610310027_owner_sessions.sql','9720c27f20983692910505835aaf6e6f'),
+ (28,'202611030028','202611030028_blog.sql','0040a61b6c7dc6c50d75b7b77c34cea3')
 ), inferred as (
  select max(k.ordinal) as version from known k,current_state s where k.fingerprint=s.state->>'fingerprint'
 )
@@ -105,6 +106,7 @@ select jsonb_build_object(
  when 25 then (to_regclass('ops.dashboard_sessions') is not null and exists(select 1 from pg_attribute where attrelid=to_regclass('ai_ops.requests') and attname='cost_basis' and not attisdropped))
  when 26 then (to_regclass('ops.input_cache') is not null and to_regclass('ops.guard_metrics') is not null and to_regprocedure('ops.guard_owner_insert()') is not null)
  when 27 then (to_regclass('identity.web_sessions') is not null and to_regprocedure('identity.web_session_active(uuid,uuid)') is not null)
+ when 28 then (to_regclass('analytics.blog_posts') is not null and to_regclass('analytics.blog_images') is not null)
  end,
    'is_exact_current_state',k.fingerprint=s.state->>'fingerprint') order by k.ordinal) from known k)
 ) as chordjai_diagnostic from current_state s cross join inferred i;

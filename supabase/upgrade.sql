@@ -62,7 +62,8 @@ select jsonb_build_object('fingerprint',md5(details::text),'details',details) as
  (24,'202610290024','202610290024_expense_dates.sql','920e7c3673511ed3914d17fc6f094a71'),
  (25,'202610300025','202610300025_admin_dashboard.sql','b21cf2e633f061af2d9c496de7af4038'),
  (26,'202610300026','202610300026_input_guard.sql','0dc0475b0ea973d0c9250b37565d64aa'),
- (27,'202610310027','202610310027_owner_sessions.sql','9720c27f20983692910505835aaf6e6f')
+ (27,'202610310027','202610310027_owner_sessions.sql','9720c27f20983692910505835aaf6e6f'),
+ (28,'202611030028','202611030028_blog.sql','0040a61b6c7dc6c50d75b7b77c34cea3')
   ) k(ordinal,version,file,fingerprint) where k.fingerprint=current_state->>'fingerprint';
   if known_count is null then
     raise exception 'Unrecognized or partial ChordJai schema (%). No changes applied. Run supabase/diagnostic.sql and review the full JSON; use bootstrap only on a fresh project.',current_state->>'fingerprint';
@@ -2420,7 +2421,76 @@ $migration_202610310027$;
 
   insert into ops.schema_migrations(version,checksum) values('202610310027','4b58a32f7331ac24f5ed83944a7b1e7907f73d3a736d8baa3a561bf908b21f0a') on conflict(version) do nothing;
 
-  if exists(select 1 from ops.schema_migrations m where m.version not in ('202610100001','202610100002','202610100003','202610100004','202610100005','202610100006','202610100007','202610100008','202610100009','202610100010','202610100011','202610100012','202610100013','202610100014','202610110015','202610120016','202610120017','202610120018','202610120019','202610120020','202610130021','202610290022','202610290023','202610290024','202610300025','202610300026','202610310027')) then
+  select m.checksum into checksum from ops.schema_migrations m where m.version='202611030028';
+  if checksum is not null and checksum<>'512a4ed78077619769db93392e943ec4a72a6e20c7bd4b7535c08d4b1962cbf7' then
+    raise exception 'Checksum mismatch for migration 202611030028. No changes applied.';
+  end if;
+
+  if known_count<28 then
+    if checksum is not null then raise exception 'Tracker claims unapplied migration 202611030028. No changes applied.'; end if;
+    execute $migration_202611030028$
+-- Editorial content is independent of owners' private diaries and media.
+-- Only the verified dashboard operator can reach the worker-backed write API.
+create table analytics.blog_posts (
+ id uuid primary key default gen_random_uuid(),
+ slug text unique check(length(slug) between 1 and 120 and slug ~ '^[a-z0-9]+(-[a-z0-9]+)*$'),
+ language text not null check(language in ('th','en')),
+ draft jsonb not null check(jsonb_typeof(draft)='object' and octet_length(draft::text)<=131072),
+ published jsonb check(published is null or (jsonb_typeof(published)='object' and octet_length(published::text)<=131072)),
+ version integer not null default 1 check(version>0),
+ published_version integer check(published_version>0 and published_version<=version),
+ first_published_at timestamptz,
+ published_at timestamptz,
+ published_modified_at timestamptz,
+ archived_at timestamptz,
+ created_at timestamptz not null default now(),
+ updated_at timestamptz not null default now(),
+ check(published_at is null or (published is not null and slug is not null and length(slug)>=3 and first_published_at is not null and published_modified_at is not null and published_version is not null and archived_at is null)),
+ check(draft->>'slug'=coalesce(slug,'') and draft->>'language'=language),
+ check(published is null or (published->>'slug'=slug and published->>'language'=language))
+);
+create function analytics.lock_blog_permalink() returns trigger language plpgsql set search_path='' as $$
+begin
+ if old.first_published_at is not null and (new.slug is distinct from old.slug or new.language is distinct from old.language or new.first_published_at is distinct from old.first_published_at) then
+  raise exception 'Published blog permalinks are immutable' using errcode='23514';
+ end if;
+ return new;
+end;
+$$;
+revoke all on function analytics.lock_blog_permalink() from public;
+create trigger blog_permalink_immutable before update on analytics.blog_posts for each row execute function analytics.lock_blog_permalink();
+
+create index blog_posts_public_idx on analytics.blog_posts(language,published_at desc,id) where published_at is not null and archived_at is null;
+create index blog_posts_admin_idx on analytics.blog_posts(updated_at desc,id);
+
+create table analytics.blog_images (
+ id uuid primary key,
+ pathname text not null unique check(pathname ~ '^blog/[a-f0-9-]{36}\.webp$'),
+ status text not null default 'pending' check(status in ('pending','ready','rejected')),
+ size integer not null check(size between 1 and 4000000),
+ width integer not null check(width between 1 and 2000),
+ height integer not null check(height between 1 and 2000),
+ uploaded_by text not null check(length(uploaded_by) between 1 and 100),
+ created_at timestamptz not null default now()
+);
+
+alter table analytics.blog_posts enable row level security;
+alter table analytics.blog_posts force row level security;
+alter table analytics.blog_images enable row level security;
+alter table analytics.blog_images force row level security;
+revoke all on analytics.blog_posts,analytics.blog_images from public,chordjai_app;
+grant select,insert,update on analytics.blog_posts,analytics.blog_images to chordjai_worker;
+create policy blog_posts_worker on analytics.blog_posts for all to chordjai_worker using(true) with check(true);
+create policy blog_images_worker on analytics.blog_images for all to chordjai_worker using(true) with check(true);
+$migration_202611030028$;
+    raise notice 'Applied 202611030028_blog.sql';
+  else
+    raise notice 'Verified existing 202611030028_blog.sql';
+  end if;
+
+  insert into ops.schema_migrations(version,checksum) values('202611030028','512a4ed78077619769db93392e943ec4a72a6e20c7bd4b7535c08d4b1962cbf7') on conflict(version) do nothing;
+
+  if exists(select 1 from ops.schema_migrations m where m.version not in ('202610100001','202610100002','202610100003','202610100004','202610100005','202610100006','202610100007','202610100008','202610100009','202610100010','202610100011','202610100012','202610100013','202610100014','202610110015','202610120016','202610120017','202610120018','202610120019','202610120020','202610130021','202610290022','202610290023','202610290024','202610300025','202610300026','202610310027','202611030028')) then
     raise exception 'Migration tracker contains a version unknown to this checkout. No changes applied.';
   end if;
   select s.state->>'fingerprint' into actual_state from (
@@ -2452,7 +2522,7 @@ with service_schemas(name) as (
 )
 select jsonb_build_object('fingerprint',md5(details::text),'details',details) as state from catalog
   ) s;
-  if actual_state<> '9720c27f20983692910505835aaf6e6f' then
+  if actual_state<> '0040a61b6c7dc6c50d75b7b77c34cea3' then
     raise exception 'Final schema verification failed (%). No changes applied.',actual_state;
   end if;
 end;

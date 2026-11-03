@@ -1,4 +1,5 @@
 import { z } from 'zod';
+export * from './blog';
 export * from './care';
 export * from './passport';
 export * from './followup';

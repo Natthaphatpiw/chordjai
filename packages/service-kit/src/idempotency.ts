@@ -22,6 +22,9 @@ export const idempotency:MiddlewareHandler<ServiceEnv>=async(c,next)=>{
     || (!passportDeletion&&/^\/api\/v1\/health\/passport\//.test(c.req.path))
     || /^\/api\/v1\/clinic\/passports\//.test(c.req.path)
     || /^\/api\/v1\/share\/passports(?:\/|$)/.test(c.req.path);
+  // Operator cookies have their own revocation and version checks. Never replay
+  // an admin write using an unrelated owner Bearer token's cached response.
+  if(c.req.path.startsWith('/api/v1/analytics/admin/'))return next();
   if(!key||!c.get('actor')||!['POST','PATCH','DELETE'].includes(c.req.method)||c.req.path.startsWith('/internal/')||c.req.path==='/api/v1/identity/line'||currentPermissionRoute)return next();
   if(!/^[\w-]{8,80}$/.test(key))throw new HttpError(400,'INVALID_IDEMPOTENCY_KEY','Idempotency-Key ไม่ถูกต้อง');
   const digest=(value:string|Buffer)=>createHash('sha256').update(value).digest('hex');

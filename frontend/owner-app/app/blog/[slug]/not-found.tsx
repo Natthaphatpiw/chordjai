@@ -1,0 +1,4 @@
+import Link from 'next/link';
+import {getTranslator} from '../../../../shared/locale-server';
+import '../blog.css';
+export default async function ArticleNotFound(){const {locale,t}=await getTranslator();return <main className="blog-site"><section className="blog-error"><span className="blog-kicker">ChordJai · 404</span><h1>{t('ยังไม่พบบทความนี้','This article is unavailable.')}</h1><p>{t('บทความอาจยังไม่เผยแพร่ หรือผู้เขียนนำออกแล้ว ลองเลือกอ่านเรื่องอื่นได้เลย','This article may not have been published, or its author may have removed it. You can browse other stories instead.')}</p><Link className="blog-button" href={`/blog?lang=${locale}`}>{t('อ่านบทความอื่น','Browse articles')}</Link><Link className="blog-error-link" href={`/?lang=${locale}`}>{t('หน้าหลักชิดใจ','ChordJai home')}</Link></section></main>;}

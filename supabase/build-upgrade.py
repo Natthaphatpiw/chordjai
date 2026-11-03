@@ -74,6 +74,7 @@ markers = [
     "to_regclass('ops.dashboard_sessions') is not null and exists(select 1 from pg_attribute where attrelid=to_regclass('ai_ops.requests') and attname='cost_basis' and not attisdropped)",
     "to_regclass('ops.input_cache') is not null and to_regclass('ops.guard_metrics') is not null and to_regprocedure('ops.guard_owner_insert()') is not null",
     "to_regclass('identity.web_sessions') is not null and to_regprocedure('identity.web_session_active(uuid,uuid)') is not null",
+    "to_regclass('analytics.blog_posts') is not null and to_regclass('analytics.blog_images') is not null",
 ]
 marker_case = "case k.ordinal\n" + "\n".join(f" when {i+1} then ({marker})" for i, marker in enumerate(markers)) + "\n end"
 diagnostic = """-- READ ONLY: one JSON result contains every diagnostic section; no user data.
@@ -255,7 +256,8 @@ select 'ChordJai schema {final} verified; existing user rows preserved' as resul
 
 outputs = {"diagnostic.sql": diagnostic, "upgrade.sql": upgrade,
            "upgrade-25-to-26.sql": compact_packet("202610300025", "202610300026"),
-           "upgrade-26-to-27.sql": compact_packet("202610300026", "202610310027")}
+           "upgrade-26-to-27.sql": compact_packet("202610300026", "202610310027"),
+           "upgrade-27-to-28.sql": compact_packet("202610310027", "202611030028")}
 if sys.argv[1:] == ["--check"]:
     for name, content in outputs.items():
         if (root / name).read_text() != content:

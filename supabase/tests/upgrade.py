@@ -34,7 +34,7 @@ def fresh(prefix: int) -> str:
     return name
 
 try:
-    for prefix in (1, 4, 9, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, len(sources)):
+    for prefix in (1, 4, 9, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, len(sources)):
         db = fresh(prefix)
         sql(db, "insert into identity.users(id,line_user_id,display_name) values('e0000000-0000-0000-0000-000000000001','upgrade-preservation-fixture','SYNTHETIC SENTINEL');")
         if prefix >= 16:
@@ -84,6 +84,20 @@ try:
         assert sql(db, "select count(*) from identity.users where line_user_id='session-upgrade-sentinel';").stdout.strip() == "1"
         sql(db, upgrade)
         print(f"PASS: compact 26 -> 27 -> 27 preserves the owner; tracker={tracked}")
+
+    for tracked in (False, True):
+        db = fresh(27)
+        sql(db, "insert into identity.users(id,line_user_id,display_name) values('e3000000-0000-4000-8000-000000000001','blog-upgrade-sentinel','SYNTHETIC BLOG OWNER');")
+        if tracked:
+            sql(db, (root / "upgrade-26-to-27.sql").read_text())
+        packet28 = (root / "upgrade-27-to-28.sql").read_text()
+        sql(db, packet28)
+        sql(db, packet28)
+        assert json.loads(sql(db, diagnostic).stdout.strip())["verified_migration_count"] == 28
+        assert sql(db, "select count(*) from identity.users where line_user_id='blog-upgrade-sentinel';").stdout.strip() == "1"
+        assert sql(db, "select count(*) from analytics.blog_posts;").stdout.strip() == "0"
+        sql(db, upgrade)
+        print(f"PASS: compact 27 -> 28 -> 28 preserves owner data and adds an empty editorial store; tracker={tracked}")
 
     wrong_base = fresh(24)
     sql(wrong_base, compact, success=False)

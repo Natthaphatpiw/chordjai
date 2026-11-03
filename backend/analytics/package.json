@@ -7,6 +7,9 @@
     "@chordjai/service-kit": "*",
     "@chordjai/db": "*",
     "hono": "4.13.13",
-    "zod": "4.6.6"
+    "zod": "4.6.6",
+    "@chordjai/contracts": "*",
+    "@vercel/blob": "2.8.1",
+    "sharp": "0.35.5"
   }
 }

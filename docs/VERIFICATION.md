@@ -1,3 +1,16 @@
+# Blog schema 28 implementation — 2026-11-03
+
+Local implementation only; the operator has not yet applied SQL 28 or deployed this feature. No production article, user record, environment setting, or credential was modified.
+
+- `npm run check` passed: declared production runtime dependencies/startup smoke, all workspace TypeScript, **373 unit tests**, and Owner/Clinic/Admin production builds. Database-dependent tests skip in this ordinary unit run and are checked separately below.
+- `npm run test:db -- --http` passed on disposable PostgreSQL 17 + pgvector: SQL security/concurrency/migration checks and **282 HTTP/database tests across 24 suites**, including editorial session/Origin checks, owner-role RLS denial, version conflicts, published draft isolation, immutable permalink, archive/restore, image upload normalization, tag search, and image visibility after unpublish.
+- Compact **27→28→28** packets passed with and without existing migration tracking, retaining synthetic owner data. Previously released 25→26 and 26→27 SQL packets remain byte-for-byte identical. No `IF NOT EXISTS` masking of unknown schema drift was introduced.
+- Browser against the disposable database: shared Dashboard/Blog session, Thai writing, paragraphs/headings, real file upload through actual Sharp normalization and in-memory Blob adapter, alt/captions/cover, slider and pointer-drag resize (65→52%), draft save, publish confirmation, readable public images, and preserving the published 65% image while the private draft became 52%.
+- Browser caught/fixed PostgreSQL JSONB key-order comparisons that incorrectly marked saved work dirty, and mobile grid overflow. Admin layout measured 320/390px without horizontal overflow; public index/article measured 390/1280px. English reader UI, working contents links, search/empty state, Landing menu, canonical/JSON-LD/sitemap/robots, actual unpublished 404 and immediate sitemap removal passed. Final editor/article browser console error lists were empty.
+- Test evidence is Git-ignored under `.verification/blog-20261103/` (final-check.log, final-database.log, admin-http.json, public-http.json, public-lifecycle.json, screenshots). These are synthetic local examples, not production measurements. Real Vercel Blob credentials/network and production routes require rollout verification after the operator runs SQL.
+
+Activate with [`supabase/upgrade-27-to-28.sql`](../supabase/upgrade-27-to-28.sql), then deploy backend/owner/admin; no new env or credentials. See [BLOG.md](BLOG.md).
+
 # Schema 27 production rollout — 2026-10-31
 
 - The owner ran the compact SQL packet. Read-only production diagnostic verified exact schema **27**, fingerprint `9720c27f20983692910505835aaf6e6f`; no production SQL was applied by the agent.

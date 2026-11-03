@@ -1,5 +1,7 @@
 # ChordJai — ไดอารี่ดูแลและความทรงจำของน้อง
 
+เพิ่ม Blog และเครื่องมือเขียนบทความรุ่น 28: [BLOG.md](docs/BLOG.md) — ผู้อ่านเข้า `/blog` จากเมนู Landing ผู้ดูแลเขียนที่ `admin.chordjai.life/blog` ด้วยบัญชี Dashboard เดิม รองรับจัดรูปแบบ รูปปรับขนาด ฉบับร่าง/เผยแพร่ และข้อมูล SEO ต้องรัน `supabase/upgrade-27-to-28.sql` ก่อน deploy โดยไม่เพิ่ม env ใหม่
+
 อัปเดต UX เริ่มใช้และจำบัญชี LINE รุ่น 27: [ONBOARDING_AND_SESSIONS.md](docs/ONBOARDING_AND_SESSIONS.md) อธิบายเมนู 3 ส่วน แบบฟอร์มสั้น การช่วยจัดข้อมูล และ SQL ที่ต้องรันก่อนเปิด persistent login
 
 อ่านภาพรวมผลิตภัณฑ์ ธุรกิจ สถาปัตยกรรม วิธีพัฒนา/Computer Use ทิศทางต่อไป และแผนที่เอกสารทั้งหมดได้ใน [PRODUCT_HANDBOOK.md](PRODUCT_HANDBOOK.md) ซึ่งแยกสิ่งที่พัฒนาแล้ว ผลที่ตรวจ และสมมติฐานที่ยังต้องพิสูจน์

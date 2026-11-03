@@ -169,6 +169,7 @@ export function LandingNav({
           >
             {t("ผลิตภัณฑ์", "Product")}
           </Link>
+          <Link href={localizedHref("/blog", locale)}>{t("บทความ", "Blog")}</Link>
           <a href={page === "home" ? "#everyday" : "#care-diary"}>
             {t("ดูแลกันทุกวัน", "Everyday care")}
           </a>

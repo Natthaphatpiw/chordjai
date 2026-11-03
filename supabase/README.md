@@ -1,5 +1,9 @@
 # ฐานข้อมูล ChordJai
 
+## รุ่น 28: Blog — 3 พฤศจิกายน 2026
+
+สำหรับฐานรุ่น 27 ให้รัน [`upgrade-27-to-28.sql`](upgrade-27-to-28.sql) ทั้งไฟล์ใน query ใหม่ เพิ่ม `analytics.blog_posts` และ `analytics.blog_images` แบบ worker-only RLS แยกสำเนาร่าง/เผยแพร่และสื่อบทความจากข้อมูลส่วนตัว ผู้ดูแลเป็นผู้รัน SQL จริงและ deploy หลังอัปเกรด ไม่มี env ใหม่ ดู [คู่มือ Blog](../docs/BLOG.md) รุ่นก่อนหน้าด้านล่างเป็นประวัติการพัฒนา ไม่ใช่สถานะฐานปัจจุบัน
+
 ใช้ Supabase project เดียวกับ PostgreSQL + pgvector รหัสผู้ใช้และน้องเป็น UUID เวลาเก็บ UTC และแสดงผล Asia/Bangkok ใช้ region/connection hostname ที่ project ของคุณแสดงจริง
 
 ## รุ่น 24: วันที่รายการค่าใช้จ่าย — เตรียม 29 ตุลาคม 2026

@@ -695,6 +695,7 @@ export default async function Landing() {
             </nav>
             <nav aria-label={t("ข้อมูลบริการ", "Service information")}>
               <span>{t("รู้จักกันให้มากขึ้น", "A little more about us")}</span>
+              <Link href={href("/blog")}>{t("บทความเรื่องน้อง", "Pet stories & care")}</Link>
               <Link href={href("/privacy")}>
                 {t("ความเป็นส่วนตัว", "Privacy")}
               </Link>

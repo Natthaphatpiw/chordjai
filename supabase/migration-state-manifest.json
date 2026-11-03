@@ -160,5 +160,11 @@
     "file": "202610310027_owner_sessions.sql",
     "checksum": "4b58a32f7331ac24f5ed83944a7b1e7907f73d3a736d8baa3a561bf908b21f0a",
     "fingerprint": "9720c27f20983692910505835aaf6e6f"
+  },
+  {
+    "version": "202611030028",
+    "file": "202611030028_blog.sql",
+    "checksum": "512a4ed78077619769db93392e943ec4a72a6e20c7bd4b7535c08d4b1962cbf7",
+    "fingerprint": "0040a61b6c7dc6c50d75b7b77c34cea3"
   }
 ]

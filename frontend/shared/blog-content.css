@@ -1,0 +1,12 @@
+.blog-prose{color:#302823;font-size:1.075rem;font-weight:300;line-height:1.95;overflow-wrap:anywhere}
+.blog-prose>*:first-child{margin-top:0}.blog-prose>*:last-child{margin-bottom:0}
+.blog-prose p{margin:0 0 1.35em}.blog-prose h2,.blog-prose h3{font-weight:500;line-height:1.5;letter-spacing:-.015em;scroll-margin-top:100px;color:#261e18}
+.blog-prose h2{font-size:1.75em;margin:2em 0 .7em}.blog-prose h3{font-size:1.3em;margin:1.7em 0 .65em}
+.blog-prose strong{font-weight:500}.blog-prose a{color:#b94b08;text-decoration:underline;text-underline-offset:.2em}.blog-prose a:hover{color:#853800}
+.blog-prose a:focus-visible,.blog-table-scroll:focus-visible{outline:3px solid #ff8c42;outline-offset:4px}
+.blog-prose ul,.blog-prose ol{padding-left:1.7em;margin:1em 0 1.5em}.blog-prose li{padding-left:.2em;margin:.4em 0}.blog-prose li p{margin:.35em 0}
+.blog-prose blockquote{border-left:4px solid #ff8c42;background:#fff1df;border-radius:0 18px 18px 0;margin:1.8em 0;padding:1.25em 1.5em;color:#6a3519}.blog-prose blockquote p:last-child{margin-bottom:0}
+.blog-prose hr{border:0;border-top:1px solid #edd2bc;margin:2.4em 0}.blog-prose figure{max-width:100%;margin-top:2em;margin-bottom:2em}.blog-prose figure img{display:block;width:100%;height:auto;border-radius:16px}.blog-prose figcaption{font-size:.82em;color:#766251;line-height:1.7;margin-top:.6em;text-align:center}
+.blog-prose pre{white-space:pre-wrap;background:#f5eee7;border-radius:12px;padding:1em;overflow:auto;line-height:1.7}.blog-prose code{font-family:ui-monospace,monospace;font-size:.86em;background:#f5eee7;border-radius:4px;padding:.1em .3em}.blog-prose pre code{padding:0;background:none}
+.blog-table-scroll{overflow:auto;max-width:100%;margin:1.7em 0;border:1px solid #e8d6c7;border-radius:12px}.blog-prose table{border-collapse:collapse;width:100%;min-width:360px;text-align:left;font-size:.92em}.blog-prose th,.blog-prose td{border:1px solid #e8d6c7;padding:.8em;min-width:80px;vertical-align:top}.blog-prose th{background:#fff0dc;font-weight:500}.blog-prose td p:last-child,.blog-prose th p:last-child{margin-bottom:0}
+@media(max-width:600px){.blog-prose{font-size:1rem;line-height:1.95}.blog-prose h2{font-size:1.5em}.blog-prose blockquote{padding:1em}.blog-prose figure img{border-radius:10px}}
