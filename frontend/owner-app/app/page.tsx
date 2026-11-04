@@ -23,11 +23,15 @@ import {
   LandingNav,
 } from "../components/landing-interactions";
 import { landingMedia } from "../components/landing-media";
+import { LineOaInvite } from "../components/line-oa-invite";
+import { brandSocialMetadata } from "../lib/brand-metadata";
 import "./landing.css";
 
 export async function generateMetadata(): Promise<Metadata> {
-  const { t } = await getTranslator();
-  return {
+  const { locale, t } = await getTranslator();
+  return brandSocialMetadata({
+    locale,
+    path: "/",
     title: t(
       "ชิดใจ · ทุกเรื่องของน้อง อยู่ใกล้ใจ",
       "ChordJai · Their little life, close to your heart",
@@ -36,7 +40,7 @@ export async function generateMetadata(): Promise<Metadata> {
       "เล่าเรื่องน้องผ่าน LINE เก็บอาการ นัดหมาย ค่ารักษา และความทรงจำ เตรียมพบหมอด้วย Pet Passport และเริ่มรู้จัก PetID",
       "Tell ChordJai about your pet on LINE. Keep symptoms, vet visits, expenses and memories together, prepare a Pet Passport, and explore PetID.",
     ),
-  };
+  });
 }
 
 export default async function Landing() {
@@ -267,6 +271,7 @@ export default async function Landing() {
             </span>
           </div>
         </div>
+        <LineOaInvite locale={locale} />
         <section
           className="cj-section cj-wrap"
           id="everyday"
@@ -657,6 +662,7 @@ export default async function Landing() {
       </main>
       <footer className="cj-footer">
         <div className="cj-wrap">
+          <LineOaInvite locale={locale} placement="footer" />
           <div className="cj-footer-top">
             <div>
               <a

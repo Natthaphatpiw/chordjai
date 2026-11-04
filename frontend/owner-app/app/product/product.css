@@ -265,6 +265,9 @@
   gap: 35px;
   align-items: start;
 }
+.product-footer > .product-footer-line {
+  display: block;
+}
 .product-footer > .cj-wrap > div > a {
   font-size: 30px;
   line-height: 1;

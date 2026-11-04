@@ -21,12 +21,16 @@ import {
   LandingNav,
 } from "../../components/landing-interactions";
 import { ProductPhone } from "../../components/product-phone";
+import { LineOaInvite } from "../../components/line-oa-invite";
+import { brandSocialMetadata } from "../../lib/brand-metadata";
 import "../landing.css";
 import "./product.css";
 
 export async function generateMetadata(): Promise<Metadata> {
-  const { t } = await getTranslator();
-  return {
+  const { locale, t } = await getTranslator();
+  return brandSocialMetadata({
+    locale,
+    path: "/product",
     title: t(
       "รู้จักชิดใจ · พื้นที่ของคุณกับน้อง",
       "Explore ChordJai · A space for you and your pet",
@@ -35,7 +39,7 @@ export async function generateMetadata(): Promise<Metadata> {
       "ดูการใช้งานจริงของไดอารี่ดูแลน้อง ผู้ช่วยบน LINE, Pet Passport สมุดความทรงจำ และ PetID",
       "Explore the care diary, LINE assistant, Pet Passport, memory book and PetID through real ChordJai screens.",
     ),
-  };
+  });
 }
 
 export default async function ProductPage() {
@@ -277,6 +281,7 @@ export default async function ProductPage() {
             </div>
           </div>
         </section>
+        <LineOaInvite locale={locale} />
         <nav
           id="product-features"
           className="product-feature-index cj-wrap"
@@ -400,6 +405,9 @@ export default async function ProductPage() {
         </section>
       </main>
       <footer className="product-footer">
+        <div className="cj-wrap product-footer-line">
+          <LineOaInvite locale={locale} placement="footer" />
+        </div>
         <div className="cj-wrap">
           <div>
             <Link href={href("/")}>
